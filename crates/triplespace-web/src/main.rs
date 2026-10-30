@@ -8,7 +8,13 @@
 //! ```text
 //! triplespace-web --api http://api.svc:8080
 //! triplespace-web routes --format caddy
+//! triplespace-web record --api … --host wiki.example --out set.json /wiki/Item:Q6 …
 //! ```
+//!
+//! `record` renders each path given through the site, as a browser at `--host` would ask
+//! for it, and writes every API exchange the pages made to `--out`: a recording the
+//! parity harness of the skin migration replays (`triplespace_client::replay`;
+//! 0097 §16). `--cookie` records as a signed-in viewer.
 
 #![forbid(unsafe_code)]
 
@@ -19,6 +25,7 @@ use anyhow::{Context, Result, bail};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use clap::{Parser, Subcommand};
+use triplespace_client::replay::Record;
 use triplespace_client::{Client, HttpTransport, Incoming};
 use triplespace_ui::routes::{Format, print};
 
@@ -44,6 +51,28 @@ enum Command {
         /// `caddy`, `nginx`, `haproxy`, or `json` for tools.
         #[arg(long, default_value = "caddy")]
         format: String,
+    },
+    /// Renders pages from a real instance and records the API exchanges they made, for
+    /// the parity harness (`cargo xtask skin-parity`).
+    Record {
+        /// The API's base URL, as `--api`.
+        #[arg(long, env = "TRIPLESPACE_WEB_API")]
+        api: String,
+        /// The wiki's host, as the browser would send it.
+        #[arg(long)]
+        host: String,
+        /// Where to write the recording, a JSON list of exchanges.
+        #[arg(long)]
+        out: PathBuf,
+        /// A `Cookie` header value, to record as a signed-in viewer.
+        #[arg(long)]
+        cookie: Option<String>,
+        /// A file holding the forwarder key, as `--forwarder-key-file`.
+        #[arg(long)]
+        forwarder_key_file: Option<PathBuf>,
+        /// The paths to render, `/wiki/Item:Q6`, `/w/index.php?title=…`.
+        #[arg(required = true)]
+        paths: Vec<String>,
     },
 }
 
@@ -98,21 +127,39 @@ fn load_env_file() -> Result<Option<PathBuf>> {
 #[tokio::main]
 async fn run() -> Result<()> {
     let args = Args::parse();
-    if let Some(Command::Routes { format }) = args.command {
-        let Some(f) = Format::parse(&format) else {
-            bail!("--format is caddy, nginx, haproxy or json, not `{format}`");
-        };
-        print!("{}", print(f));
-        return Ok(());
+    match args.command {
+        Some(Command::Routes { format }) => {
+            let Some(f) = Format::parse(&format) else {
+                bail!("--format is caddy, nginx, haproxy or json, not `{format}`");
+            };
+            print!("{}", print(f));
+            Ok(())
+        }
+        Some(Command::Record {
+            api,
+            host,
+            out,
+            cookie,
+            forwarder_key_file,
+            paths,
+        }) => {
+            record(
+                &api,
+                &host,
+                &out,
+                cookie.as_deref(),
+                forwarder_key_file.as_deref(),
+                &paths,
+            )
+            .await
+        }
+        None => serve(args.serve).await,
     }
-    serve(args.serve).await
 }
 
-async fn serve(args: Serve) -> Result<()> {
-    let Some(api) = args.api else {
-        bail!("--api (or TRIPLESPACE_WEB_API) names the API's base URL");
-    };
-    let key = match &args.forwarder_key_file {
+/// The forwarder key a file holds.
+fn read_key(path: Option<&std::path::Path>) -> Result<Option<String>> {
+    match path {
         Some(path) => {
             let k = std::fs::read_to_string(path)
                 .with_context(|| format!("read {}", path.display()))?
@@ -121,10 +168,82 @@ async fn serve(args: Serve) -> Result<()> {
             if k.is_empty() {
                 bail!("{} is empty", path.display());
             }
-            Some(k)
+            Ok(Some(k))
         }
-        None => None,
+        None => Ok(None),
+    }
+}
+
+/// Renders each path through the site over a recording transport and writes the
+/// exchanges.
+async fn record(
+    api: &str,
+    host: &str,
+    out: &std::path::Path,
+    cookie: Option<&str>,
+    key_file: Option<&std::path::Path>,
+    paths: &[String],
+) -> Result<()> {
+    use axum::body::Body;
+    use axum::http::{Request, header};
+    use tower::ServiceExt as _;
+
+    let transport = HttpTransport::new(api, read_key(key_file)?)
+        .await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let recorder = std::sync::Arc::new(Record::new(transport));
+    let client = Client::new(Shared(recorder.clone()));
+    for path in paths {
+        let mut req = Request::get(path).header(header::HOST, host);
+        if let Some(c) = cookie {
+            req = req.header(header::COOKIE, c);
+        }
+        let r = triplespace_ui::router_with_build(client.clone(), VERSION_JSON)
+            .oneshot(req.body(Body::empty()).context("request")?)
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        eprintln!("{} {path}", r.status());
+    }
+    // One entry per distinct request: the frame asks for `siteinfo` on every page.
+    let exchanges: Vec<_> = triplespace_client::replay::Replay::new(recorder.exchanges())
+        .exchanges()
+        .cloned()
+        .collect();
+    let text = serde_json::to_string_pretty(&exchanges).context("encode the recording")?;
+    std::fs::write(out, text).with_context(|| format!("write {}", out.display()))?;
+    eprintln!("{} exchanges written to {}", exchanges.len(), out.display());
+    Ok(())
+}
+
+/// A transport shared with the recorder, so that the exchanges can be read after the
+/// client is done with it.
+struct Shared<T>(std::sync::Arc<Record<T>>);
+
+impl<T: triplespace_client::Transport> triplespace_client::Transport for Shared<T> {
+    fn send(
+        &self,
+        request: triplespace_client::ApiRequest,
+    ) -> triplespace_client::transport::BoxFuture<
+        '_,
+        Result<triplespace_client::ApiResponse, triplespace_client::ClientError>,
+    > {
+        self.0.send(request)
+    }
+
+    fn embedded(&self) -> bool {
+        self.0.embedded()
+    }
+
+    fn forwarder_key(&self) -> Option<&str> {
+        self.0.forwarder_key()
+    }
+}
+
+async fn serve(args: Serve) -> Result<()> {
+    let Some(api) = args.api else {
+        bail!("--api (or TRIPLESPACE_WEB_API) names the API's base URL");
     };
+    let key = read_key(args.forwarder_key_file.as_deref())?;
     let transport = HttpTransport::new(&api, key)
         .await
         .map_err(|e| anyhow::anyhow!("{e}"))?;

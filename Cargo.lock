@@ -3584,10 +3584,12 @@ version = "0.0.1"
 dependencies = [
  "askama",
  "axum",
+ "html5ever 0.39.0",
  "http-body-util",
  "icu_locale_core",
  "icu_plurals",
  "insta",
+ "markup5ever_rcdom",
  "percent-encoding",
  "rust-embed",
  "scatter-titles",
@@ -3623,6 +3625,7 @@ dependencies = [
  "dotenvy",
  "serde_json",
  "tokio",
+ "tower",
  "triplespace-client",
  "triplespace-ui",
 ]

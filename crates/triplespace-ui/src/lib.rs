@@ -25,6 +25,8 @@
 //! - [`assets`]: the built frontend (`ui/dist`), embedded, and its manifest.
 //! - [`i18n`]: interface messages from `i18n/` (0034 §9).
 //! - [`html`]: escaping, for the pieces too small for a template.
+//! - [`parity`]: two renderings of a page compared as a browser reads them, for the
+//!   skin migration (0097 §16).
 
 #![forbid(unsafe_code)]
 
@@ -41,6 +43,7 @@ pub mod html;
 pub mod i18n;
 pub mod moderation;
 pub mod pages;
+pub mod parity;
 pub mod routes;
 pub mod special;
 pub mod theme;

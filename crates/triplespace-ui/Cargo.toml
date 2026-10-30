@@ -12,6 +12,8 @@ publish = false
 [dependencies]
 triplespace-client.workspace = true
 askama.workspace = true
+html5ever.workspace = true
+markup5ever_rcdom.workspace = true
 axum.workspace = true
 rust-embed.workspace = true
 serde.workspace = true

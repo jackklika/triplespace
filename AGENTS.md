@@ -16,7 +16,7 @@ QuickStatements). James Hare (Scatter LLC) owns it; he decides, and agents draft
 | `docs/api/` | Compatibility contracts with Wikibase and MediaWiki, golden snapshots, log test vectors, the OpenAPI file. | Contracts are tested where they are implemented. |
 | `crates/` | One workspace: `scatter-*` (shared with Scatterbase, knows nothing of Triplespace) and `triplespace-*` (the product). | See the crate rules below. |
 | `tools/` | Scripts outside the build: dump slicing, client-compatibility checks, talk-page prototypes. `tools/README.md`. | |
-| `xtask/` | `cargo xtask deps` (dependency graph vs. `docs/registry/crates.toml`), `wasm`, `manifest`. | |
+| `xtask/` | `cargo xtask deps` (dependency graph vs. `docs/registry/crates.toml`), `wasm`, `manifest`, `skin-parity` (the skin migration's harness: `crates/triplespace-ui/tests/parity.rs` over `tests/corpus/`, with its report). | |
 | `ui/`, `i18n/` | The site front end (Codex, Vite) and interface messages. | |
 
 **Looking things up:** `tools/adr.py` answers the common questions in one call:

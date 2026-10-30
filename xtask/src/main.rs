@@ -6,6 +6,7 @@
 //! - `wasm`: builds every crate the map marks `wasm` (22 §1.2 rule 7), skipping the ones that do
 //!   not exist yet.
 //! - `manifest`: writes the component manifest of ADR 0077 §15 ([`manifest`]).
+//! - `skin-parity`: the parity harness of the skin migration, with its report ([`parity`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -15,6 +16,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use serde::Deserialize;
 
 mod manifest;
+mod parity;
 
 /// The crate map: every crate, its layer, what it may depend on, and the `pure` and `wasm`
 /// marks (22 §2.1). `docs/architecture/crates.py` generates the chapter's table from it.
@@ -67,8 +69,9 @@ fn run() -> Result<()> {
         Some("deps") => deps(&root),
         Some("wasm") => wasm(&root),
         Some("manifest") => manifest::run(&root, args),
-        Some(other) => bail!("unknown task `{other}`; tasks: deps, wasm, manifest"),
-        None => bail!("usage: cargo xtask <deps|wasm|manifest>"),
+        Some("skin-parity") => parity::run(&root, args),
+        Some(other) => bail!("unknown task `{other}`; tasks: deps, wasm, manifest, skin-parity"),
+        None => bail!("usage: cargo xtask <deps|wasm|manifest|skin-parity>"),
     }
 }
 
