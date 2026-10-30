@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-10-29
-- **Updated:** 2026-10-30 (A1)
+- **Updated:** 2026-10-30 (A2)
 - **Author:** James Hare / Claude Opus
 - **Changes:** [0005](0005-crate-organization.md), [0015](0015-record-format-and-partition-registry.md), [0034](0034-frontend-stack.md), [0057](0057-web-tier.md), [0077](0077-special-version.md), [0086](0086-theming.md), [0095](0095-the-interface-namespace.md)
 - **Uses:** [0012](0012-api-requirements.md), [0028](0028-tenancy-policy.md), [0050](0050-adr-format.md), [0055](0055-templatestyles-templatedata-and-page-properties.md), [0058](0058-packed-record-storage.md), [0085](0085-settings-and-preferences.md)
@@ -62,9 +62,13 @@ James's direction, from the design discussion of 2026-10-29:
 
 ### 8. Skins (amends 0034 §2)
 
+*Changed by A2.*
+
 *Current text: [19](../architecture/19-site-ui.md) §5.2, §5.10; [21](../architecture/21-special-pages.md) §5.6; [23](../architecture/23-configuration-and-registry.md) §3.4.*
 
 ### 9. The template contract (extends 0034 §2)
+
+*Changed by A2.*
 
 *Current text: [19](../architecture/19-site-ui.md) §5.10.*
 
@@ -82,6 +86,8 @@ James's direction, from the design discussion of 2026-10-29:
 
 ### 13. Message bundles (amends 0034 §9; extends 0095 §2)
 
+*Changed by A2.*
+
 *Current text: [19](../architecture/19-site-ui.md) §5.6.*
 
 ### 14. Theme tokens (extends 0086 §5)
@@ -94,9 +100,13 @@ James's direction, from the design discussion of 2026-10-29:
 
 ### 16. Reaching parity, then removing the built-in rendering
 
+*Changed by A2.*
+
 *Current text: [19](../architecture/19-site-ui.md) §5.10.*
 
 ### 17. Crates (amends 0005 §2)
+
+*Changed by A2.*
 
 *Current text: [22](../architecture/22-crates-and-stack.md) §2.1.*
 
@@ -126,7 +136,7 @@ James's direction, from the design discussion of 2026-10-29:
 - **Q1.** ~~**Rollback.** Whether a minor that introduces a record major ships it behind a switch first, off by default for one minor, so that every minor can be rolled back.~~ *Settled by §4: yes; the release that writes it by default is a product major.*
 - **Q2. Additive payload changes.** Whether the current payload encodings admit fields an older reader ignores, as §4's minor assumes, or whether every payload change is in practice a major until the encodings are made extensible.
 - **Q3.** ~~**A reader's own skin.** Whether a reader may choose among the installed skins, as MediaWiki's skin preference allows, or the wiki's skin is the only choice.~~ *Settled by §8: readers choose among the skins the wiki makes available; what a tenant may make available or disable is the instance's default, ceiling and lock for `skins.available`.*
-- **Q4. Skin licences.** The default skin is GPL-3.0-or-later with the rest of the repository. Whether an operator's skin, which the binary interprets and does not link, must be.
+- **Q4. Skin licences.** Plain and Worksheet are GPL-3.0-or-later with the rest of the repository. Whether an operator's skin, which the binary interprets and does not link, must be.
 - **Q5. Extra view-model fields.** Whether a skin may ask for data from a fixed list the binary offers (assessment, protection, short description, edit counts), fetched only when a skin asks for it; deferred until the default skin needs one.
 
 ## References
@@ -146,3 +156,28 @@ James's direction, from the design discussion of 2026-10-29:
 - **Source:** [0050](0050-adr-format.md) §14
 - **Change:** relocates §1–§18
 - **Summary:** The Decision's current text now lives in the architecture chapters [01](../architecture/01-log-and-records.md), [03](../architecture/03-storage-caches-and-search.md), [19](../architecture/19-site-ui.md), [20](../architecture/20-web-tier.md), [21](../architecture/21-special-pages.md), [22](../architecture/22-crates-and-stack.md), [23](../architecture/23-configuration-and-registry.md), in the sections each pointer names; this ADR keeps its headings, provenance lines, Context, Consequences, Open questions and this log. The last commit in which this file carried the text is `2e2a7c8`. No decision changed.
+
+### A2. Plain and Worksheet; switching by group
+
+- **Date:** 2026-10-30
+- **Source:** Direct: James, design discussion of 2026-10-30
+- **Change:** amends §8, §13, §16, §17; extends §9
+- **Summary:** Two skins ship. **Plain** draws the site's HTML and loads no stylesheet of its own; its DOM (element structure, class names, `data-` attributes, landmarks) is a contract versioned as Plain's version, with Codex's class names where Codex has a component and `ts-` classes filling the gaps. **Worksheet**, the default (`skins.default` defaults to `worksheet`), is Plain plus Codex's and the site's stylesheets. A skin either extends Plain, naming it as parent and adding stylesheets and the files they use and nothing else, so that everything written against Plain's DOM works on it; or stands alone, implementing the template contract with its own DOM, free but outside that compatibility. Plain is useful unstyled to operators building their own look, to readers styling it client-side, and to readers using assistive technology. Plain is written first to reproduce today's HTML, and parity is measured on Worksheet. The migration switches by group, not once: a group switches when its snapshot tests are unchanged, it is equal on the corpus, the Playwright and axe suite passes under both renderers, it is equal under `compare` on staging, and its median and 95th-percentile server render time is within 5% of the built-in renderer's; its built-in code is then deleted. The staging instance is the one the developing agent runs, seeded from a real wiki's dump, and its soak is a crawl of every page and a replay of the Playwright flows with no difference logged. Feature work on the site pauses while the migration runs. A skin's message keys carry `plain-` (a skin that extends Plain adds none). The template contract leaves major 0 when a skin that stands alone renders every route. The chapter text is [19](../architecture/19-site-ui.md) §5.2, §5.6 and §5.10.
+
+Replaced text ([19](../architecture/19-site-ui.md) §5.10, as it stood):
+
+> - **The default skin** is `skins/default/` in the repository, embedded in both binaries and used where no other is installed or chosen; an installed skin of the same name replaces it.
+
+> - **The manifest**, `skin.toml`, gives the name, version, licence and requirements: the template contract and the Codex token major it is written for. A skin whose requirements the binary does not meet is not loaded, and the reason is logged and shown on `Special:Version`.
+
+> **Reaching parity.** The default skin first reproduces today's HTML. Deployment configuration `server.renderer` and `web.renderer` is `builtin` (until parity), `skin` or `compare`, which renders each page both ways, serves the built-in result and logs each route that differs. Results are compared as normalized DOM, fragments byte for byte, with `html::esc` as the skin's escaper, over every route of the routing table for a fixture wiki as an anonymous reader, a user and an administrator, for each content model, right to left, in night mode, with each feature switch on and off, and on a private tenant; the Playwright and axe suite runs against both. The frame moves first, then entity pages, then the rest route by route, each once it is equal on the corpus and has run under `compare` on a staging instance without a difference; then the built-in rendering and `renderer` are removed. The template contract stays at major 0 until a second skin, structurally different from the default, renders every route.
+
+Replaced text ([19](../architecture/19-site-ui.md) §5.2, as it stood):
+
+> - **Skins:** the HTML is drawn by a skin the operator installs (§5.10; [0097](../decisions/0097-versioning-and-skins.md) §8): MiniJinja templates over view models the binary builds. Until the default skin reproduces today's pages, the built-in rendering draws them, in `askama` templates compiled and type-checked with the Rust code, and is then removed.
+
+> - **Codex markup:** the default skin's macros emit Codex CSS-only component markup (buttons, fields, tables, cards, tabs, messages, chips, progress bars), following the approach of WMF's Codex PHP, so a Codex markup change is one edit; until parity, a Rust builder module does the same for the built-in rendering. Another skin may use other components.
+
+Replaced text ([19](../architecture/19-site-ui.md) §5.6, as it stood):
+
+> - Interface messages are **banana JSON** files in **bundles**, each with its own version ([0097](../decisions/0097-versioning-and-skins.md) §13): the binary's in `i18n/` (errors, notifications, mail, API text) and each skin's in the skin's own `i18n/`, each with `en.json`, `qqq.json` for documentation and one file per language, so that each can be registered with translatewiki.net like any MediaWiki extension. **A skin's keys carry its name as a prefix** (`default-…`), as MediaWiki's skins prefix theirs, so a key belongs to one bundle and an Interface override names it unambiguously; switching skins leaves the overrides of the old skin's keys in place and inert. Renaming or removing a key is a major of its bundle; a new translation is a patch.

@@ -399,7 +399,7 @@ Every unstruck question in every ADR (24 §8), with its first sentence. Settle o
 | [0096 Q2](0096-adopting-any-mediawiki.md) | Pages or items | Whether the drafted mapping should propose `page` or `item` for a kind of subject by default, or leave every choice open as §5.3 does. |
 | [0096 Q3](0096-adopting-any-mediawiki.md) | Which queries translate | Which subset of `#ask` conditions and printouts, and of `#cargo_query`'s `where`, `join on` and `group by`, the converter expresses in SPARQL, and which result formats it carries to a `{{#query:}}` block. |
 | [0097 Q2](0097-versioning-and-skins.md) | Additive payload changes | Whether the current payload encodings admit fields an older reader ignores, as §4's minor assumes, or whether every payload change is in practice a major until the encodings are made extensible. |
-| [0097 Q4](0097-versioning-and-skins.md) | Skin licences | The default skin is GPL-3.0-or-later with the rest of the repository. |
+| [0097 Q4](0097-versioning-and-skins.md) | Skin licences | Plain and Worksheet are GPL-3.0-or-later with the rest of the repository. |
 | [0097 Q5](0097-versioning-and-skins.md) | Extra view-model fields | Whether a skin may ask for data from a fixed list the binary offers (assessment, protection, short description, edit counts), fetched only when a skin asks for it; deferred until the default skin needs one. |
 | [0099 Q1](0099-status-from-the-code.md) | Trailers | Trailer sections (Crates, API, UI, Storage, …) are left out of the status. |
 | [0099 Q2](0099-status-from-the-code.md) | Tests for non-code sections | A section about crate layout or naming is "tested" by the check that enforces it (`xtask deps` cites 22 §1.2), which `coverage.py` classes as src. |
