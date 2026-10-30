@@ -122,7 +122,9 @@ pub fn get(path: &str) -> Option<(Cow<'static, [u8]>, &'static str)> {
     Some((file.data, content_type(path)))
 }
 
-fn content_type(path: &str) -> &'static str {
+/// The content type of a file, by its extension.
+#[must_use]
+pub fn content_type(path: &str) -> &'static str {
     match path.rsplit('.').next().unwrap_or_default() {
         "css" => "text/css; charset=utf-8",
         "js" | "mjs" => "text/javascript; charset=utf-8",

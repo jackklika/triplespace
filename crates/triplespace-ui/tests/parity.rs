@@ -3,9 +3,9 @@
 //! browser reads it (`triplespace_ui::parity`), and the time each renderer took is
 //! measured.
 //!
-//! Until the skin engine exists, both renderers are the built-in one, and the harness
-//! proves its own baseline: a page rendered twice is equal, so every difference the
-//! migration reports later is a real one.
+//! The built-in renderer against itself was the baseline (2026-10-30, 56 of 56 equal):
+//! a page rendered twice is equal, so every difference reported is a real one. Now the
+//! skin renderer (`Renderer::Skin`, Worksheet) is compared against the built-in one.
 //!
 //! `cargo xtask skin-parity` runs this with a report (`SKIN_PARITY_REPORT`, a TSV path)
 //! and timing rounds (`SKIN_PARITY_ROUNDS`, default 1; the renderers alternate within a
@@ -66,12 +66,7 @@ struct Corpus {
 /// them must be equal; none yet.
 const MIGRATED: &[u8] = &[];
 
-/// Which renderer draws a page. Until the engine exists both are the built-in one.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Renderer {
-    Builtin,
-    Skin,
-}
+use triplespace_ui::{Renderer, Site};
 
 fn corpus() -> Corpus {
     let path = format!("{}/tests/corpus/cases.json", env!("CARGO_MANIFEST_DIR"));
@@ -105,7 +100,7 @@ struct Rendering {
     body: String,
 }
 
-async fn render(client: &Client, case: &Case, _renderer: Renderer) -> Rendering {
+async fn render(client: &Client, case: &Case, renderer: Renderer) -> Rendering {
     let mut req = Request::get(&case.path).header(header::HOST, "librarybase.org");
     if case.viewer == "user" {
         req = req.header(header::COOKIE, "triplespace_session=alice");
@@ -113,7 +108,7 @@ async fn render(client: &Client, case: &Case, _renderer: Renderer) -> Rendering 
     for (k, v) in &case.headers {
         req = req.header(k.as_str(), v.as_str());
     }
-    let r = triplespace_ui::router(client.clone())
+    let r = triplespace_ui::router_for(Site::new(client.clone()).with_renderer(renderer))
         .oneshot(req.body(Body::empty()).unwrap())
         .await
         .unwrap();
@@ -302,4 +297,53 @@ async fn every_case_is_answered() {
             r.body.chars().take(300).collect::<String>()
         );
     }
+}
+
+/// The skin renderer draws the page through the skin: Plain links no site stylesheet,
+/// Worksheet links it, and the built-in result is Worksheet's page byte for byte but
+/// for entity spelling (0097 A3: `askama` writes `&#38;` where `html::esc` writes
+/// `&amp;`).
+#[tokio::test(flavor = "multi_thread")]
+async fn the_skin_renderer_draws_through_the_skin() {
+    let client = client("fixture");
+    let case = |path: &str| Case {
+        name: "x".into(),
+        set: "fixture".into(),
+        path: path.into(),
+        viewer: anonymous(),
+        headers: BTreeMap::new(),
+        group: 1,
+        status: 200,
+    };
+    let worksheet = render(&client, &case("/wiki/Item:Q6"), Renderer::Skin).await;
+    let plain = render(
+        &client,
+        &case("/wiki/Item:Q6?useskin=plain"),
+        Renderer::Skin,
+    )
+    .await;
+    let builtin = render(&client, &case("/wiki/Item:Q6"), Renderer::Builtin).await;
+    assert!(worksheet.body.starts_with("<!DOCTYPE html>\n<html "));
+    assert!(plain.body.starts_with("<!DOCTYPE html>\n<html "));
+    // The fixture build has no `ui/dist`, so neither links a site stylesheet; the
+    // theme's are linked by both.
+    assert!(worksheet.body.contains("id=\"ts-palette\""));
+    assert!(plain.body.contains("id=\"ts-palette\""));
+    assert_eq!(
+        compare(&worksheet.body, &builtin.body, Kind::Document),
+        None
+    );
+    let spelled = builtin
+        .body
+        .replace("&#38;", "&amp;")
+        .replace("&#60;", "&lt;")
+        .replace("&#62;", "&gt;")
+        .replace("&#34;", "&quot;");
+    assert_eq!(
+        worksheet.body, spelled,
+        "Worksheet is the built-in frame, byte for byte"
+    );
+    // `compare` serves the built-in result.
+    let compared = render(&client, &case("/wiki/Item:Q6"), Renderer::Compare).await;
+    assert_eq!(compared.body, builtin.body);
 }

@@ -1651,6 +1651,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "minijinja"
+version = "3.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "00f5a04892e86ddb4fc254e9160835370b63a0d44042d3ab4725bc2dbcbab136"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "miniz_oxide"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3590,11 +3599,13 @@ dependencies = [
  "icu_plurals",
  "insta",
  "markup5ever_rcdom",
+ "minijinja",
  "percent-encoding",
  "rust-embed",
  "scatter-titles",
  "scatter-wikibase-model",
  "scatter-wikibase-shape",
+ "semver",
  "serde",
  "serde_json",
  "sha2 0.10.9",

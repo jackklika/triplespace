@@ -31,8 +31,9 @@ use crate::features::Features;
 use crate::frame::{self, Chrome, Page, title_url};
 use crate::i18n::{self, Messages};
 use crate::routes::{self, Target};
+use crate::skin::Skin;
 use crate::theme::Theme;
-use crate::{MIN_API_VERSION, Site, assets};
+use crate::{MIN_API_VERSION, Renderer, Site, assets, parity};
 use crate::{document, entity, home, moderation, special};
 
 /// The connection address, when the server was started with `ConnectInfo`.
@@ -117,6 +118,12 @@ pub struct Context {
     /// A signed-in viewer's unread notifications, for the bell and the orange bar
     /// (19 §6.2); `None` where the API serves none or did not answer.
     pub notifications: Option<Counts>,
+    /// The skin that draws the page (0097 §8): `useskin=`, the reader's `ui.skin`, the
+    /// wiki's `skins.default`, in that order, among the skins the wiki offers; `None`
+    /// only when no skin at all is loaded.
+    pub skin: Option<std::sync::Arc<Skin>>,
+    /// Which renderer draws the page (19 §5.10).
+    pub renderer: Renderer,
 }
 
 impl Context {
@@ -237,6 +244,20 @@ pub async fn context(
         Messages::for_language(&lang).with_overrides(si.value.interface.clone(), &si.value.lang);
     let theme = Theme::from_info(si.value.theme.as_ref()).with_chips(&si.value.providers);
     let features = Features::of(&si.value);
+    let pref_skin = prefs
+        .as_ref()
+        .and_then(|p| p.get("ui.skin"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string);
+    let skin = site
+        .skins()
+        .choose(
+            query.get("useskin").map(String::as_str),
+            pref_skin.as_deref(),
+            si.value.skins.default.as_deref(),
+            si.value.skins.available.as_deref(),
+        )
+        .cloned();
     Ok(Context {
         site: si.value,
         user,
@@ -249,6 +270,8 @@ pub async fn context(
         rights,
         groups,
         notifications,
+        skin,
+        renderer: site.renderer(),
     })
 }
 
@@ -348,10 +371,22 @@ pub fn message(kind: MessageKind, text: &str) -> String {
     Message::block(kind, text).render().unwrap_or_default()
 }
 
-/// The composed `ETag`, if every input had one.
-fn composed_etag(m: &Messages, status: StatusCode, inputs: &[CacheInfo]) -> Option<String> {
+/// The composed `ETag`, if every input had one. The build it hashes is the binary's
+/// and, where the skin draws the page, the skin's name and version (0097 §15), so a
+/// skin upgrade or a change of skin is build skew.
+fn composed_etag(
+    m: &Messages,
+    status: StatusCode,
+    inputs: &[CacheInfo],
+    skin: Option<&str>,
+) -> Option<String> {
     let mut h = Sha256::new();
-    for part in [assets::build_id(), m.lang(), status.as_str()] {
+    for part in [
+        assets::build_id(),
+        m.lang(),
+        status.as_str(),
+        skin.unwrap_or_default(),
+    ] {
         h.update(part.as_bytes());
         h.update([0]);
     }
@@ -413,7 +448,11 @@ fn revalidated(
     headers: &HeaderMap,
     status: StatusCode,
 ) -> (Option<String>, Option<Response>) {
-    let etag = composed_etag(&cx.m, status, &cx.inputs);
+    let skin_build = match cx.renderer {
+        Renderer::Skin => cx.skin.as_ref().map(|s| s.build()),
+        Renderer::Builtin | Renderer::Compare => None,
+    };
+    let etag = composed_etag(&cx.m, status, &cx.inputs, skin_build.as_deref());
     if status == StatusCode::OK
         && let Some(e) = &etag
         && not_modified(headers, e)
@@ -439,9 +478,9 @@ pub fn respond(
         return r;
     }
     let page = build(&cx.m);
-    let html = match frame::render(&cx.m, &cx.chrome(), &cx.theme, cx.user.as_deref(), &page) {
+    let html = match draw(cx, &page) {
         Ok(h) => h,
-        Err(e) => return render_failed(&e),
+        Err(r) => return *r,
     };
     let mut r = Response::new(Body::from(html));
     *r.status_mut() = status;
@@ -451,6 +490,66 @@ pub fn respond(
     );
     caching(r.headers_mut(), etag.as_deref(), &cx.inputs);
     r
+}
+
+/// Draws a page in the frame with the renderer the deployment runs (19 §5.10): the
+/// built-in rendering, the skin, or both under `compare`, which serves the built-in
+/// result and logs the route when they differ. `Err` is the internal error to answer
+/// with.
+fn draw(cx: &Context, page: &Page) -> Result<String, Box<Response>> {
+    let model = frame::model(
+        &cx.m,
+        &cx.chrome(),
+        &cx.theme,
+        cx.user.as_deref(),
+        page,
+        cx.skin.as_deref(),
+    );
+    let failed =
+        || Box::new((StatusCode::INTERNAL_SERVER_ERROR, "Internal error\n").into_response());
+    let builtin = || {
+        frame::render_builtin(&cx.m, &model).map_err(|e| {
+            eprintln!("triplespace-ui: a template failed to render: {e}");
+            failed()
+        })
+    };
+    let skin = || {
+        let Some(s) = &cx.skin else {
+            eprintln!("triplespace-ui: no skin is loaded");
+            return Err(failed());
+        };
+        frame::render_skin(s, &cx.m, &model).map_err(|e| {
+            eprintln!(
+                "triplespace-ui: the skin `{}` failed to render: {e:#}",
+                s.name()
+            );
+            failed()
+        })
+    };
+    match cx.renderer {
+        Renderer::Builtin => builtin(),
+        Renderer::Skin => skin(),
+        Renderer::Compare => {
+            let b = builtin()?;
+            match skin() {
+                Ok(s) => {
+                    if let Some(d) = parity::compare(&b, &s, parity::Kind::Document) {
+                        eprintln!(
+                            "triplespace-ui: compare: {} differs for {}: {}",
+                            cx.skin.as_ref().map_or("?", |s| s.name()),
+                            page.title,
+                            d.to_string().replace('\n', " ")
+                        );
+                    }
+                }
+                Err(_) => eprintln!(
+                    "triplespace-ui: compare: the skin failed for {}",
+                    page.title
+                ),
+            }
+            Ok(b)
+        }
+    }
 }
 
 /// A region for `action=render` (0057 §8): its HTML alone, with the caching of the page
@@ -889,6 +988,34 @@ pub async fn asset(Path(path): Path<String>) -> Response {
     }
 }
 
+/// `/ui/skins/{skin}/{hash}/{path}`: a file of a loaded skin, content-hashed in its URL
+/// (19 §5.10). A stale hash gets the current file for a minute, as the theme's
+/// stylesheets do.
+pub async fn skin_asset(
+    State(site): State<Site>,
+    Path((skin, hash, path)): Path<(String, String, String)>,
+) -> Response {
+    let Some(s) = site.skins().get(&skin) else {
+        return (StatusCode::NOT_FOUND, "Not found\n").into_response();
+    };
+    let Some(data) = s.file(&path) else {
+        return (StatusCode::NOT_FOUND, "Not found\n").into_response();
+    };
+    let cache = if hash == s.hash() {
+        "public, max-age=31536000, immutable"
+    } else {
+        "public, max-age=60"
+    };
+    (
+        [
+            (header::CONTENT_TYPE, assets::content_type(&path)),
+            (header::CACHE_CONTROL, cache),
+        ],
+        data.to_vec(),
+    )
+        .into_response()
+}
+
 /// `/ui/theme/{p|t}-{name}-{hash}.css`: a palette's or a type set's stylesheet (0086 §5).
 /// Kept for a year when the name is the hash of the text served; a stale name gets the
 /// current text for a minute, so that a page cached across a change still looks right.
@@ -970,13 +1097,35 @@ mod tests {
     #[test]
     fn the_composed_etag_needs_every_input_etag() {
         let m = Messages::for_language("en");
-        let a = composed_etag(&m, StatusCode::OK, &[info(true, Some("\"a\""), &[])]).unwrap();
-        let b = composed_etag(&m, StatusCode::OK, &[info(true, Some("\"b\""), &[])]).unwrap();
-        let n =
-            composed_etag(&m, StatusCode::NOT_FOUND, &[info(true, Some("\"a\""), &[])]).unwrap();
+        let a = composed_etag(&m, StatusCode::OK, &[info(true, Some("\"a\""), &[])], None).unwrap();
+        let b = composed_etag(&m, StatusCode::OK, &[info(true, Some("\"b\""), &[])], None).unwrap();
+        let n = composed_etag(
+            &m,
+            StatusCode::NOT_FOUND,
+            &[info(true, Some("\"a\""), &[])],
+            None,
+        )
+        .unwrap();
         assert_ne!(a, b);
         assert_ne!(a, n);
-        assert!(composed_etag(&m, StatusCode::OK, &[info(true, None, &[])]).is_none());
+        assert!(composed_etag(&m, StatusCode::OK, &[info(true, None, &[])], None).is_none());
+        // The skin that drew the page is part of the build it hashes (0097 §15).
+        let worksheet = composed_etag(
+            &m,
+            StatusCode::OK,
+            &[info(true, Some("\"a\""), &[])],
+            Some("worksheet 0.1.0"),
+        )
+        .unwrap();
+        let plain = composed_etag(
+            &m,
+            StatusCode::OK,
+            &[info(true, Some("\"a\""), &[])],
+            Some("plain 0.1.0"),
+        )
+        .unwrap();
+        assert_ne!(worksheet, plain);
+        assert_ne!(worksheet, a);
         let mut req = HeaderMap::new();
         req.insert(header::IF_NONE_MATCH, format!("W/{a}").parse().unwrap());
         assert!(not_modified(&req, &a));

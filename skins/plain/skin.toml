@@ -1,0 +1,13 @@
+# Plain (0097 §8; 19 §5.10): the skin that draws the site's HTML and loads no stylesheet of
+# its own. Its DOM is the contract other skins' stylesheets, readers' own styles and
+# assistive technology rely on, versioned here. GPL-3.0-or-later with the repository.
+name = "plain"
+version = "0.1.0"
+licence = "GPL-3.0-or-later"
+stylesheets = []
+
+[requires]
+# The template contract this skin is written for, and the Codex token major its class
+# names follow (19 §5.9).
+template_contract = "0.1"
+codex_tokens = 2

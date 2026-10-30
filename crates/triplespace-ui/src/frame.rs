@@ -7,6 +7,10 @@
 //! `Special:Notifications` with the unread count, marked while something unread is newer
 //! than their last look; and while a `talk` notification is unread, the **orange bar**
 //! above the page's title says that they have a new message, until they read it.
+//!
+//! The frame is drawn by the built-in `askama` template or by the skin's `frame.html`
+//! over the same view model, [`Model`] (19 §5.10); which one, the deployment's
+//! [`crate::Renderer`] says.
 
 use askama::Template;
 use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
@@ -15,6 +19,7 @@ use crate::assets;
 use crate::codex::SearchInput;
 use crate::features::{Feature, Features};
 use crate::i18n::Messages;
+use crate::skin::Skin;
 use crate::theme::{Sheet, Theme};
 
 /// The characters a title keeps unencoded in a path or a query value, as MediaWiki's
@@ -38,7 +43,7 @@ pub fn title_url(title: &str) -> String {
 }
 
 /// One of the page's tabs.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Tab {
     /// The label.
     pub label: String,
@@ -49,7 +54,7 @@ pub struct Tab {
 }
 
 /// The signed-in viewer, for the account menu.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Account {
     /// The name.
     pub name: String,
@@ -123,8 +128,8 @@ pub struct Chrome<'a> {
 }
 
 /// The bell (19 §6.2).
-#[derive(Debug)]
-struct Bell {
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct Bell {
     /// The count shown: empty for none, `99+` past 99.
     count: String,
     /// Its accessible name, with the count in words.
@@ -133,10 +138,79 @@ struct Bell {
     unseen: bool,
 }
 
-/// The frame.
+/// The frame's view model (19 §5.10): everything the frame template draws, computed.
+/// `*_html` and the pieces named as such are HTML built from escaped parts; the rest is
+/// text the template escapes.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct Model {
+    /// The page's language and direction, on `<html>`.
+    pub lang: String,
+    /// `ltr` or `rtl`.
+    pub dir: String,
+    /// The site's name.
+    pub sitename: String,
+    /// The title, as shown.
+    pub title: String,
+    /// The title's language, where it differs from the page's.
+    pub title_lang: Option<String>,
+    /// The document title.
+    pub doc_title: String,
+    /// The identity line, HTML.
+    pub identity: Option<String>,
+    /// Under the title, HTML.
+    pub subtitle: Option<String>,
+    /// The tabs.
+    pub tabs: Vec<Tab>,
+    /// The overflow menu's actions, label and target.
+    pub actions: Vec<(String, String)>,
+    /// The body, HTML.
+    pub body: String,
+    /// The search box, HTML, where the site offers search.
+    pub search: Option<String>,
+    /// The signed-in viewer's account menu.
+    pub account: Option<Account>,
+    /// The main page's URL.
+    pub mainpage_href: String,
+    /// Whether a **Log in** link is offered.
+    pub login: bool,
+    /// The site's links, label and target.
+    pub nav: Vec<(String, String)>,
+    /// The **New** menu, label and target.
+    pub new_menu: Vec<(String, String)>,
+    /// Where login and logout return to, as a URL title.
+    pub returnto: String,
+    /// The stylesheets a page links, in order, before the theme's: the skin chain's.
+    pub stylesheets: Vec<String>,
+    /// The script.
+    pub js: Option<String>,
+    /// The blocking script in `<head>`.
+    pub head_js: Option<String>,
+    /// The palette's stylesheet.
+    pub palette_href: Option<String>,
+    /// The type set's stylesheet.
+    pub typeset_href: Option<String>,
+    /// The theme's data block, JSON.
+    pub theme_data: String,
+    /// The classes on `<html>`.
+    pub html_class: String,
+    /// The attributes on `<html>`, HTML.
+    pub html_attrs: String,
+    /// The Appearance panel, HTML.
+    pub appearance: String,
+    /// The Appearance data block, JSON.
+    pub appearance_data: String,
+    /// The bell.
+    pub bell: Option<Bell>,
+    /// The orange bar, HTML.
+    pub orange_bar: Option<String>,
+    /// The watch control, HTML; empty for none.
+    pub watch: String,
+}
+
+/// The frame, as the built-in rendering draws it over the model.
 #[derive(Debug, Template)]
 #[template(path = "frame.html")]
-pub struct Frame<'a> {
+struct Frame<'a> {
     m: &'a Messages,
     sitename: &'a str,
     title: &'a str,
@@ -147,26 +221,26 @@ pub struct Frame<'a> {
     tabs: &'a [Tab],
     actions: &'a [(String, String)],
     body: &'a str,
-    search: Option<String>,
-    account: Option<Account>,
-    mainpage_href: String,
+    search: Option<&'a str>,
+    account: Option<&'a Account>,
+    mainpage_href: &'a str,
     login: bool,
-    nav: Vec<(String, String)>,
-    new_menu: Vec<(String, String)>,
-    returnto: String,
+    nav: &'a [(String, String)],
+    new_menu: &'a [(String, String)],
+    returnto: &'a str,
     css: Option<&'a str>,
     js: Option<&'a str>,
     head_js: Option<&'a str>,
-    palette_href: Option<String>,
-    typeset_href: Option<String>,
-    theme_data: String,
-    html_class: String,
-    html_attrs: String,
-    appearance: String,
-    appearance_data: String,
-    bell: Option<Bell>,
-    orange_bar: Option<String>,
-    watch: String,
+    palette_href: Option<&'a str>,
+    typeset_href: Option<&'a str>,
+    theme_data: &'a str,
+    html_class: &'a str,
+    html_attrs: &'a str,
+    appearance: &'a str,
+    appearance_data: &'a str,
+    bell: Option<&'a Bell>,
+    orange_bar: Option<&'a str>,
+    watch: &'a str,
 }
 
 /// The watch control (19 §6.2): one menu, as forms that work without JavaScript. Its
@@ -284,19 +358,18 @@ fn notices(
     (Some(bell), bar)
 }
 
-/// Renders a page in the frame.
+/// The frame's view model for a page, with the stylesheets of a skin where one draws it
+/// (the built-in rendering links the site's).
 #[allow(clippy::too_many_lines)]
-///
-/// # Errors
-///
-/// If the template fails to render, which it does only on a write error.
-pub fn render(
+#[must_use]
+pub fn model(
     m: &Messages,
     chrome: &Chrome,
     theme: &Theme,
     user: Option<&str>,
     page: &Page,
-) -> askama::Result<String> {
+    skin: Option<&Skin>,
+) -> Model {
     let f = chrome.features;
     let search = if f.has(Feature::Search) {
         Some(
@@ -307,7 +380,8 @@ pub fn render(
                 label: &m.get("ts-search-label"),
                 button: &m.get("ts-search-button"),
             }
-            .render()?,
+            .render()
+            .unwrap_or_default(),
         )
     } else {
         None
@@ -402,22 +476,43 @@ pub fn render(
     // The orange bar is not drawn on the page it points to.
     let orange_bar = orange_bar.filter(|_| user_talk.as_deref() != Some(page.title.as_str()));
     let entries = assets::entries();
-    let css = if m.dir() == "rtl" {
+    let site_css = if m.dir() == "rtl" {
         entries.css_rtl.as_deref()
     } else {
         entries.css.as_deref()
     };
-    Frame {
-        m,
-        sitename: chrome.sitename,
-        title: &page.title,
-        title_lang: page.title_lang.as_deref(),
-        doc_title: page.doc_title.as_deref().unwrap_or(&page.title),
-        identity: page.identity_html.as_deref(),
-        subtitle: page.subtitle_html.as_deref(),
-        tabs: &page.tabs,
-        actions: &page.actions,
-        body: &page.body,
+    // The stylesheets, in the skin chain's order: `@site` is the built site stylesheet;
+    // a file is served from the skin. Without a skin, the site's, as the built-in
+    // rendering has always linked it.
+    let stylesheets = match skin {
+        Some(s) => s
+            .stylesheets()
+            .iter()
+            .filter_map(|(owner, entry)| {
+                if entry == "@site" {
+                    site_css.map(str::to_string)
+                } else {
+                    s.asset_url(entry).or_else(|| {
+                        eprintln!("triplespace-ui: the skin `{owner}` names a stylesheet it lacks: {entry}");
+                        None
+                    })
+                }
+            })
+            .collect(),
+        None => site_css.map(str::to_string).into_iter().collect(),
+    };
+    Model {
+        lang: m.lang().to_string(),
+        dir: m.dir().to_string(),
+        sitename: chrome.sitename.to_string(),
+        title: page.title.clone(),
+        title_lang: page.title_lang.clone(),
+        doc_title: page.doc_title.clone().unwrap_or_else(|| page.title.clone()),
+        identity: page.identity_html.clone(),
+        subtitle: page.subtitle_html.clone(),
+        tabs: page.tabs.clone(),
+        actions: page.actions.clone(),
+        body: page.body.clone(),
         search,
         account,
         mainpage_href: format!("/wiki/{}", title_url(chrome.mainpage)),
@@ -425,9 +520,9 @@ pub fn render(
         nav,
         new_menu,
         returnto,
-        css,
-        js: entries.js.as_deref(),
-        head_js: entries.head_js.as_deref(),
+        stylesheets,
+        js: entries.js.clone(),
+        head_js: entries.head_js.clone(),
         palette_href: theme.href(Sheet::Palette, &palette),
         typeset_href: theme.href(Sheet::Typeset, &typeset),
         theme_data: theme.data(),
@@ -443,7 +538,71 @@ pub fn render(
             .filter(|_| user.is_some())
             .map_or_else(String::new, |w| watch_html(m, w)),
     }
+}
+
+/// Renders a page in the frame with the built-in rendering.
+///
+/// # Errors
+///
+/// If the template fails to render, which it does only on a write error.
+pub fn render(
+    m: &Messages,
+    chrome: &Chrome,
+    theme: &Theme,
+    user: Option<&str>,
+    page: &Page,
+) -> askama::Result<String> {
+    render_builtin(m, &model(m, chrome, theme, user, page, None))
+}
+
+/// The built-in rendering of a model.
+///
+/// # Errors
+///
+/// If the template fails to render, which it does only on a write error.
+pub fn render_builtin(m: &Messages, model: &Model) -> askama::Result<String> {
+    Frame {
+        m,
+        sitename: &model.sitename,
+        title: &model.title,
+        title_lang: model.title_lang.as_deref(),
+        doc_title: &model.doc_title,
+        identity: model.identity.as_deref(),
+        subtitle: model.subtitle.as_deref(),
+        tabs: &model.tabs,
+        actions: &model.actions,
+        body: &model.body,
+        search: model.search.as_deref(),
+        account: model.account.as_ref(),
+        mainpage_href: &model.mainpage_href,
+        login: model.login,
+        nav: &model.nav,
+        new_menu: &model.new_menu,
+        returnto: &model.returnto,
+        css: model.stylesheets.first().map(String::as_str),
+        js: model.js.as_deref(),
+        head_js: model.head_js.as_deref(),
+        palette_href: model.palette_href.as_deref(),
+        typeset_href: model.typeset_href.as_deref(),
+        theme_data: &model.theme_data,
+        html_class: &model.html_class,
+        html_attrs: &model.html_attrs,
+        appearance: &model.appearance,
+        appearance_data: &model.appearance_data,
+        bell: model.bell.as_ref(),
+        orange_bar: model.orange_bar.as_deref(),
+        watch: &model.watch,
+    }
     .render()
+}
+
+/// The skin's rendering of a model: its `frame.html` over the model and `msg`.
+///
+/// # Errors
+///
+/// When the skin's template fails.
+pub fn render_skin(skin: &Skin, m: &Messages, model: &Model) -> Result<String, minijinja::Error> {
+    skin.render("frame.html", m, model)
 }
 
 /// The **Restricted** pill of 19 §1.3: a lock, the groups a reader must be in (named

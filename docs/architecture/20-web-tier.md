@@ -17,7 +17,7 @@ The web tier is the process that renders the site's pages: either `triplespace-s
 
 ### 1.2 Two ways to run the site
 
-*Sources: [0057](../decisions/0057-web-tier.md) §2.*
+*Sources: [0057](../decisions/0057-web-tier.md) §2; [0097](../decisions/0097-versioning-and-skins.md) §8, §16.*
 
 - **`triplespace-server` embeds the site.** `server.ui` is `embedded` (the default) or `off`. Embedded, the server serves the web paths of §2.1 itself through `triplespace-ui`, calling its own API router as a `tower::Service` with no network hop. The embedded call carries the original request's headers and connection address unchanged, so the API sees the real client and the in-process path adds no `X-Forwarded-*`. A small instance stays one binary and Postgres ([0033](../decisions/0033-backend-stack.md) §1). This is runtime configuration, not a Cargo feature, so the binary's behaviour is not chosen at build time ([0005](../decisions/0005-crate-organization.md) §3 rule 6).
 - **`triplespace-web` serves the site on its own.** A second binary from the same workspace, configured by the settings below. An HA deployment runs `triplespace-server` with `server.ui = off` behind the edge and `triplespace-web` beside it, each pool sized on its own.
@@ -35,6 +35,8 @@ The web tier is the process that renders the site's pages: either `triplespace-s
 | `web.cache` | `memory`, `valkey`, or `off` ([03](03-storage-caches-and-search.md) §10.2); `web.cache.valkey_url` and `web.cache.valkey_password_file` for the second; `web.cache.max_ttl` |
 | `web.upstream_host` | `forward` (the default) or, in `development` mode only, `fixed` (§2.2) |
 | `web.assets_from` | Optional: a base URL that serves the hashed assets instead of the binary (§4) |
+| `web.skins` | Optional: a directory of installed skins beside the shipped ones, as `server.skins` ([19](19-site-ui.md) §5.10; [23](23-configuration-and-registry.md) §3.6) |
+| `web.renderer` | `builtin` (the default), `skin` or `compare`, as `server.renderer`, until the skin migration is done ([19](19-site-ui.md) §5.10) |
 
 Secrets come from files, never the command line ([0033](../decisions/0033-backend-stack.md) §12).
 
@@ -56,7 +58,7 @@ The edge proxy routes by path prefix, longest prefix first. The authoritative li
 | `/.well-known/`, `/oauth/`, `/dumps/` | API |
 | `/w/styles/`: the site styles and TemplateStyles sheets ([11](11-rendering-templates-and-modules.md) §6.3–6.4), from when the first is served | API |
 | The media routes of [0039](../decisions/0039-files-and-media.md) §7, where the media base shares the host | API |
-| Everything else: `/`, `/wiki/`, `/w/index.php`, `/index.php`, `/ui/assets/` | Web tier |
+| Everything else: `/`, `/wiki/`, `/w/index.php`, `/index.php`, `/ui/assets/`, `/ui/skins/` | Web tier |
 
 The web tier is the default route, so an unknown path gets a 404 page in the site's frame. **At the auth base** ([0089](../decisions/0089-the-auth-host-and-instance-logins.md) §1; [07](07-actors-and-accounts.md) §2.8) the same table routes, but the API answers only its authentication modules at `/w/api.php` and the `/auth/` routes under `/w/rest.php/triplespace/v0/`, the web tier only `Special:UserLogin`, `Special:CreateAccount`, `Special:Account` and `Special:UserLogout`, and `/ui/assets/`; every other path is a 404 in a plain frame, since the auth host holds no wiki. Special pages ([0047](../decisions/0047-special-pages.md), [21](21-special-pages.md)), the OAuth pages ([0057](../decisions/0057-web-tier.md) §13, in [07](07-actors-and-accounts.md)) and a private tenant's landing page ([0056](../decisions/0056-security-model.md) §13) are pages like any other, rendered by `triplespace-ui`.
 

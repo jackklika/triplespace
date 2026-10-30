@@ -1,0 +1,12 @@
+# Worksheet (0097 §8; 19 §5.10): Plain with Codex's and the site's stylesheets; the default
+# skin. It adds stylesheets and nothing else, so its pages have Plain's DOM.
+name = "worksheet"
+version = "0.1.0"
+licence = "GPL-3.0-or-later"
+extends = "plain"
+# `@site` is the stylesheet the build writes from `ui/src/site.css`: Codex's components and
+# the site's own rules, with its right-to-left variant.
+stylesheets = ["@site"]
+
+[requires]
+plain = "0.1"

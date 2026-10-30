@@ -93,6 +93,14 @@ struct Serve {
     /// a process listing.
     #[arg(long, env = "TRIPLESPACE_WEB_FORWARDER_KEY_FILE")]
     forwarder_key_file: Option<PathBuf>,
+    /// A directory of installed skins beside the shipped ones (`web.skins`, 0097 §8).
+    #[arg(long, env = "TRIPLESPACE_WEB_SKINS")]
+    skins: Option<PathBuf>,
+    /// Which renderer draws pages until the skin migration is done (`web.renderer`,
+    /// 19 §5.10): `builtin`, `skin`, or `compare`, which renders both, serves the
+    /// built-in result and logs each route that differs.
+    #[arg(long, env = "TRIPLESPACE_WEB_RENDERER", default_value = "builtin")]
+    renderer: String,
 }
 
 fn main() -> Result<()> {
@@ -243,6 +251,12 @@ async fn serve(args: Serve) -> Result<()> {
     let Some(api) = args.api else {
         bail!("--api (or TRIPLESPACE_WEB_API) names the API's base URL");
     };
+    let Some(renderer) = triplespace_ui::Renderer::parse(&args.renderer) else {
+        bail!(
+            "--renderer is builtin, skin or compare, not `{}`",
+            args.renderer
+        );
+    };
     let key = read_key(args.forwarder_key_file.as_deref())?;
     let transport = HttpTransport::new(&api, key)
         .await
@@ -275,10 +289,13 @@ async fn serve(args: Serve) -> Result<()> {
         env!("CARGO_PKG_VERSION"),
         args.listen
     );
+    let site = triplespace_ui::Site::new(client)
+        .with_build(VERSION_JSON)
+        .with_skins_dir(args.skins.as_deref())
+        .with_renderer(renderer);
     axum::serve(
         listener,
-        triplespace_ui::router_with_build(client, VERSION_JSON)
-            .into_make_service_with_connect_info::<SocketAddr>(),
+        triplespace_ui::router_for(site).into_make_service_with_connect_info::<SocketAddr>(),
     )
     .with_graceful_shutdown(async {
         let _ = tokio::signal::ctrl_c().await;
