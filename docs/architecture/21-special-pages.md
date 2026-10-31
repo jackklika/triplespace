@@ -10,7 +10,7 @@ This chapter describes the pages in the `Special` namespace: the registry that l
 
 *Sources: [0047](../decisions/0047-special-pages.md) §1.*
 
-**`docs/registry/special-pages.toml` lists every special page name the instance knows**, including pages it serves, pages it defers or declines, and names it reserves. It is embedded by `triplespace-titles`, which already resolves titles in the `Special` namespace ([0008](../decisions/0008-namespaces-and-document-pages.md) §3). Each entry has these fields:
+**`docs/registry/special-pages.toml` lists every special page name the instance knows**, including pages it serves, pages it defers or declines, and names it reserves. It is embedded by `scatter-titles`, beside the namespace registry, for the server and the site alike; `triplespace-titles`, the DB-backed resolver over it, resolves titles in the `Special` namespace ([0008](../decisions/0008-namespaces-and-document-pages.md) §3; [0047](../decisions/0047-special-pages.md) A28). Each entry has these fields:
 
 | Field | Meaning |
 |---|---|

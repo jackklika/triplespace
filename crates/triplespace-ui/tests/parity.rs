@@ -65,8 +65,9 @@ struct Corpus {
 }
 
 /// The migration groups that have switched to the skin (19 §5.10): a case in one of
-/// them must be equal; none yet.
-const MIGRATED: &[u8] = &[];
+/// them must be equal. A group joins when it switches; the cases of the groups still to
+/// come are reported, not failed, while their templates are written.
+const MIGRATED: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8];
 
 use triplespace_ui::{Renderer, Site};
 
@@ -273,8 +274,8 @@ async fn every_case_renders_equal_through_both_renderers() {
             r.difference.as_deref().unwrap_or_default()
         );
     }
-    // Until the engine exists both renderers are the built-in one, and the baseline is
-    // the gate: a page rendered twice is equal. Once groups switch, only theirs fail.
+    // With no group switched, the baseline is the gate: every case must be equal, a page
+    // rendered twice by the built-in renderer. Once groups switch, only theirs fail.
     let must_be_equal = |r: &Row| MIGRATED.is_empty() || MIGRATED.contains(&r.case.group);
     let failing: Vec<&str> = rows
         .iter()
