@@ -708,6 +708,18 @@ async fn api(database: &str, key_file: &std::path::Path) {
         )
         .await;
     assert_eq!(entity["error"]["code"], "no-direct-editing", "{entity}");
+    // Namespace 0 holds articles (10 §3.3; 0038 A17): a bare title is an article whatever
+    // its shape, an entity ID's (`Q1`, whose item's page is `Item:Q1`) or a foreign ID's
+    // (`Citing sources` parses as `CITing sources`).
+    for title in ["Citing_sources", "Stub", "Q1"] {
+        let article = c
+            .post(
+                "action=edit",
+                &format!("title={title}&text=Short.&token={}", enc(&csrf)),
+            )
+            .await;
+        assert_eq!(article["edit"]["result"], "Success", "{title}: {article}");
+    }
 
     let history = c
         .get(

@@ -445,8 +445,7 @@ async fn run(
 async fn log_target(ctx: &Ctx, title: &str) -> Result<Option<TargetSet>, ApiError> {
     use triplespace_projections::common::target_kind;
     let site = crate::pages::Site::load(ctx).await?;
-    if crate::pages::names_entity(&site, title) {
-        let id = crate::modules::entities::parse_id(title)?;
+    if let Some(id) = crate::pages::entity_of_title(&site, title) {
         return Ok(Some(TargetSet::Target {
             kind: target_kind::ENTITY,
             id: id.as_str().to_string(),

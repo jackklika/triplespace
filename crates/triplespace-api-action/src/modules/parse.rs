@@ -452,6 +452,7 @@ mod tests {
             )),
             name: "Librarybase".into(),
             lang: "en".into(),
+            registry: scatter_providers::Registry::default_registry(),
         };
         assert_eq!(
             display_title(&site, &Title::new(4, "Scope")),

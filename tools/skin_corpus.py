@@ -136,6 +136,23 @@ def seed():
     bob.edit("Project:Sandbox", "Testing, testing. [[Item:Q6]] is a number; {{PAGENAME}}.\n\n[[Category:Tests]] [[Category:Drafts]]")
     alice.edit("Project:Notes", "# Notes\n\nA *markdown* page with a [link](Project:Home) and a list:\n\n- one\n- two\n", contentmodel="markdown")
     alice.edit("Project:Shortcut", "#REDIRECT [[Project:Home]]")
+    # For the reports (group 8): red links and a wanted category, a redirect to a page
+    # that does not exist, a redirect to a redirect, a category page in no category and
+    # one with no members; and, since the index-backed reports (ShortPages, LongPages,
+    # MostRevisions, FewestRevisions, AncientPages, DeadendPages, LonelyPages,
+    # UncategorizedPages, MostCategories) read the main namespace only, articles: one long,
+    # edited twice and in two categories, a short dead end it links to, and an orphan.
+    alice.edit("Project:Wishlist", "Pages we want: [[Project:Style guide]], [[Project:Citing sources]] and "
+               "[[Project:Style guide#Dates|dates]].\n\n[[Category:Wishlists]] [[Category:Guides]]")
+    alice.edit("Citing sources", "How to cite a source in Librarybase.\n\nSee [[Stub]].\n\n[[Category:Guides]]")
+    bob.edit("Citing sources", "How to cite a source in Librarybase: cite the edition you held, with its "
+             "publisher and year, and the page.\n\nSee [[Stub]] and [[Item:Q3]].\n\n[[Category:Guides]] [[Category:Help]]")
+    bob.edit("Stub", "Short.")
+    alice.edit("Orphan", "Nobody links here. See [[Citing sources]].")
+    alice.edit("Category:Guides", "Guides to the catalogue.")
+    alice.edit("Category:Unused", "A category with no members.")
+    alice.edit("Project:Old name", "#REDIRECT [[Project:Never written]]")
+    alice.edit("Project:Shortcut/Again", "#REDIRECT [[Project:Shortcut]]")
     must("move", alice.post(action="move", **{"from": "Project:Analytics/Orb", "to": "Project:Analytics/Orbit",
                                               "reason": "Renamed upstream", "token": alice.token()}))
     must("delete", alice.post(action="delete", title="Project:Consensus", reason="Superseded", token=alice.token()))
@@ -348,10 +365,37 @@ def paths(facts, viewer):
         (8, "/wiki/Special:Search"),
         (8, "/w/index.php?title=Special:Search&search=Librarybase&fulltext=1"),
         (8, "/w/index.php?title=Special:Search&search=six"),
+        # 8a: no hits, several groups, one group, its pages, an alias, an ID (Go to, and
+        # the 302 the header's box gets), an ID that names nothing, a domain, right to left.
+        (8, "/w/index.php?title=Special:Search&search=zzzz&fulltext=1"),
+        (8, "/w/index.php?title=Special:Search&search=zzzz&fulltext=1&ns210=1"),
+        (8, "/w/index.php?title=Special:Search&search=n&fulltext=1"),
+        (8, "/w/index.php?title=Special:Search&search=e&fulltext=1"),
+        (8, "/w/index.php?title=Special:Search&search=n&fulltext=1&ns122=1"),
+        (8, "/w/index.php?title=Special:Search&search=n&fulltext=1&ns122=1&limit=1"),
+        (8, "/w/index.php?title=Special:Search&search=n&fulltext=1&ns122=1&limit=1&offset=1"),
+        (8, "/w/index.php?title=Special:Search&search=half&fulltext=1"),
+        (8, "/w/index.php?title=Special:Search&search=Q6&fulltext=1"),
+        (8, "/w/index.php?title=Special:Search&search=Q6"),
+        (8, "/w/index.php?title=Special:Search&search=Q404&fulltext=1"),
+        (8, "/w/index.php?title=Special:Search&search=wikipedia.org&fulltext=1"),
+        (8, "/w/index.php?title=Special:Search&search=six&fulltext=1&uselang=ar"),
         (8, "/wiki/Special:SpecialPages"),
         (8, "/wiki/Special:AllPages"),
         (8, "/wiki/Special:AllPages?namespace=4"),
         (8, "/wiki/Special:PrefixIndex/Project:Analytics/"),
+        # 8b: each namespace that holds pages, an empty one, one that holds entities,
+        # `from`, `to`, `hideredirects`; a prefix with `stripprefix`, one that matches nothing.
+        (8, "/wiki/Special:AllPages?namespace=2"),
+        (8, "/wiki/Special:AllPages?namespace=10"),
+        (8, "/wiki/Special:AllPages?namespace=14"),
+        (8, "/wiki/Special:AllPages?namespace=120"),
+        (8, "/wiki/Special:AllPages?namespace=4&from=N&to=Sh"),
+        (8, "/wiki/Special:AllPages?namespace=4&hideredirects=1"),
+        (8, "/wiki/Special:AllPages/Project:S"),
+        (8, "/wiki/Special:PrefixIndex?prefix=Analytics/&namespace=4&stripprefix=1"),
+        (8, "/wiki/Special:PrefixIndex?prefix=Zz&namespace=4"),
+        (8, "/wiki/Special:PrefixIndex"),
         (8, "/wiki/Special:ListRedirects"),
         (8, "/wiki/Special:ListProperties"),
         (8, "/wiki/Special:WantedPages"),
@@ -359,6 +403,37 @@ def paths(facts, viewer):
         (8, "/wiki/Special:MostRevisions"),
         (8, "/wiki/Special:LonelyPages"),
         (8, "/wiki/Special:DoubleRedirects"),
+        # 8c: every other report once, by MediaWiki's names, and paged.
+        (8, "/wiki/Special:WantedCategories"),
+        (8, "/wiki/Special:MostLinkedPages"),
+        (8, "/wiki/Special:MostLinkedCategories"),
+        (8, "/wiki/Special:MostCategories"),
+        (8, "/wiki/Special:FewestRevisions"),
+        (8, "/wiki/Special:DeadendPages"),
+        (8, "/wiki/Special:UncategorizedPages"),
+        (8, "/wiki/Special:UncategorizedCategories"),
+        (8, "/wiki/Special:UncategorizedTemplates"),
+        (8, "/wiki/Special:UnusedCategories"),
+        (8, "/wiki/Special:LongPages"),
+        (8, "/wiki/Special:AncientPages"),
+        (8, "/wiki/Special:BrokenRedirects"),
+        (8, "/wiki/Special:Wantedpages"),
+        (8, "/wiki/Special:BrokenLinks"),
+        (8, "/wiki/Special:Mostrevisions"),
+        (8, "/w/index.php?title=Special:WantedPages&limit=5"),
+        (8, "/w/index.php?title=Special:WantedPages&limit=5&offset=5"),
+        (8, "/w/index.php?title=Special:WantedPages&offset=500"),
+        (8, "/wiki/Special:ListProperties?uselang=ar"),
+        # 8c: the redirecting pages' forms: no parameter, and one they cannot follow.
+        (8, "/wiki/Special:EditPage"),
+        (8, "/wiki/Special:Redirect"),
+        (8, "/wiki/Special:PermanentLink"),
+        (8, "/wiki/Special:PermanentLink/abc"),
+        (8, "/wiki/Special:Diff/x"),
+        (8, "/wiki/Special:EntityPage/not an id"),
+        (8, "/wiki/Special:Redirect/file/3"),
+        (8, "/wiki/Special:TalkPage"),
+        (8, "/wiki/Special:MyContributions"),
         (8, "/wiki/Special:ProtectedPages"),
         (8, "/wiki/Special:ProtectedTitles"),
         (8, "/wiki/Special:BlockList"),

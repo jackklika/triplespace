@@ -26,21 +26,41 @@
 //! (`Special:EditPage/Foo?section=2`).
 
 use std::collections::BTreeMap;
-use std::fmt::Write as _;
 
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use scatter_titles::{Kind as NsKind, Namespace, Namespaces};
 use scatter_wikibase_model::id::EntityId;
+use serde::Serialize;
 use triplespace_client::{Lookup, PageRef};
 
 use crate::Site;
-use crate::codex::MessageKind;
+use crate::codex::{Message, MessageKind, MessageModel};
 use crate::entity;
 use crate::features::Feature;
 use crate::frame::Page;
-use crate::html::esc;
+use crate::i18n::Messages;
 use crate::pages::{self, Context, Params, Peer};
+use crate::special::changes::FormItem;
+
+// ---------------------------------------------------------------------------------------
+// The view model (19 §5.10): what `special/redirect.html` draws. Every other path of these
+// pages is a `302` and draws nothing.
+// ---------------------------------------------------------------------------------------
+
+/// The form a redirecting page shows when it needs a parameter, or could not follow one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RedirectForm {
+    /// Why the request could not be followed.
+    pub error: Option<MessageModel>,
+    /// The page it asks.
+    pub title: String,
+    /// The controls, as the changes form draws them: `Special:Redirect`'s kind, then the
+    /// field.
+    pub items: Vec<FormItem>,
+    /// **Go**.
+    pub go: String,
+}
 
 /// The redirecting pages.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -497,32 +517,11 @@ fn form(
     error: Option<&str>,
     value: &str,
 ) -> Response {
-    let m = &cx.m;
-    let (title_key, label, field) = which.form();
+    let (title_key, _, _) = which.form();
     let name = which.name();
-    let mut body = String::new();
-    if let Some(e) = error {
-        body.push_str(&pages::message(MessageKind::Error, e));
-    }
-    let _ = write!(
-        body,
-        "<form class=\"ts-redirects\" method=\"get\" action=\"/w/index.php\"><input type=\"hidden\" name=\"title\" value=\"Special:{name}\">"
-    );
-    if which == Which::Redirect {
-        let _ = write!(
-            body,
-            "<label class=\"ts-changes-form__field\"><span>{}</span> <select class=\"cdx-select\" name=\"wptype\"><option value=\"revision\">{}</option><option value=\"page\">{}</option></select></label> ",
-            esc(&m.get("ts-redirect-type")),
-            esc(&m.get("ts-redirect-type-revision")),
-            esc(&m.get("ts-redirect-type-page"))
-        );
-    }
-    let _ = write!(
-        body,
-        "<label class=\"ts-changes-form__field\"><span>{}</span> <input class=\"cdx-text-input__input\" type=\"text\" name=\"{field}\" value=\"{}\"></label> <button class=\"cdx-button cdx-button--action-progressive\" type=\"submit\">{}</button></form>",
-        esc(&m.get(label)),
-        esc(value),
-        esc(&m.get("ts-redirects-go"))
+    let body = cx.draw(
+        "special/redirect.html",
+        form_model(&cx.m, which, error, value),
     );
     pages::respond(cx, headers, status, |m| Page {
         title: m.get(title_key),
@@ -530,4 +529,54 @@ fn form(
         body,
         ..Page::default()
     })
+}
+
+/// The form's model.
+fn form_model(m: &Messages, which: Which, error: Option<&str>, value: &str) -> RedirectForm {
+    let (_, label, field) = which.form();
+    let mut items = Vec::new();
+    if which == Which::Redirect {
+        items.push(FormItem::Select {
+            label: m.get("ts-redirect-type"),
+            name: "wptype".into(),
+            options: vec![
+                ("revision".into(), m.get("ts-redirect-type-revision"), false),
+                ("page".into(), m.get("ts-redirect-type-page"), false),
+            ],
+        });
+    }
+    items.push(FormItem::Text {
+        label: m.get(label),
+        name: field.to_string(),
+        value: value.to_string(),
+    });
+    RedirectForm {
+        error: error.map(|e| Message::block(MessageKind::Error, e).model()),
+        title: format!("Special:{}", which.name()),
+        items,
+        go: m.get("ts-redirects-go"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The form's model (19 §5.10): `Special:Redirect` asks the kind first, every page
+    /// keeps what was typed, an error goes above it.
+    #[test]
+    fn the_form_is_a_model() {
+        let m = Messages::for_language("en");
+        let f = form_model(&m, Which::Redirect, Some("Not a number"), "abc");
+        assert_eq!(f.title, "Special:Redirect");
+        assert!(matches!(&f.items[0], FormItem::Select { name, .. } if name == "wptype"));
+        assert!(
+            matches!(&f.items[1], FormItem::Text { name, value, .. } if name == "wpvalue" && value == "abc")
+        );
+        assert!(f.error.unwrap().classes.contains("cdx-message--error"));
+        let f = form_model(&m, Which::EditPage, None, "");
+        assert_eq!(f.items.len(), 1);
+        assert!(matches!(&f.items[0], FormItem::Text { name, .. } if name == "page"));
+        assert!(f.error.is_none());
+    }
 }

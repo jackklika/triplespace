@@ -34,6 +34,11 @@ strike what stops being true. Implementation status is not kept here (24 §15: `
   contains the name); match on the binary path (`pkill -f "^/home/.*/triplespace-server"`), and
   start a test server and query it within one call, since background processes die when the call
   ends.
+- The tree tarred into the sandbox leaves out `docs/api/snapshots` (139 MB), but
+  `triplespace-ui`'s `entity` tests and the parity corpus's `wikidata` set read it
+  (`tests/common/fixture_api.rs`): without it seven entity tests panic on a missing file under
+  every renderer. Stage it separately (`tar czf target/snapshots.tgz docs/api/snapshots` on the
+  mount) when running those.
 - `tools/client_compat.sh` runs `target/debug` binaries: build `-p triplespace-cli -p
   triplespace-server` first, or it runs stale ones.
 

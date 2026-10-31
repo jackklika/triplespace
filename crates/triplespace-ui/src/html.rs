@@ -34,16 +34,6 @@ pub fn link(href: &str, text_html: &str, extra: &str) -> String {
     s
 }
 
-/// ` lang="…" dir="auto"` where a text's language differs from the page's.
-#[must_use]
-pub fn lang_attrs(text_lang: &str, page_lang: &str) -> String {
-    if text_lang.is_empty() || text_lang == page_lang {
-        String::new()
-    } else {
-        format!(" lang=\"{}\" dir=\"auto\"", esc(text_lang))
-    }
-}
-
 /// Whether a URL is safe to link: `http`, `https`, `ftp` or `mailto`.
 #[must_use]
 pub fn linkable(url: &str) -> bool {
@@ -67,8 +57,6 @@ mod tests {
             link("/wiki/A&B", "A &amp; B", ""),
             "<a href=\"/wiki/A&amp;B\">A &amp; B</a>"
         );
-        assert_eq!(lang_attrs("de", "en"), " lang=\"de\" dir=\"auto\"");
-        assert_eq!(lang_attrs("en", "en"), "");
         assert!(linkable("https://example.org"));
         assert!(!linkable("javascript:alert(1)"));
         assert!(!linkable(" JavaScript:x"));

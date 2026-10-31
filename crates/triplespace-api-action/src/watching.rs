@@ -33,10 +33,7 @@ pub async fn target_of_title(
     site: &Site,
     name: &str,
 ) -> Result<Option<Target>, ApiError> {
-    if pages::names_entity(site, name) {
-        let Ok(id) = crate::modules::entities::parse_id(name) else {
-            return Ok(None);
-        };
+    if let Some(id) = pages::entity_of_title(site, name) {
         return Ok(Some((watch::kind::ENTITY, id.to_string())));
     }
     let Some(t) = pages::resolve_title(site, name) else {

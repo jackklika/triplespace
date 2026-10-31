@@ -13,19 +13,90 @@
 //! are not offered; asked for one, the page says so and points to search.
 
 use std::collections::BTreeMap;
-use std::fmt::Write as _;
 
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use scatter_titles::{Kind as NsKind, Namespaces};
+use serde::Serialize;
 use triplespace_client::{ClientError, Incoming, NamespaceRow, PageListQuery};
 
 use crate::Site;
+use crate::entity::history::Choice;
 use crate::features::Feature;
 use crate::frame::{Page, title_url};
-use crate::html::{esc, link};
 use crate::i18n::Messages;
 use crate::pages::{self, Context, Params, Peer};
+use crate::special::changes::FormItem;
+
+// ---------------------------------------------------------------------------------------
+// The view model (19 §5.10): what `special/allpages.html` draws.
+// ---------------------------------------------------------------------------------------
+
+/// The form: the start or prefix, the namespace, and the boxes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AllPagesForm {
+    /// The page it asks.
+    pub title: String,
+    /// The controls, as the changes form draws them.
+    pub items: Vec<FormItem>,
+    /// **Go**.
+    pub go: String,
+}
+
+/// One title in the list.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Listed {
+    /// Its page.
+    pub href: String,
+    /// The title as shown: without its namespace, and without the prefix where asked.
+    pub text: String,
+    /// Whether it is a redirect.
+    pub redirect: bool,
+}
+
+/// **Previous page** and **Next page**.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ListPager {
+    /// The accessible name.
+    pub label: String,
+    /// The previous page.
+    pub previous: Option<Choice>,
+    /// The next page.
+    pub next: Option<Choice>,
+}
+
+/// The list of titles.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TitleList {
+    /// The titles, in order.
+    pub titles: Vec<Listed>,
+    /// The links to the pages either side, where there are any.
+    pub pager: Option<ListPager>,
+}
+
+/// `Special:AllPages` and `Special:PrefixIndex`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AllPagesPage {
+    /// The form.
+    pub form: AllPagesForm,
+    /// The list.
+    pub list: Option<TitleList>,
+    /// What the page says when it lists nothing.
+    pub empty: Option<String>,
+    /// The link to search, for a namespace that holds entities.
+    pub search: Option<Choice>,
+}
+
+/// What `list=allpages` found for the page.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct Listing {
+    /// Full title, shown text, redirect.
+    titles: Vec<(String, String, bool)>,
+    /// Where the previous page starts.
+    previous: Option<String>,
+    /// Where the next page starts.
+    next: Option<String>,
+}
 
 /// Titles to a page, as MediaWiki's `AllPages` shows.
 const LIMIT: u32 = 345;
@@ -227,28 +298,16 @@ pub async fn serve(
         Err(e) => return pages::api_failed(&cx, headers, &e),
     };
     let ask = Ask::of(which, title, &params.map, &rows);
-    let mut body = form(&cx.m, &ask, &rows);
-    if listable(ask.namespace) {
+    let listing = if listable(ask.namespace) {
         match list(site, &mut cx, &incoming, &ask, &rows).await {
-            Ok(html) => body.push_str(&html),
+            Ok(l) => Some(l),
             Err(e) => return pages::api_failed(&cx, headers, &e),
         }
     } else {
-        let _ = write!(
-            body,
-            "<p class=\"ts-empty\">{}</p>",
-            esc(&cx.m.get("ts-allpages-not-pages"))
-        );
-        let _ = write!(
-            body,
-            "<p>{}</p>",
-            link(
-                "/wiki/Special:Search",
-                &esc(&cx.m.get("ts-search-title")),
-                ""
-            )
-        );
-    }
+        None
+    };
+    let model = page_model(&cx.m, &ask, &rows, listing.as_ref());
+    let body = cx.draw("special/allpages.html", model);
     pages::respond(&cx, headers, StatusCode::OK, |m| Page {
         title: m.get(match which {
             Which::AllPages => "ts-allpages-title",
@@ -260,14 +319,129 @@ pub async fn serve(
     })
 }
 
-/// The list, its redirects marked, and the links to the pages either side.
+/// The page's model.
+fn page_model(
+    m: &Messages,
+    ask: &Ask,
+    rows: &[NamespaceRow],
+    listing: Option<&Listing>,
+) -> AllPagesPage {
+    let form = form_model(m, ask, rows);
+    let Some(listing) = listing else {
+        return AllPagesPage {
+            form,
+            list: None,
+            empty: Some(m.get("ts-allpages-not-pages")),
+            search: Some(Choice {
+                href: "/wiki/Special:Search".into(),
+                label: m.get("ts-search-title"),
+                current: false,
+            }),
+        };
+    };
+    if listing.titles.is_empty() {
+        return AllPagesPage {
+            form,
+            list: None,
+            empty: Some(m.get("ts-allpages-none")),
+            search: None,
+        };
+    }
+    let titles = listing
+        .titles
+        .iter()
+        .map(|(full, shown, redirect)| Listed {
+            href: format!("/wiki/{}", title_url(full)),
+            text: shown.clone(),
+            redirect: *redirect,
+        })
+        .collect();
+    let previous = listing.previous.as_ref().map(|p| Choice {
+        href: ask.href(p),
+        label: m.with("ts-allpages-previous", &[p]),
+        current: false,
+    });
+    let next = listing.next.as_ref().map(|n| Choice {
+        href: ask.href(n),
+        label: m.with("ts-allpages-next", &[n]),
+        current: false,
+    });
+    let pager = (previous.is_some() || next.is_some()).then(|| ListPager {
+        label: m.get("ts-search-pages-label"),
+        previous,
+        next,
+    });
+    AllPagesPage {
+        form,
+        list: Some(TitleList { titles, pager }),
+        empty: None,
+        search: None,
+    }
+}
+
+/// The form's model.
+fn form_model(m: &Messages, ask: &Ask, rows: &[NamespaceRow]) -> AllPagesForm {
+    let text = |name: &str, label: &str, value: &str| FormItem::Text {
+        label: m.get(label),
+        name: name.to_string(),
+        value: value.to_string(),
+    };
+    let check = |name: &str, label: &str, on: bool| FormItem::Check {
+        name: name.to_string(),
+        value: "1".into(),
+        checked: on,
+        label: m.get(label),
+    };
+    let mut items = match ask.which {
+        Which::AllPages => vec![
+            text("from", "ts-allpages-from", &ask.from),
+            text("to", "ts-allpages-to", &ask.to),
+        ],
+        Which::PrefixIndex => vec![text("prefix", "ts-prefixindex-prefix", &ask.prefix)],
+    };
+    items.push(FormItem::Select {
+        label: m.get("ts-changes-namespace"),
+        name: "namespace".into(),
+        options: rows
+            .iter()
+            .filter(|n| listable(n.id))
+            .map(|n| {
+                let name = if n.id == 0 {
+                    m.get("ts-namespaceinfo-main")
+                } else {
+                    n.name.clone()
+                };
+                (n.id.to_string(), name, n.id == ask.namespace)
+            })
+            .collect(),
+    });
+    items.push(check(
+        "hideredirects",
+        "ts-allpages-hideredirects",
+        ask.hide_redirects,
+    ));
+    if ask.which == Which::PrefixIndex {
+        items.push(check(
+            "stripprefix",
+            "ts-prefixindex-stripprefix",
+            ask.strip_prefix,
+        ));
+    }
+    AllPagesForm {
+        title: ask.which.title().to_string(),
+        items,
+        go: m.get("ts-allpages-go"),
+    }
+}
+
+/// The list, its redirects marked, and where the pages either side start.
 async fn list(
     site: &Site,
     cx: &mut Context,
     incoming: &Incoming,
     ask: &Ask,
     rows: &[NamespaceRow],
-) -> Result<String, ClientError> {
+) -> Result<Listing, ClientError> {
     let client = site.client();
     let found = client
         .all_pages(incoming, &ask.query(&ask.from, false, LIMIT))
@@ -275,10 +449,7 @@ async fn list(
     cx.inputs.push(found.cache);
     let titles = found.value.titles;
     if titles.is_empty() {
-        return Ok(format!(
-            "<p class=\"ts-empty\">{}</p>",
-            esc(&cx.m.get("ts-allpages-none"))
-        ));
+        return Ok(Listing::default());
     }
     let texts: Vec<String> = titles
         .iter()
@@ -311,124 +482,25 @@ async fn list(
             previous = Some(text_of(start, ask.namespace, rows));
         }
     }
-    let m = &cx.m;
-    let mut s = String::from("<ul class=\"ts-allpages\">");
-    for (full, text) in titles.iter().zip(&texts) {
-        let shown = if ask.strip_prefix && ask.which == Which::PrefixIndex {
-            text.strip_prefix(&ask.prefix)
-                .filter(|t| !t.is_empty())
-                .unwrap_or(text)
-        } else {
-            text
-        };
-        let class = if redirects.contains(full) {
-            " class=\"ts-allpages__redirect\""
-        } else {
-            ""
-        };
-        let _ = write!(
-            s,
-            "<li{class}>{}</li>",
-            link(&format!("/wiki/{}", title_url(full)), &esc(shown), "")
-        );
-    }
-    s.push_str("</ul>");
-    let mut nav = Vec::new();
-    if let Some(p) = &previous {
-        nav.push(link(
-            &ask.href(p),
-            &esc(&m.with("ts-allpages-previous", &[p])),
-            " rel=\"prev\"",
-        ));
-    }
-    if let Some(n) = &found.value.next {
-        nav.push(link(
-            &ask.href(n),
-            &esc(&m.with("ts-allpages-next", &[n])),
-            " rel=\"next\"",
-        ));
-    }
-    if !nav.is_empty() {
-        let _ = write!(
-            s,
-            "<nav class=\"ts-pager\" aria-label=\"{}\">{}</nav>",
-            esc(&m.get("ts-search-pages-label")),
-            nav.join(" | ")
-        );
-    }
-    Ok(s)
-}
-
-fn form(m: &Messages, ask: &Ask, rows: &[NamespaceRow]) -> String {
-    let field = |name: &str, label: &str, value: &str| {
-        format!(
-            "<label class=\"ts-changes-form__field\"><span>{}</span> <input class=\"cdx-text-input__input\" type=\"text\" name=\"{name}\" value=\"{}\"></label> ",
-            esc(&m.get(label)),
-            esc(value)
-        )
-    };
-    let check = |name: &str, label: &str, on: bool| {
-        format!(
-            "<label class=\"cdx-checkbox cdx-checkbox--inline\"><input class=\"cdx-checkbox__input\" type=\"checkbox\" name=\"{name}\" value=\"1\"{}><span class=\"cdx-checkbox__icon\"></span><span class=\"cdx-checkbox__label\">{}</span></label> ",
-            if on { " checked" } else { "" },
-            esc(&m.get(label))
-        )
-    };
-    let mut s = format!(
-        "<form class=\"ts-changes-form ts-allpages__form\" method=\"get\" action=\"/w/index.php\"><input type=\"hidden\" name=\"title\" value=\"{}\">",
-        ask.which.title()
-    );
-    match ask.which {
-        Which::AllPages => {
-            s.push_str(&field("from", "ts-allpages-from", &ask.from));
-            s.push_str(&field("to", "ts-allpages-to", &ask.to));
-        }
-        Which::PrefixIndex => {
-            s.push_str(&field("prefix", "ts-prefixindex-prefix", &ask.prefix));
-        }
-    }
-    let _ = write!(
-        s,
-        "<label class=\"ts-changes-form__field\"><span>{}</span> <select class=\"cdx-select\" name=\"namespace\">",
-        esc(&m.get("ts-changes-namespace"))
-    );
-    for n in rows.iter().filter(|n| listable(n.id)) {
-        let name = if n.id == 0 {
-            m.get("ts-namespaceinfo-main")
-        } else {
-            n.name.clone()
-        };
-        let _ = write!(
-            s,
-            "<option value=\"{}\"{}>{}</option>",
-            n.id,
-            if n.id == ask.namespace {
-                " selected"
+    let listed = titles
+        .iter()
+        .zip(&texts)
+        .map(|(full, text)| {
+            let shown = if ask.strip_prefix && ask.which == Which::PrefixIndex {
+                text.strip_prefix(&ask.prefix)
+                    .filter(|t| !t.is_empty())
+                    .unwrap_or(text)
             } else {
-                ""
-            },
-            esc(&name)
-        );
-    }
-    s.push_str("</select></label> ");
-    s.push_str(&check(
-        "hideredirects",
-        "ts-allpages-hideredirects",
-        ask.hide_redirects,
-    ));
-    if ask.which == Which::PrefixIndex {
-        s.push_str(&check(
-            "stripprefix",
-            "ts-prefixindex-stripprefix",
-            ask.strip_prefix,
-        ));
-    }
-    let _ = write!(
-        s,
-        "<button class=\"cdx-button cdx-button--action-progressive\" type=\"submit\">{}</button></form>",
-        esc(&m.get("ts-allpages-go"))
-    );
-    s
+                text
+            };
+            (full.clone(), shown.to_string(), redirects.contains(full))
+        })
+        .collect();
+    Ok(Listing {
+        titles: listed,
+        previous,
+        next: found.value.next,
+    })
 }
 
 #[cfg(test)]
@@ -484,6 +556,58 @@ mod tests {
             &rows(),
         );
         assert_eq!((a.namespace, a.from.as_str()), (0, "Douglas: a life"));
+    }
+
+    /// The page's model (19 §5.10): the form's controls, the titles with redirects
+    /// marked, the pager, and what the page says for an empty list or an entity namespace.
+    #[test]
+    fn the_page_is_a_model() {
+        let m = Messages::for_language("en");
+        let a = Ask::of(
+            Which::PrefixIndex,
+            "Special:PrefixIndex",
+            &q(&[
+                ("prefix", "Analytics/"),
+                ("namespace", "4"),
+                ("stripprefix", "1"),
+            ]),
+            &rows(),
+        );
+        let listing = Listing {
+            titles: vec![
+                ("Librarybase:Analytics/Orbit".into(), "Orbit".into(), false),
+                ("Librarybase:Analytics/Orb".into(), "Orb".into(), true),
+            ],
+            previous: None,
+            next: Some("Analytics/P".into()),
+        };
+        let p = page_model(&m, &a, &rows(), Some(&listing));
+        let names: Vec<&str> = p
+            .form
+            .items
+            .iter()
+            .map(|i| match i {
+                FormItem::Text { name, .. }
+                | FormItem::Check { name, .. }
+                | FormItem::Select { name, .. } => name.as_str(),
+                FormItem::Kinds { .. } => "kinds",
+            })
+            .collect();
+        assert_eq!(
+            names,
+            ["prefix", "namespace", "hideredirects", "stripprefix"]
+        );
+        let list = p.list.unwrap();
+        assert_eq!(list.titles[0].href, "/wiki/Librarybase:Analytics/Orbit");
+        assert!(list.titles[1].redirect && !list.titles[0].redirect);
+        let pager = list.pager.unwrap();
+        assert!(pager.previous.is_none());
+        assert!(pager.next.unwrap().href.contains("from=Analytics%2FP"));
+
+        let empty = page_model(&m, &a, &rows(), Some(&Listing::default()));
+        assert!(empty.list.is_none() && empty.empty.is_some() && empty.search.is_none());
+        let entities = page_model(&m, &a, &rows(), None);
+        assert_eq!(entities.search.unwrap().href, "/wiki/Special:Search");
     }
 
     #[test]

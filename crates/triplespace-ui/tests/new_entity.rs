@@ -75,7 +75,12 @@ impl FakeApi {
                 }
             };
             let mut u = json!({"id": id, "name": name});
-            if q.contains("uiprop=rights") {
+            // The rights wherever `uiprop` asks for them: the page's own call asks for
+            // `options|accountrequests|rights|groups`, the forms' for `rights` alone.
+            if q.split('&').any(|p| {
+                p.strip_prefix("uiprop=")
+                    .is_some_and(|v| v.split('|').any(|x| x == "rights"))
+            }) {
                 u["rights"] = rights;
             }
             return json!({"query": {"userinfo": u}});
@@ -417,16 +422,20 @@ async fn a_property_needs_property_create() {
     );
 }
 
+/// Both pages are listed under Wikibase's heading; `Special:NewProperty` only to a viewer
+/// who may create properties, since the registry restricts it to `property-create`
+/// (21 §1.1).
 #[tokio::test]
 async fn listed_on_special_pages() {
     let api = FakeApi::default();
-    let a = get(&api, "/wiki/Special:SpecialPages", None).await;
-    assert!(
-        a.body
-            .contains("href=\"/wiki/Special:NewItem\">Create a new item</a>")
-    );
-    assert!(
-        a.body
-            .contains("href=\"/wiki/Special:NewProperty\">Create a new property</a>")
-    );
+    let new_item = "href=\"/wiki/Special:NewItem\">Create a new item</a>";
+    let new_property = "href=\"/wiki/Special:NewProperty\">Create a new property</a>";
+    let a = get(&api, "/wiki/Special:SpecialPages", Some("alice")).await;
+    assert!(a.body.contains("id=\"mw-specialpagesgroup-wikibaserepo\""));
+    assert!(a.body.contains(new_item) && a.body.contains(new_property));
+    for who in [None, Some("bob")] {
+        let a = get(&api, "/wiki/Special:SpecialPages", who).await;
+        assert!(a.body.contains(new_item), "{who:?}");
+        assert!(!a.body.contains(new_property), "{who:?}");
+    }
 }

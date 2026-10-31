@@ -1,0 +1,14 @@
+{#- A report page (0047 §4; 21 §2): `Special:WantedPages`, `Special:ShortPages`,
+    `Special:ListProperties` and the rest, one template for all of them. How fresh the
+    report is, the range shown, the pager above and below, and the rows, each with the
+    value the report measures where it has one. -#}
+{%- macro title(t) %}<a href="{{ t.href }}"{% if t.missing %} class="new"{% endif %}>{{ t.text }}</a>{% endmacro -%}
+{%- macro step(s, rel) %}{% if s.href %}<a href="{{ s.href }}"{% if rel %} rel="{{ rel }}"{% endif %}>{{ s.label }}</a>{% else %}{{ s.label }}{% endif %}{% endmacro -%}
+{%- macro viewprevnext(p) -%}
+<nav class="ts-pager ts-report__pager" aria-label="{{ p.label }}">({{ step(p.previous, "prev") }} | {{ step(p.next, "next") }}) ({% for z in p.sizes %}{% if not loop.first %} | {% endif %}{{ step(z, "") }}{% endfor %})</nav>
+{%- endmacro -%}
+{%- if note %}<p class="ts-report__note">{{ note }}</p>{% endif -%}
+{%- if state %}<p class="ts-report__state">{{ state }}</p>{% endif -%}
+{%- if rows %}<p class="ts-report__range">{{ range }}</p>{{ viewprevnext(pager) }}<ol class="ts-report" start="{{ start }}">
+{%- for r in rows %}<li>{{ title(r.link) }}{% if r.id %} ({{ r.id }}){% endif %}{% if r.target %}{{ arrow }}{{ title(r.target) }}{% endif %}{% if r.last %}{{ arrow }}{{ title(r.last) }}{% endif %}{% if r.value %} ({{ r.value }}){% endif %}</li>{% endfor %}</ol>{{ viewprevnext(pager) }}
+{%- else %}<p class="ts-empty">{{ empty }}</p>{% if pager %}{{ viewprevnext(pager) }}{% endif %}{% endif %}

@@ -6,18 +6,18 @@
     "status": 200,
     "headers": {
       "cache-control": "private, no-cache",
-      "content-length": "207",
+      "content-length": "171",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 05:34:50 GMT",
-      "etag": "\"47884fe3c7d9df9500dbb53a9c4a49a1\"",
-      "mediawiki-api-error": "ts-entity-page",
+      "date": "Sat, 31 Oct 2026 18:28:54 GMT",
+      "etag": "\"0f890ae67e9854a3d427c0d0c6de80f5\"",
+      "mediawiki-api-error": "missingtitle",
       "vary": "Accept, Accept-Language"
     },
     "json": {
       "error": {
         "*": "See https://www.mediawiki.org/wiki/API:Errors_and_warnings for notice on API errors.",
-        "code": "ts-entity-page",
-        "info": "Entity pages are not parsed; read them with wbgetentities, or the site."
+        "code": "missingtitle",
+        "info": "The page you specified doesn't exist."
       }
     }
   },
@@ -30,7 +30,7 @@
       "cache-control": "private, no-cache",
       "content-length": "879",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 05:34:49 GMT",
+      "date": "Sat, 31 Oct 2026 18:28:53 GMT",
       "etag": "\"9c6ce5fb87332331b404c15bb2a90cc3\"",
       "vary": "Accept, Accept-Language"
     },
@@ -65,7 +65,7 @@
       "cache-control": "private, no-cache",
       "content-length": "812",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 05:34:49 GMT",
+      "date": "Sat, 31 Oct 2026 18:28:52 GMT",
       "etag": "\"f6ced1edc9ff66ae55e4976ddd67497f\"",
       "vary": "Accept, Accept-Language"
     },
@@ -87,6 +87,26 @@
   },
   {
     "method": "GET",
+    "path_and_query": "/w/api.php?action=query&list=logevents&letype=delete&letitle=Nothing+here&lelimit=1&format=json&formatversion=2",
+    "credentialed": true,
+    "status": 200,
+    "headers": {
+      "cache-control": "private, no-cache",
+      "content-length": "47",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Sat, 31 Oct 2026 18:28:54 GMT",
+      "etag": "\"9b8a5359db2b6f583784e5b74003b5e0\"",
+      "vary": "Accept, Accept-Language"
+    },
+    "json": {
+      "batchcomplete": true,
+      "query": {
+        "logevents": []
+      }
+    }
+  },
+  {
+    "method": "GET",
     "path_and_query": "/w/api.php?action=query&meta=notifications&notprop=count%7CseenTime%7Clist&notfilter=!read&notlimit=1&notgroupbysection=1&format=json&formatversion=2",
     "credentialed": true,
     "status": 200,
@@ -94,8 +114,8 @@
       "cache-control": "private, no-cache",
       "content-length": "695",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 05:34:50 GMT",
-      "etag": "\"a1b65b8e67a8a923edfb5115c9ac7ced\"",
+      "date": "Sat, 31 Oct 2026 18:28:54 GMT",
+      "etag": "\"44c557c8a1abaa489735da601f735a1f\"",
       "vary": "Accept, Accept-Language"
     },
     "json": {
@@ -103,7 +123,7 @@
       "query": {
         "notifications": {
           "alert": {
-            "continue": "1793424828|11",
+            "continue": "1793471249|12",
             "count": "6",
             "list": [
               {
@@ -112,14 +132,14 @@
                   "name": "Alice"
                 },
                 "category": "user-rights",
-                "id": 11,
+                "id": 12,
                 "section": "alert",
                 "timestamp": {
-                  "mw": "20261031053348",
-                  "unix": "1793424828",
-                  "utciso8601": "2026-10-31T05:33:48Z",
-                  "utcmw": "20261031053348",
-                  "utcunix": "1793424828"
+                  "mw": "20261031182729",
+                  "unix": "1793471249",
+                  "utciso8601": "2026-10-31T18:27:29Z",
+                  "utcmw": "20261031182729",
+                  "utcunix": "1793471249"
                 },
                 "title": {
                   "full": "User:Bob",
@@ -138,14 +158,14 @@
               }
             ],
             "rawcount": 6,
-            "seenTime": "2026-10-31T05:34:23Z"
+            "seenTime": "2026-10-31T18:28:16Z"
           },
           "count": "6",
           "message": {
             "count": "0",
             "list": [],
             "rawcount": 0,
-            "seenTime": "2026-10-31T05:34:23Z"
+            "seenTime": "2026-10-31T18:28:16Z"
           },
           "rawcount": 6
         }
@@ -161,8 +181,8 @@
       "cache-control": "private, no-cache",
       "content-length": "25126",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 05:34:50 GMT",
-      "etag": "\"fe1584842c7e4ce0cbfd0763b1a81bed\"",
+      "date": "Sat, 31 Oct 2026 18:28:54 GMT",
+      "etag": "\"76063f1e05090f6f6acf78bd71f62ba5\"",
       "vary": "Accept, Accept-Language"
     },
     "json": {
@@ -228,7 +248,7 @@
             "4": 250,
             "5": 300
           },
-          "time": "2026-10-31T05:34:50Z",
+          "time": "2026-10-31T18:28:54Z",
           "timeoffset": 0,
           "timezone": "UTC",
           "uploadsenabled": false,
@@ -665,7 +685,7 @@
           "api_version": 6,
           "at_farm": true,
           "build": {
-            "commit": "8e9aaf6112632a3931ac42c33b19a93d9cf6b0e1",
+            "commit": "1d3f63ec08d1f2359305b2eef5cf15124676d53f",
             "modified": true,
             "version": "0.0.1"
           },
@@ -710,7 +730,7 @@
             ]
           },
           "farm": "scatter",
-          "farm_code": "e73bi3pm3xkht4w4ajcpphph4t",
+          "farm_code": "multf2gna5gext65krm5cpkkab",
           "grants": [
             "basic",
             "highvolume",
@@ -730,7 +750,7 @@
           "interface": {
             "messages": {}
           },
-          "issuer": "piqxi5sg3uxsv4gvu6hs7vwg5d",
+          "issuer": "wedw3pfxx4omcp3ko5ilbph3kj",
           "login": [],
           "primary": "librarybase",
           "providers": [
@@ -1306,15 +1326,15 @@
       "cache-control": "private, no-cache",
       "content-length": "94",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 05:34:49 GMT",
-      "etag": "\"096310430d75c4532a592a8dd589e0ef\"",
+      "date": "Sat, 31 Oct 2026 18:28:53 GMT",
+      "etag": "\"699350a9362d161bf58a963f671855e4\"",
       "vary": "Accept, Accept-Language"
     },
     "json": {
       "batchcomplete": true,
       "query": {
         "tokens": {
-          "watchtoken": "dhakiR7VNW2WlCCEaAtOBENhlyJ-M1I5+\\"
+          "watchtoken": "8BvbfptZXGkvXqpKMHt6wPEApIsQOdkY+\\"
         }
       }
     }
@@ -1328,8 +1348,8 @@
       "cache-control": "private, no-cache",
       "content-length": "2478",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 05:34:49 GMT",
-      "etag": "\"5f2c08d6bfbc7a00f658310ab2cab2cf\"",
+      "date": "Sat, 31 Oct 2026 18:28:53 GMT",
+      "etag": "\"0854fbe11156175f106d6616eabc15ed\"",
       "vary": "Accept, Accept-Language"
     },
     "json": {
@@ -1354,7 +1374,7 @@
               "help": "The challenge the solution is for.",
               "label": "Challenge",
               "type": "hidden",
-              "value": "1.librarybase.createaccount.12.1793425489.1I0Dzhuti7IuOEkrf5uIPA.Ha97IB-TCELSYuf-QGUK6g"
+              "value": "1.librarybase.createaccount.12.1793471933.NK-N574BuNf6GD7hSc474A.4Rtxulc-TWy3mjzWVxhamg"
             },
             "tschallengeinfo": {
               "help": "The browser does this while the form is filled in.",
@@ -1415,7 +1435,7 @@
                   "help": "The challenge the solution is for.",
                   "label": "Challenge",
                   "type": "hidden",
-                  "value": "1.librarybase.createaccount.12.1793425489.1I0Dzhuti7IuOEkrf5uIPA.Ha97IB-TCELSYuf-QGUK6g"
+                  "value": "1.librarybase.createaccount.12.1793471933.NK-N574BuNf6GD7hSc474A.4Rtxulc-TWy3mjzWVxhamg"
                 },
                 "tschallengeinfo": {
                   "help": "The browser does this while the form is filled in.",
@@ -1433,7 +1453,7 @@
               "metadata": {
                 "algorithm": "sha256-leading-zero-bits",
                 "bits": 12,
-                "expires": 1793425489
+                "expires": 1793471933
               },
               "provider": "Triplespace challenge",
               "required": "required"
@@ -1441,8 +1461,8 @@
           ]
         },
         "tokens": {
-          "createaccounttoken": "zR8QtKgEObBiQ22N6sb7WHyDbQvcb0pn+\\",
-          "logintoken": "7fjKO_Sho9y0JG-CF3pI8t8nfWhrm9Yf+\\"
+          "createaccounttoken": "pxECH5YYDnJ65i5Prcx8fW6iHu5Hg0J_+\\",
+          "logintoken": "kcniGXUsL4WtUSyRORpPJbQlPJQmLfhY+\\"
         }
       }
     }
@@ -1456,7 +1476,7 @@
       "cache-control": "private, no-cache",
       "content-length": "1185",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 05:34:50 GMT",
+      "date": "Sat, 31 Oct 2026 18:28:54 GMT",
       "etag": "\"7ee0c0c49e2e056f4e8f627b5cfd1b26\"",
       "vary": "Accept, Accept-Language"
     },
@@ -1547,8 +1567,8 @@
       "cache-control": "private, no-cache",
       "content-length": "262",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 05:34:49 GMT",
-      "etag": "\"35f281c3384a56de3c219700094c9419\"",
+      "date": "Sat, 31 Oct 2026 18:28:53 GMT",
+      "etag": "\"7115c5c37cb3912d38f12ac9dfb95c25\"",
       "vary": "Accept, Accept-Language"
     },
     "json": {
@@ -1557,7 +1577,7 @@
         "pages": [
           {
             "contentmodel": "wikibase-item",
-            "lastrevid": 248250,
+            "lastrevid": 248259,
             "length": 3968,
             "notificationtimestamp": "",
             "ns": 120,
@@ -1581,8 +1601,8 @@
       "cache-control": "private, no-cache",
       "content-length": "296",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 05:34:49 GMT",
-      "etag": "\"0ad01433fc4bec886830cdc0e6090d1c\"",
+      "date": "Sat, 31 Oct 2026 18:28:53 GMT",
+      "etag": "\"b45e5d7dca87014838414aaf28cd50f2\"",
       "vary": "Accept, Accept-Language"
     },
     "json": {
@@ -1600,7 +1620,7 @@
             "pagelanguagedir": "ltr",
             "pagelanguagehtmlcode": "en",
             "title": "librarybase:Home",
-            "touched": "2026-10-31T05:33:46Z",
+            "touched": "2026-10-31T18:27:26Z",
             "watched": true
           }
         ]
@@ -1616,8 +1636,8 @@
       "cache-control": "private, no-cache",
       "content-length": "5055",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 05:34:49 GMT",
-      "etag": "\"486c97a9b099d0d0c73883abdff455f0\"",
+      "date": "Sat, 31 Oct 2026 18:28:53 GMT",
+      "etag": "\"e4a9a11e222a7ebc5503232d4c19d507\"",
       "vary": "Accept, Accept-Language"
     },
     "json": {
@@ -1955,8 +1975,8 @@
               "value": "Six & more"
             }
           },
-          "lastrevid": 248250,
-          "modified": "2026-10-31T05:33:47Z",
+          "lastrevid": 248259,
+          "modified": "2026-10-31T18:27:27Z",
           "ns": 120,
           "pageid": 26,
           "sitelinks": {},
@@ -1984,7 +2004,7 @@
       "cache-control": "private, no-cache",
       "content-length": "2136",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 05:34:49 GMT",
+      "date": "Sat, 31 Oct 2026 18:28:53 GMT",
       "etag": "\"19c2b4e4257ddd67be26b2ed12897a5f\"",
       "vary": "Accept, Accept-Language"
     },
@@ -2251,7 +2271,7 @@
       "cache-control": "private, no-cache",
       "content-length": "55",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 05:34:49 GMT",
+      "date": "Sat, 31 Oct 2026 18:28:53 GMT",
       "etag": "\"78bb77ce8e2f423644c7cb75888004e3\"",
       "vary": "Accept, Accept-Language"
     },
@@ -2272,7 +2292,7 @@
       "cache-control": "private, no-cache",
       "content-length": "415",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 05:34:49 GMT",
+      "date": "Sat, 31 Oct 2026 18:28:53 GMT",
       "etag": "\"87c179102d05c9bf610c88621fda134d\"",
       "vary": "Accept, Accept-Language"
     },
@@ -2319,7 +2339,7 @@
       "cache-control": "private, no-cache",
       "content-length": "55",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 05:34:49 GMT",
+      "date": "Sat, 31 Oct 2026 18:28:53 GMT",
       "etag": "\"78bb77ce8e2f423644c7cb75888004e3\"",
       "vary": "Accept, Accept-Language"
     },
@@ -2333,15 +2353,15 @@
   },
   {
     "method": "GET",
-    "path_and_query": "/w/rest.php/triplespace/v0/activity?kind=edit%7Cjob%7Clog%7Cerased&since=2026-10-01T05:34:49Z&limit=50&lang=de",
+    "path_and_query": "/w/rest.php/triplespace/v0/activity?kind=edit%7Cjob%7Clog%7Cerased&since=2026-10-01T18:28:53Z&limit=50&lang=de",
     "credentialed": true,
     "status": 200,
     "headers": {
       "cache-control": "private, no-cache",
-      "content-length": "39632",
+      "content-length": "38952",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 05:34:49 GMT",
-      "etag": "\"ae534906c805177d387f9fd018d24dec\"",
+      "date": "Sat, 31 Oct 2026 18:28:53 GMT",
+      "etag": "\"a84fb279005c261b88d288e1ef827540\"",
       "vary": "Accept, Accept-Language"
     },
     "json": {
@@ -2351,12 +2371,12 @@
         "log",
         "erased"
       ],
-      "next": "1793338421000000|7169256386642752302|13",
+      "next": "1793471241558051|8310412198080325060|5",
       "rows": [
         {
           "actor": {
             "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
             "kind": "registered",
             "name": "Alice"
           },
@@ -2386,7 +2406,7 @@
           "patrolled": false,
           "record": {
             "offset": 10,
-            "partition": 18116762016362588700
+            "partition": 4497891130185035785
           },
           "source": "config",
           "summary": {
@@ -2394,13 +2414,13 @@
             "text": "/* protect/protect */ "
           },
           "tags": [],
-          "time": "2026-10-31T05:34:48Z",
+          "time": "2026-10-31T18:28:51Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
             "kind": "registered",
             "name": "Alice"
           },
@@ -2427,7 +2447,7 @@
           "patrolled": false,
           "record": {
             "offset": 8,
-            "partition": 15190585228380615851
+            "partition": 2311083525814825877
           },
           "source": "actors",
           "summary": {
@@ -2436,7 +2456,7 @@
           },
           "tags": [],
           "target": {
-            "id": "piqxi5sg3uxsv4gvu6hs7vwg5d:25",
+            "id": "wedw3pfxx4omcp3ko5ilbph3kj:25",
             "kind": "actor",
             "label": {
               "language": "",
@@ -2446,13 +2466,13 @@
             "title": "User:Bob",
             "url": "https://librarybase.org/wiki/User:Bob"
           },
-          "time": "2026-10-31T05:33:48Z",
+          "time": "2026-10-31T18:27:29Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
             "kind": "registered",
             "name": "Alice"
           },
@@ -2469,7 +2489,7 @@
           "log": {
             "action": "block",
             "params": {
-              "expires": 1794029628836304,
+              "expires": 1794076049482257,
               "removes": [
                 "createpage",
                 "edit"
@@ -2481,7 +2501,7 @@
           "patrolled": false,
           "record": {
             "offset": 7,
-            "partition": 15190585228380615851
+            "partition": 2311083525814825877
           },
           "source": "actors",
           "summary": {
@@ -2490,7 +2510,7 @@
           },
           "tags": [],
           "target": {
-            "id": "piqxi5sg3uxsv4gvu6hs7vwg5d:26",
+            "id": "wedw3pfxx4omcp3ko5ilbph3kj:26",
             "kind": "actor",
             "label": {
               "language": "",
@@ -2500,13 +2520,13 @@
             "title": "User:Carol",
             "url": "https://librarybase.org/wiki/User:Carol"
           },
-          "time": "2026-10-31T05:33:48Z",
+          "time": "2026-10-31T18:27:29Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
             "kind": "registered",
             "name": "Alice"
           },
@@ -2541,7 +2561,7 @@
           "patrolled": false,
           "record": {
             "offset": 9,
-            "partition": 16287082057227451183
+            "partition": 8310412198080325060
           },
           "source": "log",
           "summary": {
@@ -2562,13 +2582,13 @@
             "title": "Item:Q6",
             "url": "https://librarybase.org/wiki/Item:Q6"
           },
-          "time": "2026-10-31T05:33:48Z",
+          "time": "2026-10-31T18:27:29Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
             "kind": "registered",
             "name": "Alice"
           },
@@ -2605,7 +2625,7 @@
           "patrolled": false,
           "record": {
             "offset": 7,
-            "partition": 16287082057227451183
+            "partition": 8310412198080325060
           },
           "source": "log",
           "summary": {
@@ -2614,10 +2634,10 @@
           },
           "tags": [],
           "target": {
-            "id": "10324362072967298508:165",
+            "id": "2303836607154665115:174",
             "kind": "record"
           },
-          "time": "2026-10-31T05:33:48Z",
+          "time": "2026-10-31T18:27:29Z",
           "visibility": []
         },
         {
@@ -2632,15 +2652,15 @@
           },
           "kind": "edit",
           "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Project%3ASandbox&diff=248269",
+            "diff": "https://librarybase.org/w/index.php?title=Project%3ASandbox&diff=248278",
             "history": "https://librarybase.org/w/index.php?title=Project%3ASandbox&action=history"
           },
           "patrolled": false,
           "record": {
-            "offset": 166,
-            "partition": 10324362072967298508
+            "offset": 175,
+            "partition": 2303836607154665115
           },
-          "revid": 248269,
+          "revid": 248278,
           "size": 42,
           "source": "pages",
           "summary": {
@@ -2654,7 +2674,7 @@
             "title": "Project:Sandbox",
             "url": "https://librarybase.org/wiki/Project:Sandbox"
           },
-          "time": "2026-10-31T05:33:48Z",
+          "time": "2026-10-31T18:27:29Z",
           "visibility": [
             "content",
             "comment",
@@ -2674,15 +2694,15 @@
           },
           "kind": "edit",
           "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Project%3ASandbox&diff=248268",
+            "diff": "https://librarybase.org/w/index.php?title=Project%3ASandbox&diff=248277",
             "history": "https://librarybase.org/w/index.php?title=Project%3ASandbox&action=history"
           },
           "patrolled": false,
           "record": {
-            "offset": 165,
-            "partition": 10324362072967298508
+            "offset": 174,
+            "partition": 2303836607154665115
           },
-          "revid": 248268,
+          "revid": 248277,
           "size": 54,
           "source": "pages",
           "summary": {
@@ -2696,7 +2716,7 @@
             "title": "Project:Sandbox",
             "url": "https://librarybase.org/wiki/Project:Sandbox"
           },
-          "time": "2026-10-31T05:33:48Z",
+          "time": "2026-10-31T18:27:29Z",
           "visibility": [
             "comment",
             "user"
@@ -2705,7 +2725,7 @@
         {
           "actor": {
             "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
             "kind": "registered",
             "name": "Alice"
           },
@@ -2716,7 +2736,7 @@
           },
           "kind": "edit",
           "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FHouse_style&diff=248267",
+            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FHouse_style&diff=248276",
             "history": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FHouse_style&action=history"
           },
           "log": {
@@ -2726,7 +2746,7 @@
               "also_talk": [],
               "pinned": false,
               "subject": "House style",
-              "talk": 247188,
+              "talk": 247196,
               "target": {
                 "id": 489,
                 "kind": "page"
@@ -2737,10 +2757,10 @@
           "logid": 19,
           "patrolled": false,
           "record": {
-            "offset": 164,
-            "partition": 10324362072967298508
+            "offset": 173,
+            "partition": 2303836607154665115
           },
-          "revid": 248267,
+          "revid": 248276,
           "size": 26,
           "source": "pages",
           "summary": {
@@ -2750,19 +2770,19 @@
           },
           "tags": [],
           "target": {
-            "id": "247189",
+            "id": "247197",
             "kind": "page",
             "ns": 214,
             "title": "Thread:2026-10-31/House style",
             "url": "https://librarybase.org/wiki/Thread:2026-10-31/House_style"
           },
-          "time": "2026-10-31T05:33:48Z",
+          "time": "2026-10-31T18:27:29Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
             "kind": "registered",
             "name": "Alice"
           },
@@ -2773,15 +2793,15 @@
           },
           "kind": "edit",
           "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FWelcome_text&diff=248266",
+            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FWelcome_text&diff=248275",
             "history": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FWelcome_text&action=history"
           },
           "patrolled": false,
           "record": {
-            "offset": 163,
-            "partition": 10324362072967298508
+            "offset": 172,
+            "partition": 2303836607154665115
           },
-          "revid": 248266,
+          "revid": 248275,
           "size": 28,
           "source": "pages",
           "summary": {
@@ -2790,19 +2810,19 @@
           },
           "tags": [],
           "target": {
-            "id": "247187",
+            "id": "247195",
             "kind": "page",
             "ns": 214,
             "title": "Thread:2026-10-31/Welcome text",
             "url": "https://librarybase.org/wiki/Thread:2026-10-31/Welcome_text"
           },
-          "time": "2026-10-31T05:33:48Z",
+          "time": "2026-10-31T18:27:28Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/25",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:25",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:25",
             "kind": "registered",
             "name": "Bob"
           },
@@ -2813,7 +2833,7 @@
           },
           "kind": "edit",
           "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FWelcome_text&diff=248265",
+            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FWelcome_text&diff=248274",
             "history": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FWelcome_text&action=history"
           },
           "log": {
@@ -2823,7 +2843,7 @@
               "also_talk": [],
               "pinned": false,
               "subject": "Welcome text",
-              "talk": 247188,
+              "talk": 247196,
               "target": {
                 "id": 489,
                 "kind": "page"
@@ -2834,10 +2854,10 @@
           "logid": 18,
           "patrolled": false,
           "record": {
-            "offset": 162,
-            "partition": 10324362072967298508
+            "offset": 171,
+            "partition": 2303836607154665115
           },
-          "revid": 248265,
+          "revid": 248274,
           "size": 47,
           "source": "pages",
           "summary": {
@@ -2847,21 +2867,381 @@
           },
           "tags": [],
           "target": {
-            "id": "247187",
+            "id": "247195",
             "kind": "page",
             "ns": 214,
             "title": "Thread:2026-10-31/Welcome text",
             "url": "https://librarybase.org/wiki/Thread:2026-10-31/Welcome_text"
           },
-          "time": "2026-10-31T05:33:48Z",
+          "time": "2026-10-31T18:27:28Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/25",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:25",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:25",
             "kind": "registered",
             "name": "Bob"
+          },
+          "flags": {
+            "bot": false,
+            "minor": false,
+            "new": false
+          },
+          "kind": "edit",
+          "links": {
+            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&diff=248273",
+            "history": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&action=history"
+          },
+          "patrolled": false,
+          "record": {
+            "offset": 170,
+            "partition": 2303836607154665115
+          },
+          "revid": 248273,
+          "size": 15,
+          "source": "pages",
+          "summary": {
+            "op": "post",
+            "text": "/* post */"
+          },
+          "tags": [],
+          "target": {
+            "id": "247193",
+            "kind": "page",
+            "ns": 214,
+            "title": "Thread:2026-10-31/Is five a city?",
+            "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
+          },
+          "time": "2026-10-31T18:27:28Z",
+          "visibility": []
+        },
+        {
+          "actor": {
+            "iri": "https://librarybase.org/user/7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
+            "kind": "registered",
+            "name": "Alice"
+          },
+          "flags": {
+            "bot": false,
+            "minor": false,
+            "new": false
+          },
+          "kind": "edit",
+          "links": {
+            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&diff=248272",
+            "history": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&action=history"
+          },
+          "patrolled": false,
+          "record": {
+            "offset": 169,
+            "partition": 2303836607154665115
+          },
+          "revid": 248272,
+          "size": 15,
+          "source": "pages",
+          "summary": {
+            "op": "post",
+            "text": "/* post */"
+          },
+          "tags": [],
+          "target": {
+            "id": "247193",
+            "kind": "page",
+            "ns": 214,
+            "title": "Thread:2026-10-31/Is five a city?",
+            "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
+          },
+          "time": "2026-10-31T18:27:28Z",
+          "visibility": []
+        },
+        {
+          "actor": {
+            "iri": "https://librarybase.org/user/25",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:25",
+            "kind": "registered",
+            "name": "Bob"
+          },
+          "flags": {
+            "bot": false,
+            "minor": false,
+            "new": false
+          },
+          "kind": "edit",
+          "links": {
+            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&diff=248271",
+            "history": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&action=history"
+          },
+          "patrolled": false,
+          "record": {
+            "offset": 168,
+            "partition": 2303836607154665115
+          },
+          "revid": 248271,
+          "size": 15,
+          "source": "pages",
+          "summary": {
+            "op": "post",
+            "text": "/* post */"
+          },
+          "tags": [],
+          "target": {
+            "id": "247193",
+            "kind": "page",
+            "ns": 214,
+            "title": "Thread:2026-10-31/Is five a city?",
+            "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
+          },
+          "time": "2026-10-31T18:27:28Z",
+          "visibility": []
+        },
+        {
+          "actor": {
+            "iri": "https://librarybase.org/user/7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
+            "kind": "registered",
+            "name": "Alice"
+          },
+          "flags": {
+            "bot": false,
+            "minor": false,
+            "new": false
+          },
+          "kind": "edit",
+          "links": {
+            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&diff=248270",
+            "history": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&action=history"
+          },
+          "patrolled": false,
+          "record": {
+            "offset": 167,
+            "partition": 2303836607154665115
+          },
+          "revid": 248270,
+          "size": 15,
+          "source": "pages",
+          "summary": {
+            "op": "post",
+            "text": "/* post */"
+          },
+          "tags": [],
+          "target": {
+            "id": "247193",
+            "kind": "page",
+            "ns": 214,
+            "title": "Thread:2026-10-31/Is five a city?",
+            "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
+          },
+          "time": "2026-10-31T18:27:28Z",
+          "visibility": []
+        },
+        {
+          "actor": {
+            "iri": "https://librarybase.org/user/25",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:25",
+            "kind": "registered",
+            "name": "Bob"
+          },
+          "flags": {
+            "bot": false,
+            "minor": false,
+            "new": false
+          },
+          "kind": "edit",
+          "links": {
+            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&diff=248269",
+            "history": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&action=history"
+          },
+          "patrolled": false,
+          "record": {
+            "offset": 166,
+            "partition": 2303836607154665115
+          },
+          "revid": 248269,
+          "size": 15,
+          "source": "pages",
+          "summary": {
+            "op": "post",
+            "text": "/* post */"
+          },
+          "tags": [],
+          "target": {
+            "id": "247193",
+            "kind": "page",
+            "ns": 214,
+            "title": "Thread:2026-10-31/Is five a city?",
+            "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
+          },
+          "time": "2026-10-31T18:27:28Z",
+          "visibility": []
+        },
+        {
+          "actor": {
+            "iri": "https://librarybase.org/user/7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
+            "kind": "registered",
+            "name": "Alice"
+          },
+          "flags": {
+            "bot": false,
+            "minor": false,
+            "new": false
+          },
+          "kind": "edit",
+          "links": {
+            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&diff=248268",
+            "history": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&action=history"
+          },
+          "patrolled": false,
+          "record": {
+            "offset": 165,
+            "partition": 2303836607154665115
+          },
+          "revid": 248268,
+          "size": 15,
+          "source": "pages",
+          "summary": {
+            "op": "post",
+            "text": "/* post */"
+          },
+          "tags": [],
+          "target": {
+            "id": "247193",
+            "kind": "page",
+            "ns": 214,
+            "title": "Thread:2026-10-31/Is five a city?",
+            "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
+          },
+          "time": "2026-10-31T18:27:28Z",
+          "visibility": []
+        },
+        {
+          "actor": {
+            "iri": "https://librarybase.org/user/25",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:25",
+            "kind": "registered",
+            "name": "Bob"
+          },
+          "flags": {
+            "bot": false,
+            "minor": false,
+            "new": false
+          },
+          "kind": "edit",
+          "links": {
+            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&diff=248267",
+            "history": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&action=history"
+          },
+          "patrolled": false,
+          "record": {
+            "offset": 164,
+            "partition": 2303836607154665115
+          },
+          "revid": 248267,
+          "size": 15,
+          "source": "pages",
+          "summary": {
+            "op": "post",
+            "text": "/* post */"
+          },
+          "tags": [],
+          "target": {
+            "id": "247193",
+            "kind": "page",
+            "ns": 214,
+            "title": "Thread:2026-10-31/Is five a city?",
+            "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
+          },
+          "time": "2026-10-31T18:27:28Z",
+          "visibility": []
+        },
+        {
+          "actor": {
+            "iri": "https://librarybase.org/user/7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
+            "kind": "registered",
+            "name": "Alice"
+          },
+          "flags": {
+            "bot": false,
+            "minor": false,
+            "new": false
+          },
+          "kind": "edit",
+          "links": {
+            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&diff=248266",
+            "history": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&action=history"
+          },
+          "patrolled": false,
+          "record": {
+            "offset": 163,
+            "partition": 2303836607154665115
+          },
+          "revid": 248266,
+          "size": 37,
+          "source": "pages",
+          "summary": {
+            "op": "post",
+            "text": "/* post */"
+          },
+          "tags": [],
+          "target": {
+            "id": "247193",
+            "kind": "page",
+            "ns": 214,
+            "title": "Thread:2026-10-31/Is five a city?",
+            "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
+          },
+          "time": "2026-10-31T18:27:28Z",
+          "visibility": []
+        },
+        {
+          "actor": {
+            "iri": "https://librarybase.org/user/26",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:26",
+            "kind": "registered",
+            "name": "Carol"
+          },
+          "flags": {
+            "bot": false,
+            "minor": false,
+            "new": false
+          },
+          "kind": "edit",
+          "links": {
+            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&diff=248265",
+            "history": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&action=history"
+          },
+          "patrolled": false,
+          "record": {
+            "offset": 162,
+            "partition": 2303836607154665115
+          },
+          "revid": 248265,
+          "size": 17,
+          "source": "pages",
+          "summary": {
+            "op": "post",
+            "text": "/* post */"
+          },
+          "tags": [],
+          "target": {
+            "id": "247193",
+            "kind": "page",
+            "ns": 214,
+            "title": "Thread:2026-10-31/Is five a city?",
+            "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
+          },
+          "time": "2026-10-31T18:27:28Z",
+          "visibility": []
+        },
+        {
+          "actor": {
+            "iri": "https://librarybase.org/user/7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
+            "kind": "registered",
+            "name": "Alice"
           },
           "flags": {
             "bot": false,
@@ -2876,10 +3256,10 @@
           "patrolled": false,
           "record": {
             "offset": 161,
-            "partition": 10324362072967298508
+            "partition": 2303836607154665115
           },
           "revid": 248264,
-          "size": 15,
+          "size": 28,
           "source": "pages",
           "summary": {
             "op": "post",
@@ -2887,21 +3267,21 @@
           },
           "tags": [],
           "target": {
-            "id": "247185",
+            "id": "247193",
             "kind": "page",
             "ns": 214,
             "title": "Thread:2026-10-31/Is five a city?",
             "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
           },
-          "time": "2026-10-31T05:33:48Z",
+          "time": "2026-10-31T18:27:28Z",
           "visibility": []
         },
         {
           "actor": {
-            "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
+            "iri": "https://librarybase.org/user/25",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:25",
             "kind": "registered",
-            "name": "Alice"
+            "name": "Bob"
           },
           "flags": {
             "bot": false,
@@ -2916,10 +3296,10 @@
           "patrolled": false,
           "record": {
             "offset": 160,
-            "partition": 10324362072967298508
+            "partition": 2303836607154665115
           },
           "revid": 248263,
-          "size": 15,
+          "size": 21,
           "source": "pages",
           "summary": {
             "op": "post",
@@ -2927,21 +3307,21 @@
           },
           "tags": [],
           "target": {
-            "id": "247185",
+            "id": "247193",
             "kind": "page",
             "ns": 214,
             "title": "Thread:2026-10-31/Is five a city?",
             "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
           },
-          "time": "2026-10-31T05:33:48Z",
+          "time": "2026-10-31T18:27:28Z",
           "visibility": []
         },
         {
           "actor": {
-            "iri": "https://librarybase.org/user/25",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:25",
+            "iri": "https://librarybase.org/user/7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
             "kind": "registered",
-            "name": "Bob"
+            "name": "Alice"
           },
           "flags": {
             "bot": false,
@@ -2956,10 +3336,10 @@
           "patrolled": false,
           "record": {
             "offset": 159,
-            "partition": 10324362072967298508
+            "partition": 2303836607154665115
           },
           "revid": 248262,
-          "size": 15,
+          "size": 26,
           "source": "pages",
           "summary": {
             "op": "post",
@@ -2967,21 +3347,21 @@
           },
           "tags": [],
           "target": {
-            "id": "247185",
+            "id": "247193",
             "kind": "page",
             "ns": 214,
             "title": "Thread:2026-10-31/Is five a city?",
             "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
           },
-          "time": "2026-10-31T05:33:48Z",
+          "time": "2026-10-31T18:27:28Z",
           "visibility": []
         },
         {
           "actor": {
-            "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
+            "iri": "https://librarybase.org/user/25",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:25",
             "kind": "registered",
-            "name": "Alice"
+            "name": "Bob"
           },
           "flags": {
             "bot": false,
@@ -2996,369 +3376,9 @@
           "patrolled": false,
           "record": {
             "offset": 158,
-            "partition": 10324362072967298508
+            "partition": 2303836607154665115
           },
           "revid": 248261,
-          "size": 15,
-          "source": "pages",
-          "summary": {
-            "op": "post",
-            "text": "/* post */"
-          },
-          "tags": [],
-          "target": {
-            "id": "247185",
-            "kind": "page",
-            "ns": 214,
-            "title": "Thread:2026-10-31/Is five a city?",
-            "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
-          },
-          "time": "2026-10-31T05:33:48Z",
-          "visibility": []
-        },
-        {
-          "actor": {
-            "iri": "https://librarybase.org/user/25",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:25",
-            "kind": "registered",
-            "name": "Bob"
-          },
-          "flags": {
-            "bot": false,
-            "minor": false,
-            "new": false
-          },
-          "kind": "edit",
-          "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&diff=248260",
-            "history": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&action=history"
-          },
-          "patrolled": false,
-          "record": {
-            "offset": 157,
-            "partition": 10324362072967298508
-          },
-          "revid": 248260,
-          "size": 15,
-          "source": "pages",
-          "summary": {
-            "op": "post",
-            "text": "/* post */"
-          },
-          "tags": [],
-          "target": {
-            "id": "247185",
-            "kind": "page",
-            "ns": 214,
-            "title": "Thread:2026-10-31/Is five a city?",
-            "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
-          },
-          "time": "2026-10-31T05:33:47Z",
-          "visibility": []
-        },
-        {
-          "actor": {
-            "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
-            "kind": "registered",
-            "name": "Alice"
-          },
-          "flags": {
-            "bot": false,
-            "minor": false,
-            "new": false
-          },
-          "kind": "edit",
-          "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&diff=248259",
-            "history": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&action=history"
-          },
-          "patrolled": false,
-          "record": {
-            "offset": 156,
-            "partition": 10324362072967298508
-          },
-          "revid": 248259,
-          "size": 15,
-          "source": "pages",
-          "summary": {
-            "op": "post",
-            "text": "/* post */"
-          },
-          "tags": [],
-          "target": {
-            "id": "247185",
-            "kind": "page",
-            "ns": 214,
-            "title": "Thread:2026-10-31/Is five a city?",
-            "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
-          },
-          "time": "2026-10-31T05:33:47Z",
-          "visibility": []
-        },
-        {
-          "actor": {
-            "iri": "https://librarybase.org/user/25",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:25",
-            "kind": "registered",
-            "name": "Bob"
-          },
-          "flags": {
-            "bot": false,
-            "minor": false,
-            "new": false
-          },
-          "kind": "edit",
-          "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&diff=248258",
-            "history": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&action=history"
-          },
-          "patrolled": false,
-          "record": {
-            "offset": 155,
-            "partition": 10324362072967298508
-          },
-          "revid": 248258,
-          "size": 15,
-          "source": "pages",
-          "summary": {
-            "op": "post",
-            "text": "/* post */"
-          },
-          "tags": [],
-          "target": {
-            "id": "247185",
-            "kind": "page",
-            "ns": 214,
-            "title": "Thread:2026-10-31/Is five a city?",
-            "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
-          },
-          "time": "2026-10-31T05:33:47Z",
-          "visibility": []
-        },
-        {
-          "actor": {
-            "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
-            "kind": "registered",
-            "name": "Alice"
-          },
-          "flags": {
-            "bot": false,
-            "minor": false,
-            "new": false
-          },
-          "kind": "edit",
-          "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&diff=248257",
-            "history": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&action=history"
-          },
-          "patrolled": false,
-          "record": {
-            "offset": 154,
-            "partition": 10324362072967298508
-          },
-          "revid": 248257,
-          "size": 37,
-          "source": "pages",
-          "summary": {
-            "op": "post",
-            "text": "/* post */"
-          },
-          "tags": [],
-          "target": {
-            "id": "247185",
-            "kind": "page",
-            "ns": 214,
-            "title": "Thread:2026-10-31/Is five a city?",
-            "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
-          },
-          "time": "2026-10-31T05:33:47Z",
-          "visibility": []
-        },
-        {
-          "actor": {
-            "iri": "https://librarybase.org/user/26",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:26",
-            "kind": "registered",
-            "name": "Carol"
-          },
-          "flags": {
-            "bot": false,
-            "minor": false,
-            "new": false
-          },
-          "kind": "edit",
-          "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&diff=248256",
-            "history": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&action=history"
-          },
-          "patrolled": false,
-          "record": {
-            "offset": 153,
-            "partition": 10324362072967298508
-          },
-          "revid": 248256,
-          "size": 17,
-          "source": "pages",
-          "summary": {
-            "op": "post",
-            "text": "/* post */"
-          },
-          "tags": [],
-          "target": {
-            "id": "247185",
-            "kind": "page",
-            "ns": 214,
-            "title": "Thread:2026-10-31/Is five a city?",
-            "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
-          },
-          "time": "2026-10-31T05:33:47Z",
-          "visibility": []
-        },
-        {
-          "actor": {
-            "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
-            "kind": "registered",
-            "name": "Alice"
-          },
-          "flags": {
-            "bot": false,
-            "minor": false,
-            "new": false
-          },
-          "kind": "edit",
-          "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&diff=248255",
-            "history": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&action=history"
-          },
-          "patrolled": false,
-          "record": {
-            "offset": 152,
-            "partition": 10324362072967298508
-          },
-          "revid": 248255,
-          "size": 28,
-          "source": "pages",
-          "summary": {
-            "op": "post",
-            "text": "/* post */"
-          },
-          "tags": [],
-          "target": {
-            "id": "247185",
-            "kind": "page",
-            "ns": 214,
-            "title": "Thread:2026-10-31/Is five a city?",
-            "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
-          },
-          "time": "2026-10-31T05:33:47Z",
-          "visibility": []
-        },
-        {
-          "actor": {
-            "iri": "https://librarybase.org/user/25",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:25",
-            "kind": "registered",
-            "name": "Bob"
-          },
-          "flags": {
-            "bot": false,
-            "minor": false,
-            "new": false
-          },
-          "kind": "edit",
-          "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&diff=248254",
-            "history": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&action=history"
-          },
-          "patrolled": false,
-          "record": {
-            "offset": 151,
-            "partition": 10324362072967298508
-          },
-          "revid": 248254,
-          "size": 21,
-          "source": "pages",
-          "summary": {
-            "op": "post",
-            "text": "/* post */"
-          },
-          "tags": [],
-          "target": {
-            "id": "247185",
-            "kind": "page",
-            "ns": 214,
-            "title": "Thread:2026-10-31/Is five a city?",
-            "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
-          },
-          "time": "2026-10-31T05:33:47Z",
-          "visibility": []
-        },
-        {
-          "actor": {
-            "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
-            "kind": "registered",
-            "name": "Alice"
-          },
-          "flags": {
-            "bot": false,
-            "minor": false,
-            "new": false
-          },
-          "kind": "edit",
-          "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&diff=248253",
-            "history": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&action=history"
-          },
-          "patrolled": false,
-          "record": {
-            "offset": 150,
-            "partition": 10324362072967298508
-          },
-          "revid": 248253,
-          "size": 26,
-          "source": "pages",
-          "summary": {
-            "op": "post",
-            "text": "/* post */"
-          },
-          "tags": [],
-          "target": {
-            "id": "247185",
-            "kind": "page",
-            "ns": 214,
-            "title": "Thread:2026-10-31/Is five a city?",
-            "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
-          },
-          "time": "2026-10-31T05:33:47Z",
-          "visibility": []
-        },
-        {
-          "actor": {
-            "iri": "https://librarybase.org/user/25",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:25",
-            "kind": "registered",
-            "name": "Bob"
-          },
-          "flags": {
-            "bot": false,
-            "minor": false,
-            "new": false
-          },
-          "kind": "edit",
-          "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&diff=248252",
-            "history": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&action=history"
-          },
-          "patrolled": false,
-          "record": {
-            "offset": 149,
-            "partition": 10324362072967298508
-          },
-          "revid": 248252,
           "size": 19,
           "source": "pages",
           "summary": {
@@ -3367,19 +3387,19 @@
           },
           "tags": [],
           "target": {
-            "id": "247185",
+            "id": "247193",
             "kind": "page",
             "ns": 214,
             "title": "Thread:2026-10-31/Is five a city?",
             "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
           },
-          "time": "2026-10-31T05:33:47Z",
+          "time": "2026-10-31T18:27:28Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
             "kind": "registered",
             "name": "Alice"
           },
@@ -3390,7 +3410,7 @@
           },
           "kind": "edit",
           "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&diff=248251",
+            "diff": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&diff=248260",
             "history": "https://librarybase.org/w/index.php?title=Thread%3A2026-10-31%2FIs_five_a_city%3F&action=history"
           },
           "log": {
@@ -3400,7 +3420,7 @@
               "also_talk": [],
               "pinned": false,
               "subject": "Is five a city?",
-              "talk": 247186,
+              "talk": 247194,
               "target": {
                 "id": 25,
                 "kind": "page"
@@ -3411,10 +3431,10 @@
           "logid": 17,
           "patrolled": false,
           "record": {
-            "offset": 148,
-            "partition": 10324362072967298508
+            "offset": 157,
+            "partition": 2303836607154665115
           },
-          "revid": 248251,
+          "revid": 248260,
           "size": 38,
           "source": "pages",
           "summary": {
@@ -3424,19 +3444,19 @@
           },
           "tags": [],
           "target": {
-            "id": "247185",
+            "id": "247193",
             "kind": "page",
             "ns": 214,
             "title": "Thread:2026-10-31/Is five a city?",
             "url": "https://librarybase.org/wiki/Thread:2026-10-31/Is_five_a_city%3F"
           },
-          "time": "2026-10-31T05:33:47Z",
+          "time": "2026-10-31T18:27:27Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
             "kind": "registered",
             "name": "Alice"
           },
@@ -3448,15 +3468,15 @@
           },
           "kind": "edit",
           "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Item%3AQ6&diff=248250",
+            "diff": "https://librarybase.org/w/index.php?title=Item%3AQ6&diff=248259",
             "history": "https://librarybase.org/w/index.php?title=Item%3AQ6&action=history"
           },
           "patrolled": false,
           "record": {
             "offset": 20,
-            "partition": 7169256386642752302
+            "partition": 10748516001043167112
           },
-          "revid": 248250,
+          "revid": 248259,
           "size": 1034,
           "source": "local",
           "summary": {
@@ -3478,13 +3498,13 @@
             "title": "Item:Q6",
             "url": "https://librarybase.org/wiki/Item:Q6"
           },
-          "time": "2026-10-31T05:33:47Z",
+          "time": "2026-10-31T18:27:27Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
             "kind": "registered",
             "name": "Alice"
           },
@@ -3496,15 +3516,15 @@
           },
           "kind": "edit",
           "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Item%3AQ6&diff=248249",
+            "diff": "https://librarybase.org/w/index.php?title=Item%3AQ6&diff=248258",
             "history": "https://librarybase.org/w/index.php?title=Item%3AQ6&action=history"
           },
           "patrolled": false,
           "record": {
             "offset": 19,
-            "partition": 7169256386642752302
+            "partition": 10748516001043167112
           },
-          "revid": 248249,
+          "revid": 248258,
           "size": 135,
           "source": "local",
           "summary": {
@@ -3526,13 +3546,13 @@
             "title": "Item:Q6",
             "url": "https://librarybase.org/wiki/Item:Q6"
           },
-          "time": "2026-10-31T05:33:47Z",
+          "time": "2026-10-31T18:27:27Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
             "kind": "registered",
             "name": "Alice"
           },
@@ -3543,15 +3563,15 @@
           },
           "kind": "edit",
           "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Item%3AQ5&diff=248248",
+            "diff": "https://librarybase.org/w/index.php?title=Item%3AQ5&diff=248257",
             "history": "https://librarybase.org/w/index.php?title=Item%3AQ5&action=history"
           },
           "patrolled": false,
           "record": {
             "offset": 18,
-            "partition": 7169256386642752302
+            "partition": 10748516001043167112
           },
-          "revid": 248248,
+          "revid": 248257,
           "size": 208,
           "source": "local",
           "summary": {
@@ -3573,13 +3593,13 @@
             "title": "Item:Q5",
             "url": "https://librarybase.org/wiki/Item:Q5"
           },
-          "time": "2026-10-31T05:33:47Z",
+          "time": "2026-10-31T18:27:27Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
             "kind": "registered",
             "name": "Alice"
           },
@@ -3590,15 +3610,15 @@
           },
           "kind": "edit",
           "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Item%3AQ6&diff=248247",
+            "diff": "https://librarybase.org/w/index.php?title=Item%3AQ6&diff=248256",
             "history": "https://librarybase.org/w/index.php?title=Item%3AQ6&action=history"
           },
           "patrolled": false,
           "record": {
             "offset": 17,
-            "partition": 7169256386642752302
+            "partition": 10748516001043167112
           },
-          "revid": 248247,
+          "revid": 248256,
           "size": 222,
           "source": "local",
           "summary": {
@@ -3620,13 +3640,13 @@
             "title": "Item:Q6",
             "url": "https://librarybase.org/wiki/Item:Q6"
           },
-          "time": "2026-10-31T05:33:47Z",
+          "time": "2026-10-31T18:27:27Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/25",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:25",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:25",
             "kind": "registered",
             "name": "Bob"
           },
@@ -3637,15 +3657,15 @@
           },
           "kind": "edit",
           "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Item%3AQ6&diff=248246",
+            "diff": "https://librarybase.org/w/index.php?title=Item%3AQ6&diff=248255",
             "history": "https://librarybase.org/w/index.php?title=Item%3AQ6&action=history"
           },
           "patrolled": false,
           "record": {
             "offset": 16,
-            "partition": 7169256386642752302
+            "partition": 10748516001043167112
           },
-          "revid": 248246,
+          "revid": 248255,
           "size": 40,
           "source": "local",
           "summary": {
@@ -3667,13 +3687,13 @@
             "title": "Item:Q6",
             "url": "https://librarybase.org/wiki/Item:Q6"
           },
-          "time": "2026-10-31T05:33:47Z",
+          "time": "2026-10-31T18:27:27Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
             "kind": "registered",
             "name": "Alice"
           },
@@ -3705,7 +3725,7 @@
           "patrolled": false,
           "record": {
             "offset": 6,
-            "partition": 16287082057227451183
+            "partition": 8310412198080325060
           },
           "source": "log",
           "summary": {
@@ -3720,13 +3740,13 @@
             "title": "Project:Consensus",
             "url": "https://librarybase.org/wiki/Project:Consensus"
           },
-          "time": "2026-10-31T05:33:46Z",
+          "time": "2026-10-31T18:27:27Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
             "kind": "registered",
             "name": "Alice"
           },
@@ -3739,15 +3759,15 @@
           },
           "kind": "edit",
           "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Project%3AAnalytics%2FOrb&diff=248245",
+            "diff": "https://librarybase.org/w/index.php?title=Project%3AAnalytics%2FOrb&diff=248254",
             "history": "https://librarybase.org/w/index.php?title=Project%3AAnalytics%2FOrb&action=history"
           },
           "patrolled": false,
           "record": {
-            "offset": 147,
-            "partition": 10324362072967298508
+            "offset": 156,
+            "partition": 2303836607154665115
           },
-          "revid": 248245,
+          "revid": 248254,
           "size": 41,
           "source": "pages",
           "summary": {
@@ -3755,19 +3775,19 @@
           },
           "tags": [],
           "target": {
-            "id": "247184",
+            "id": "247192",
             "kind": "page",
             "ns": 4,
             "title": "Project:Analytics/Orb",
             "url": "https://librarybase.org/wiki/Project:Analytics/Orb"
           },
-          "time": "2026-10-31T05:33:46Z",
+          "time": "2026-10-31T18:27:27Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
             "kind": "registered",
             "name": "Alice"
           },
@@ -3779,7 +3799,7 @@
           },
           "kind": "edit",
           "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Project%3AAnalytics%2FOrbit&diff=248244",
+            "diff": "https://librarybase.org/w/index.php?title=Project%3AAnalytics%2FOrbit&diff=248253",
             "history": "https://librarybase.org/w/index.php?title=Project%3AAnalytics%2FOrbit&action=history"
           },
           "log": {
@@ -3789,17 +3809,17 @@
               "target_title": "Project:Analytics/Orbit",
               "ts-from-ns": 4,
               "ts-from-title": "Project:Analytics/Orb",
-              "ts-redirect": 247184
+              "ts-redirect": 247192
             },
             "type": "move"
           },
           "logid": 15,
           "patrolled": false,
           "record": {
-            "offset": 146,
-            "partition": 10324362072967298508
+            "offset": 155,
+            "partition": 2303836607154665115
           },
-          "revid": 248244,
+          "revid": 248253,
           "source": "pages",
           "summary": {
             "op": "move",
@@ -3813,13 +3833,373 @@
             "title": "Project:Analytics/Orbit",
             "url": "https://librarybase.org/wiki/Project:Analytics/Orbit"
           },
-          "time": "2026-10-31T05:33:46Z",
+          "time": "2026-10-31T18:27:27Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
+            "kind": "registered",
+            "name": "Alice"
+          },
+          "delta": 30,
+          "flags": {
+            "bot": false,
+            "minor": false,
+            "new": true
+          },
+          "kind": "edit",
+          "links": {
+            "diff": "https://librarybase.org/w/index.php?title=Project%3AShortcut%2FAgain&diff=248252",
+            "history": "https://librarybase.org/w/index.php?title=Project%3AShortcut%2FAgain&action=history"
+          },
+          "patrolled": false,
+          "record": {
+            "offset": 154,
+            "partition": 2303836607154665115
+          },
+          "revid": 248252,
+          "size": 30,
+          "source": "pages",
+          "summary": {
+            "text": ""
+          },
+          "tags": [],
+          "target": {
+            "id": "247191",
+            "kind": "page",
+            "ns": 4,
+            "title": "Project:Shortcut/Again",
+            "url": "https://librarybase.org/wiki/Project:Shortcut/Again"
+          },
+          "time": "2026-10-31T18:27:27Z",
+          "visibility": []
+        },
+        {
+          "actor": {
+            "iri": "https://librarybase.org/user/7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
+            "kind": "registered",
+            "name": "Alice"
+          },
+          "delta": 35,
+          "flags": {
+            "bot": false,
+            "minor": false,
+            "new": true
+          },
+          "kind": "edit",
+          "links": {
+            "diff": "https://librarybase.org/w/index.php?title=Project%3AOld_name&diff=248251",
+            "history": "https://librarybase.org/w/index.php?title=Project%3AOld_name&action=history"
+          },
+          "patrolled": false,
+          "record": {
+            "offset": 153,
+            "partition": 2303836607154665115
+          },
+          "revid": 248251,
+          "size": 35,
+          "source": "pages",
+          "summary": {
+            "text": ""
+          },
+          "tags": [],
+          "target": {
+            "id": "247190",
+            "kind": "page",
+            "ns": 4,
+            "title": "Project:Old name",
+            "url": "https://librarybase.org/wiki/Project:Old_name"
+          },
+          "time": "2026-10-31T18:27:27Z",
+          "visibility": []
+        },
+        {
+          "actor": {
+            "iri": "https://librarybase.org/user/7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
+            "kind": "registered",
+            "name": "Alice"
+          },
+          "delta": 27,
+          "flags": {
+            "bot": false,
+            "minor": false,
+            "new": true
+          },
+          "kind": "edit",
+          "links": {
+            "diff": "https://librarybase.org/w/index.php?title=Category%3AUnused&diff=248250",
+            "history": "https://librarybase.org/w/index.php?title=Category%3AUnused&action=history"
+          },
+          "patrolled": false,
+          "record": {
+            "offset": 152,
+            "partition": 2303836607154665115
+          },
+          "revid": 248250,
+          "size": 27,
+          "source": "pages",
+          "summary": {
+            "text": ""
+          },
+          "tags": [],
+          "target": {
+            "id": "247189",
+            "kind": "page",
+            "ns": 14,
+            "title": "Category:Unused",
+            "url": "https://librarybase.org/wiki/Category:Unused"
+          },
+          "time": "2026-10-31T18:27:27Z",
+          "visibility": []
+        },
+        {
+          "actor": {
+            "iri": "https://librarybase.org/user/7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
+            "kind": "registered",
+            "name": "Alice"
+          },
+          "delta": 24,
+          "flags": {
+            "bot": false,
+            "minor": false,
+            "new": true
+          },
+          "kind": "edit",
+          "links": {
+            "diff": "https://librarybase.org/w/index.php?title=Category%3AGuides&diff=248249",
+            "history": "https://librarybase.org/w/index.php?title=Category%3AGuides&action=history"
+          },
+          "patrolled": false,
+          "record": {
+            "offset": 151,
+            "partition": 2303836607154665115
+          },
+          "revid": 248249,
+          "size": 24,
+          "source": "pages",
+          "summary": {
+            "text": ""
+          },
+          "tags": [],
+          "target": {
+            "id": "247188",
+            "kind": "page",
+            "ns": 14,
+            "title": "Category:Guides",
+            "url": "https://librarybase.org/wiki/Category:Guides"
+          },
+          "time": "2026-10-31T18:27:26Z",
+          "visibility": []
+        },
+        {
+          "actor": {
+            "iri": "https://librarybase.org/user/7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
+            "kind": "registered",
+            "name": "Alice"
+          },
+          "delta": 42,
+          "flags": {
+            "bot": false,
+            "minor": false,
+            "new": true
+          },
+          "kind": "edit",
+          "links": {
+            "diff": "https://librarybase.org/w/index.php?title=Orphan&diff=248248",
+            "history": "https://librarybase.org/w/index.php?title=Orphan&action=history"
+          },
+          "patrolled": false,
+          "record": {
+            "offset": 150,
+            "partition": 2303836607154665115
+          },
+          "revid": 248248,
+          "size": 42,
+          "source": "pages",
+          "summary": {
+            "text": ""
+          },
+          "tags": [],
+          "target": {
+            "id": "247187",
+            "kind": "page",
+            "ns": 0,
+            "title": "Orphan",
+            "url": "https://librarybase.org/wiki/Orphan"
+          },
+          "time": "2026-10-31T18:27:26Z",
+          "visibility": []
+        },
+        {
+          "actor": {
+            "iri": "https://librarybase.org/user/25",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:25",
+            "kind": "registered",
+            "name": "Bob"
+          },
+          "delta": 6,
+          "flags": {
+            "bot": false,
+            "minor": false,
+            "new": true
+          },
+          "kind": "edit",
+          "links": {
+            "diff": "https://librarybase.org/w/index.php?title=Stub&diff=248247",
+            "history": "https://librarybase.org/w/index.php?title=Stub&action=history"
+          },
+          "patrolled": false,
+          "record": {
+            "offset": 149,
+            "partition": 2303836607154665115
+          },
+          "revid": 248247,
+          "size": 6,
+          "source": "pages",
+          "summary": {
+            "text": ""
+          },
+          "tags": [],
+          "target": {
+            "id": "247186",
+            "kind": "page",
+            "ns": 0,
+            "title": "Stub",
+            "url": "https://librarybase.org/wiki/Stub"
+          },
+          "time": "2026-10-31T18:27:26Z",
+          "visibility": []
+        },
+        {
+          "actor": {
+            "iri": "https://librarybase.org/user/25",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:25",
+            "kind": "registered",
+            "name": "Bob"
+          },
+          "delta": 104,
+          "flags": {
+            "bot": false,
+            "minor": false,
+            "new": false
+          },
+          "kind": "edit",
+          "links": {
+            "diff": "https://librarybase.org/w/index.php?title=Citing_sources&diff=248246",
+            "history": "https://librarybase.org/w/index.php?title=Citing_sources&action=history"
+          },
+          "patrolled": false,
+          "record": {
+            "offset": 148,
+            "partition": 2303836607154665115
+          },
+          "revid": 248246,
+          "size": 176,
+          "source": "pages",
+          "summary": {
+            "text": ""
+          },
+          "tags": [],
+          "target": {
+            "id": "247185",
+            "kind": "page",
+            "ns": 0,
+            "title": "Citing sources",
+            "url": "https://librarybase.org/wiki/Citing_sources"
+          },
+          "time": "2026-10-31T18:27:26Z",
+          "visibility": []
+        },
+        {
+          "actor": {
+            "iri": "https://librarybase.org/user/7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
+            "kind": "registered",
+            "name": "Alice"
+          },
+          "delta": 72,
+          "flags": {
+            "bot": false,
+            "minor": false,
+            "new": true
+          },
+          "kind": "edit",
+          "links": {
+            "diff": "https://librarybase.org/w/index.php?title=Citing_sources&diff=248245",
+            "history": "https://librarybase.org/w/index.php?title=Citing_sources&action=history"
+          },
+          "patrolled": false,
+          "record": {
+            "offset": 147,
+            "partition": 2303836607154665115
+          },
+          "revid": 248245,
+          "size": 72,
+          "source": "pages",
+          "summary": {
+            "text": ""
+          },
+          "tags": [],
+          "target": {
+            "id": "247185",
+            "kind": "page",
+            "ns": 0,
+            "title": "Citing sources",
+            "url": "https://librarybase.org/wiki/Citing_sources"
+          },
+          "time": "2026-10-31T18:27:26Z",
+          "visibility": []
+        },
+        {
+          "actor": {
+            "iri": "https://librarybase.org/user/7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
+            "kind": "registered",
+            "name": "Alice"
+          },
+          "delta": 151,
+          "flags": {
+            "bot": false,
+            "minor": false,
+            "new": true
+          },
+          "kind": "edit",
+          "links": {
+            "diff": "https://librarybase.org/w/index.php?title=Project%3AWishlist&diff=248244",
+            "history": "https://librarybase.org/w/index.php?title=Project%3AWishlist&action=history"
+          },
+          "patrolled": false,
+          "record": {
+            "offset": 146,
+            "partition": 2303836607154665115
+          },
+          "revid": 248244,
+          "size": 151,
+          "source": "pages",
+          "summary": {
+            "text": ""
+          },
+          "tags": [],
+          "target": {
+            "id": "247184",
+            "kind": "page",
+            "ns": 4,
+            "title": "Project:Wishlist",
+            "url": "https://librarybase.org/wiki/Project:Wishlist"
+          },
+          "time": "2026-10-31T18:27:26Z",
+          "visibility": []
+        },
+        {
+          "actor": {
+            "iri": "https://librarybase.org/user/7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
             "kind": "registered",
             "name": "Alice"
           },
@@ -3837,7 +4217,7 @@
           "patrolled": false,
           "record": {
             "offset": 145,
-            "partition": 10324362072967298508
+            "partition": 2303836607154665115
           },
           "revid": 248243,
           "size": 26,
@@ -3853,13 +4233,13 @@
             "title": "Project:Shortcut",
             "url": "https://librarybase.org/wiki/Project:Shortcut"
           },
-          "time": "2026-10-31T05:33:46Z",
+          "time": "2026-10-31T18:27:26Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
             "kind": "registered",
             "name": "Alice"
           },
@@ -3877,7 +4257,7 @@
           "patrolled": false,
           "record": {
             "offset": 144,
-            "partition": 10324362072967298508
+            "partition": 2303836607154665115
           },
           "revid": 248242,
           "size": 80,
@@ -3893,13 +4273,13 @@
             "title": "Project:Notes",
             "url": "https://librarybase.org/wiki/Project:Notes"
           },
-          "time": "2026-10-31T05:33:46Z",
+          "time": "2026-10-31T18:27:26Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/25",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:25",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:25",
             "kind": "registered",
             "name": "Bob"
           },
@@ -3917,7 +4297,7 @@
           "patrolled": false,
           "record": {
             "offset": 143,
-            "partition": 10324362072967298508
+            "partition": 2303836607154665115
           },
           "revid": 248241,
           "size": 96,
@@ -3933,13 +4313,13 @@
             "title": "Project:Sandbox",
             "url": "https://librarybase.org/wiki/Project:Sandbox"
           },
-          "time": "2026-10-31T05:33:46Z",
+          "time": "2026-10-31T18:27:26Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
             "kind": "registered",
             "name": "Alice"
           },
@@ -3957,7 +4337,7 @@
           "patrolled": false,
           "record": {
             "offset": 142,
-            "partition": 10324362072967298508
+            "partition": 2303836607154665115
           },
           "revid": 248240,
           "size": 240,
@@ -3973,13 +4353,13 @@
             "title": "Project:Home",
             "url": "https://librarybase.org/wiki/Project:Home"
           },
-          "time": "2026-10-31T05:33:46Z",
+          "time": "2026-10-31T18:27:26Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
             "kind": "registered",
             "name": "Alice"
           },
@@ -3997,7 +4377,7 @@
           "patrolled": false,
           "record": {
             "offset": 141,
-            "partition": 10324362072967298508
+            "partition": 2303836607154665115
           },
           "revid": 248239,
           "size": 89,
@@ -4013,12 +4393,12 @@
             "title": "Project:Home",
             "url": "https://librarybase.org/wiki/Project:Home"
           },
-          "time": "2026-10-31T05:33:46Z",
+          "time": "2026-10-31T18:27:26Z",
           "visibility": []
         },
         {
           "actor": {
-            "key": "instance:e73bi3pm3xkht4w4ajcpphph4t"
+            "key": "instance:multf2gna5gext65krm5cpkkab"
           },
           "flags": {
             "bot": false,
@@ -4045,7 +4425,7 @@
           "patrolled": false,
           "record": {
             "offset": 3,
-            "partition": 852016638029882496
+            "partition": 6343795131769768910
           },
           "source": "log",
           "summary": {
@@ -4060,12 +4440,12 @@
             "title": "Special:Jobs/3",
             "url": "https://librarybase.org/wiki/Special:Jobs/3"
           },
-          "time": "2026-10-31T05:33:43Z",
+          "time": "2026-10-31T18:27:23Z",
           "visibility": []
         },
         {
           "actor": {
-            "key": "instance:e73bi3pm3xkht4w4ajcpphph4t"
+            "key": "instance:multf2gna5gext65krm5cpkkab"
           },
           "flags": {
             "bot": false,
@@ -4091,7 +4471,7 @@
           "patrolled": false,
           "record": {
             "offset": 0,
-            "partition": 852016638029882496
+            "partition": 6343795131769768910
           },
           "source": "log",
           "summary": {
@@ -4106,13 +4486,13 @@
             "title": "Special:Jobs/3",
             "url": "https://librarybase.org/wiki/Special:Jobs/3"
           },
-          "time": "2026-10-31T05:33:43Z",
+          "time": "2026-10-31T18:27:23Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/3",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:3",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:3",
             "kind": "registered",
             "name": "Harej"
           },
@@ -4137,7 +4517,7 @@
               "subject": "Welcome to Librarybase!",
               "talk": 247180,
               "target": {
-                "id": "piqxi5sg3uxsv4gvu6hs7vwg5d:3",
+                "id": "wedw3pfxx4omcp3ko5ilbph3kj:3",
                 "kind": "actor"
               }
             },
@@ -4147,7 +4527,7 @@
           "patrolled": false,
           "record": {
             "offset": 140,
-            "partition": 10324362072967298508
+            "partition": 2303836607154665115
           },
           "revid": 248238,
           "size": 712,
@@ -4165,13 +4545,13 @@
             "title": "Thread:2025-08-31/Welcome to Librarybase!",
             "url": "https://librarybase.org/wiki/Thread:2025-08-31/Welcome_to_Librarybase!"
           },
-          "time": "2026-10-31T05:33:43Z",
+          "time": "2026-10-31T18:27:22Z",
           "visibility": []
         },
         {
           "actor": {
             "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
+            "key": "wedw3pfxx4omcp3ko5ilbph3kj:7",
             "kind": "registered",
             "name": "Alice"
           },
@@ -4213,7 +4593,7 @@
           "patrolled": false,
           "record": {
             "offset": 5,
-            "partition": 16287082057227451183
+            "partition": 8310412198080325060
           },
           "source": "log",
           "summary": {
@@ -4228,468 +4608,7 @@
             "title": "Special:Jobs/2",
             "url": "https://librarybase.org/wiki/Special:Jobs/2"
           },
-          "time": "2026-10-31T05:33:41Z",
-          "visibility": []
-        },
-        {
-          "actor": {
-            "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
-            "kind": "registered",
-            "name": "Alice"
-          },
-          "flags": {
-            "bot": false,
-            "minor": false,
-            "new": false
-          },
-          "kind": "job",
-          "links": {
-            "history": "https://librarybase.org/w/index.php?title=Special%3AJobs%2F2&action=history"
-          },
-          "log": {
-            "action": "start",
-            "params": {
-              "adapter": "scatter-adapter-wikibase 0.0.1",
-              "args": {
-                "floors": {
-                  "entity": {},
-                  "log": 0,
-                  "page": 247178,
-                  "revision": 248237,
-                  "user": 24
-                },
-                "history": "full"
-              },
-              "graph": "local",
-              "mode": "adopt",
-              "source": "https://librarybase.org/",
-              "version": "pages"
-            },
-            "type": "job"
-          },
-          "logid": 7,
-          "patrolled": false,
-          "record": {
-            "offset": 4,
-            "partition": 16287082057227451183
-          },
-          "source": "log",
-          "summary": {
-            "op": "job/start",
-            "text": "/* job/start */"
-          },
-          "tags": [],
-          "target": {
-            "id": "2",
-            "kind": "job",
-            "ns": -1,
-            "title": "Special:Jobs/2",
-            "url": "https://librarybase.org/wiki/Special:Jobs/2"
-          },
-          "time": "2026-10-31T05:33:41Z",
-          "visibility": []
-        },
-        {
-          "actor": {
-            "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
-            "kind": "registered",
-            "name": "Alice"
-          },
-          "flags": {
-            "bot": false,
-            "minor": false,
-            "new": false
-          },
-          "kind": "job",
-          "links": {
-            "history": "https://librarybase.org/w/index.php?title=Special%3AJobs%2F1&action=history"
-          },
-          "log": {
-            "action": "finish",
-            "params": {
-              "accounts": 0,
-              "counts": {
-                "adopted": 16,
-                "created": 0,
-                "merged": 0,
-                "rejected": 0,
-                "unchanged": 0
-              },
-              "entities": 16,
-              "floors": {
-                "entity": {
-                  "item": 6,
-                  "property": 12
-                },
-                "log": 0,
-                "page": 26,
-                "revision": 916,
-                "user": 7
-              },
-              "history": "full",
-              "surrogates": 0
-            },
-            "type": "job"
-          },
-          "logid": 6,
-          "patrolled": false,
-          "record": {
-            "offset": 3,
-            "partition": 16287082057227451183
-          },
-          "source": "log",
-          "summary": {
-            "op": "job/finish",
-            "text": "/* job/finish */"
-          },
-          "tags": [],
-          "target": {
-            "id": "1",
-            "kind": "job",
-            "ns": -1,
-            "title": "Special:Jobs/1",
-            "url": "https://librarybase.org/wiki/Special:Jobs/1"
-          },
-          "time": "2026-10-31T05:33:41Z",
-          "visibility": []
-        },
-        {
-          "actor": {
-            "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
-            "kind": "registered",
-            "name": "Alice"
-          },
-          "flags": {
-            "bot": false,
-            "minor": false,
-            "new": false
-          },
-          "kind": "job",
-          "links": {
-            "history": "https://librarybase.org/w/index.php?title=Special%3AJobs%2F1&action=history"
-          },
-          "log": {
-            "action": "start",
-            "params": {
-              "adapter": "scatter-adapter-wikibase 0.0.1",
-              "args": {
-                "floors": {
-                  "entity": {
-                    "item": 6,
-                    "property": 12
-                  },
-                  "log": 0,
-                  "page": 26,
-                  "revision": 916,
-                  "user": 7
-                },
-                "history": "full"
-              },
-              "graph": "local",
-              "mode": "adopt",
-              "source": "https://librarybase.org/",
-              "version": "test"
-            },
-            "type": "job"
-          },
-          "logid": 5,
-          "patrolled": false,
-          "record": {
-            "offset": 2,
-            "partition": 16287082057227451183
-          },
-          "source": "log",
-          "summary": {
-            "op": "job/start",
-            "text": "/* job/start */"
-          },
-          "tags": [],
-          "target": {
-            "id": "1",
-            "kind": "job",
-            "ns": -1,
-            "title": "Special:Jobs/1",
-            "url": "https://librarybase.org/wiki/Special:Jobs/1"
-          },
-          "time": "2026-10-31T05:33:41Z",
-          "visibility": []
-        },
-        {
-          "actor": {
-            "key": "instance:e73bi3pm3xkht4w4ajcpphph4t"
-          },
-          "flags": {
-            "bot": false,
-            "minor": false,
-            "new": false
-          },
-          "kind": "log",
-          "links": {},
-          "log": {
-            "action": "change",
-            "params": {
-              "changes": [
-                {
-                  "key": "challenge.max_bits",
-                  "new": 14,
-                  "old": null,
-                  "scope": "tenant"
-                }
-              ],
-              "scope": "tenant"
-            },
-            "type": "settings"
-          },
-          "logid": 4,
-          "patrolled": false,
-          "record": {
-            "offset": 1,
-            "partition": 16287082057227451183
-          },
-          "source": "log",
-          "summary": {
-            "op": "settings/change",
-            "text": "/* settings/change */"
-          },
-          "tags": [],
-          "time": "2026-10-31T05:33:41Z",
-          "visibility": []
-        },
-        {
-          "actor": {
-            "key": "instance:e73bi3pm3xkht4w4ajcpphph4t"
-          },
-          "flags": {
-            "bot": false,
-            "minor": false,
-            "new": false
-          },
-          "kind": "log",
-          "links": {},
-          "log": {
-            "action": "change",
-            "params": {
-              "changes": [
-                {
-                  "key": "challenge.bits",
-                  "new": 10,
-                  "old": null,
-                  "scope": "tenant"
-                }
-              ],
-              "scope": "tenant"
-            },
-            "type": "settings"
-          },
-          "logid": 3,
-          "patrolled": false,
-          "record": {
-            "offset": 0,
-            "partition": 16287082057227451183
-          },
-          "source": "log",
-          "summary": {
-            "op": "settings/change",
-            "text": "/* settings/change */"
-          },
-          "tags": [],
-          "time": "2026-10-31T05:33:41Z",
-          "visibility": []
-        },
-        {
-          "actor": {
-            "key": "instance:e73bi3pm3xkht4w4ajcpphph4t"
-          },
-          "comment": "tenant create",
-          "flags": {
-            "bot": false,
-            "minor": false,
-            "new": false
-          },
-          "kind": "log",
-          "links": {
-            "history": "https://librarybase.org/w/index.php?title=User%3AAlice&action=history"
-          },
-          "log": {
-            "action": "rights",
-            "params": {
-              "action": "add",
-              "expires": null,
-              "group": "owner"
-            },
-            "type": "rights"
-          },
-          "logid": 2,
-          "patrolled": false,
-          "record": {
-            "offset": 1,
-            "partition": 15190585228380615851
-          },
-          "source": "actors",
-          "summary": {
-            "op": "rights/rights",
-            "text": "/* rights/rights */ tenant create"
-          },
-          "tags": [],
-          "target": {
-            "id": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
-            "kind": "actor",
-            "label": {
-              "language": "",
-              "value": "Alice"
-            },
-            "ns": 2,
-            "title": "User:Alice",
-            "url": "https://librarybase.org/wiki/User:Alice"
-          },
-          "time": "2026-10-31T05:33:37Z",
-          "visibility": []
-        },
-        {
-          "actor": {
-            "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
-            "kind": "registered",
-            "name": "Alice"
-          },
-          "flags": {
-            "bot": true,
-            "minor": false,
-            "new": true
-          },
-          "job": 1,
-          "kind": "edit",
-          "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Item%3AQ6&diff=916",
-            "history": "https://librarybase.org/w/index.php?title=Item%3AQ6&action=history",
-            "job": "https://librarybase.org/wiki/Special:Jobs/1"
-          },
-          "patrolled": false,
-          "record": {
-            "offset": 15,
-            "partition": 7169256386642752302
-          },
-          "revid": 916,
-          "size": 3136,
-          "source": "local",
-          "summary": {
-            "op": "adopt",
-            "text": "/* adopt */"
-          },
-          "tags": [],
-          "target": {
-            "entity_type": "item",
-            "id": "Q6",
-            "kind": "entity",
-            "label": {
-              "language": "de",
-              "value": "Sechs"
-            },
-            "ns": 120,
-            "page_id": 26,
-            "title": "Item:Q6",
-            "url": "https://librarybase.org/wiki/Item:Q6"
-          },
-          "time": "2026-10-30T05:33:41Z",
-          "visibility": []
-        },
-        {
-          "actor": {
-            "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
-            "kind": "registered",
-            "name": "Alice"
-          },
-          "flags": {
-            "bot": true,
-            "minor": false,
-            "new": true
-          },
-          "job": 1,
-          "kind": "edit",
-          "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Item%3AQ5&diff=915",
-            "history": "https://librarybase.org/w/index.php?title=Item%3AQ5&action=history",
-            "job": "https://librarybase.org/wiki/Special:Jobs/1"
-          },
-          "patrolled": false,
-          "record": {
-            "offset": 14,
-            "partition": 7169256386642752302
-          },
-          "revid": 915,
-          "size": 188,
-          "source": "local",
-          "summary": {
-            "op": "adopt",
-            "text": "/* adopt */"
-          },
-          "tags": [],
-          "target": {
-            "entity_type": "item",
-            "id": "Q5",
-            "kind": "entity",
-            "label": {
-              "language": "en",
-              "value": "inhabitant"
-            },
-            "ns": 120,
-            "page_id": 25,
-            "title": "Item:Q5",
-            "url": "https://librarybase.org/wiki/Item:Q5"
-          },
-          "time": "2026-10-30T05:33:41Z",
-          "visibility": []
-        },
-        {
-          "actor": {
-            "iri": "https://librarybase.org/user/7",
-            "key": "piqxi5sg3uxsv4gvu6hs7vwg5d:7",
-            "kind": "registered",
-            "name": "Alice"
-          },
-          "flags": {
-            "bot": true,
-            "minor": false,
-            "new": true
-          },
-          "job": 1,
-          "kind": "edit",
-          "links": {
-            "diff": "https://librarybase.org/w/index.php?title=Item%3AQ3&diff=914",
-            "history": "https://librarybase.org/w/index.php?title=Item%3AQ3&action=history",
-            "job": "https://librarybase.org/wiki/Special:Jobs/1"
-          },
-          "patrolled": false,
-          "record": {
-            "offset": 13,
-            "partition": 7169256386642752302
-          },
-          "revid": 914,
-          "size": 193,
-          "source": "local",
-          "summary": {
-            "op": "adopt",
-            "text": "/* adopt */"
-          },
-          "tags": [],
-          "target": {
-            "entity_type": "item",
-            "id": "Q3",
-            "kind": "entity",
-            "label": {
-              "language": "en",
-              "value": "Example Gazette"
-            },
-            "ns": 120,
-            "page_id": 24,
-            "title": "Item:Q3",
-            "url": "https://librarybase.org/wiki/Item:Q3"
-          },
-          "time": "2026-10-30T05:33:41Z",
+          "time": "2026-10-31T18:27:21Z",
           "visibility": []
         }
       ],
@@ -4706,31 +4625,31 @@
       "cache-control": "private, no-cache",
       "content-length": "1791",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 05:34:49 GMT",
-      "etag": "\"d37e94e38c253a23ed7b17c55490835b\"",
+      "date": "Sat, 31 Oct 2026 18:28:53 GMT",
+      "etag": "\"21d0025800488a0c8073a6f2a8171dcb\"",
       "vary": "Accept, Accept-Language"
     },
     "json": {
       "canonical": "Q6",
       "corrections": {},
       "dominant": "local",
-      "first_seen": "2026-10-31T05:33:41Z",
+      "first_seen": "2026-10-31T18:27:21Z",
       "graphs": [
         {
           "graph": "local",
           "history": "full",
           "statements": 12,
-          "synced_at": "2026-10-31T05:33:47Z"
+          "synced_at": "2026-10-31T18:27:27Z"
         }
       ],
       "id": "Q6",
-      "lastrevid": 248250,
+      "lastrevid": 248259,
       "minted_by": {
         "adopted_from": "https://librarybase.org/",
         "kind": "tenant",
         "tenant": "librarybase"
       },
-      "modified": "2026-10-31T05:33:47Z",
+      "modified": "2026-10-31T18:27:27Z",
       "page_id": 26,
       "statements": {
         "Q6$00000001-0000-0000-0000-000000000000": {
@@ -4842,8 +4761,8 @@
       "cache-control": "private, no-cache",
       "content-length": "43370",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 05:34:50 GMT",
-      "etag": "\"5588bdfd18f457f2e57864737d600c9d\"",
+      "date": "Sat, 31 Oct 2026 18:28:54 GMT",
+      "etag": "\"45b44a239644189a786556d86169ed36\"",
       "vary": "Accept, Accept-Language"
     },
     "json": {
@@ -4869,8 +4788,8 @@
         }
       ],
       "build": {
-        "commit": "8e9aaf6112632a3931ac42c33b19a93d9cf6b0e1",
-        "commit_date": "2026-10-30T18:21:20-07:00",
+        "commit": "1d3f63ec08d1f2359305b2eef5cf15124676d53f",
+        "commit_date": "2026-10-31T00:35:56-07:00",
         "features": [],
         "modified": true,
         "profile": "debug",

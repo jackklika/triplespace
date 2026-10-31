@@ -1,0 +1,27 @@
+{#- Special:Search (0010 §3; 0047 §9): the form, **Go to** the entity the text names, and
+    the results grouped by kind, readable without JavaScript. -#}
+{%- import "codex.html" as codex -%}
+{%- import "nav.html" as nav -%}
+{%- macro lang(t) %}{% if t.lang %} lang="{{ t.lang }}" dir="auto"{% endif %}{% endmacro -%}
+{%- macro hit(h) -%}
+<li class="ts-hit"><div class="ts-hit__head"><a href="{{ h.href }}" class="ts-hit__title">
+{%- if h.title.mono %}<span class="ts-mono"{% if h.title.ltr %} dir="ltr"{% endif %}>{{ h.title.text }}</span>
+{%- else %}<span{{ lang(h.title) }}>{{ h.title.text }}</span>{% endif %}</a>
+{%- if h.chip %} {{ codex.chip(h.chip) }}{% endif %}</div>
+{%- if h.description %}<p class="ts-hit__description"{{ lang(h.description) }}>{{ h.description.text }}</p>{% endif -%}
+{%- if h.alias %}<p class="ts-hit__match">{{ h.alias.before }}<bdi><span{{ lang(h.alias.alias) }}>{{ h.alias.alias.text }}</span></bdi>{{ h.alias.after }}</p>{% endif -%}
+</li>
+{%- endmacro -%}
+<div class="ts-search"><form class="ts-search-form" role="search" aria-label="{{ label }}" action="/w/index.php" method="get"><input type="hidden" name="title" value="Special:Search"><input type="hidden" name="fulltext" value="1">
+{%- for ns in namespaces %}<input type="hidden" name="ns{{ ns }}" value="1">{% endfor %}{{ codex.search(input) }}</form>
+{%- if missing %}{{ codex.message(missing) }}{% endif -%}
+{%- if go %}<p class="ts-search-go"><a href="{{ go.href }}">{{ go.label }}</a></p>{% endif -%}
+{%- if intro %}<p class="ts-search-intro">{{ intro }}</p>{% endif -%}
+{%- if results %}{{ nav.switch(results.filter, "") }}
+{%- for g in results.groups %}<section class="ts-results" aria-labelledby="{{ g.id }}"><h2 class="ts-results__heading" id="{{ g.id }}">{{ g.heading }}</h2><ol class="ts-hits">{% for h in g.hits %}{{ hit(h) }}{% endfor %}</ol>
+{%- if g.more %}<p class="ts-results__more"><a href="{{ g.more.href }}">{{ g.more.label }}</a></p>{% endif %}</section>{% endfor -%}
+{%- if results.empty %}<p class="ts-empty">{{ results.empty }}</p>{% endif -%}
+{%- if results.pager %}<nav class="ts-pager" aria-label="{{ results.pager.label }}">
+{%- if results.pager.previous %}<a href="{{ results.pager.previous.href }}" rel="prev">{{ results.pager.previous.label }}</a> {% endif -%}
+{%- if results.pager.next %}<a href="{{ results.pager.next.href }}" rel="next">{{ results.pager.next.label }}</a>{% endif %}</nav>{% endif -%}
+{%- endif %}</div>

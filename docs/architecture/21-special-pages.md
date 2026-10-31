@@ -29,6 +29,8 @@ This chapter describes the pages in the `Special` namespace: the registry that l
 | `note` | Free text for maintainers |
 | `adr` | Where the page is specified |
 
+**`Special:SpecialPages` lists the pages a reader is offered under their `group` headings**, in this order: `maintenance`, `pages`, `login`, `users`, `changes`, `media`, `wiki`, `redirects`, `highuse`, `pagetools`, `wikibaserepo`, `wikibaseclient`, `identity`, `instance`, and `other` last, as MediaWiki keeps it; under a heading, by the page's name in the reader's language. Each heading is MediaWiki's or Wikibase's message (`specialpages-group-*`), with Triplespace's own for `identity` (*Identity and corrections*) and `instance` (*Instance administration*), and carries MediaWiki's class and id (`mw-specialpagesgroup`, `mw-specialpagesgroup-{key}`), which gadgets and user scripts select. A page under `unlisted`, with `listed = false`, or `restricted` to a permission the reader does not hold, is not listed; a heading with no page is not drawn ([0047](../decisions/0047-special-pages.md) A27).
+
 **Rules**, as for the other registry files:
 
 - Names are never removed. A page that stops being served changes status.

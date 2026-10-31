@@ -1,11 +1,13 @@
 //! The namespace registry (0008 §1; 10 §1), embedding `docs/registry/namespaces.toml`.
 //!
-//! This is the registry half of the crate 22 §2.1 describes; the special-page registry
-//! and title normalization join it as their callers are built. A namespace's local name
+//! This is the registry half of the crate 22 §2.1 describes, with the special-page
+//! registry in [`special`]; title normalization joins it as its callers are built. A namespace's local name
 //! can differ from its canonical one (Project follows the site's name, 0008 A37): that is
 //! tenant configuration, which callers apply on top.
 
 #![forbid(unsafe_code)]
+
+pub mod special;
 
 use std::sync::OnceLock;
 

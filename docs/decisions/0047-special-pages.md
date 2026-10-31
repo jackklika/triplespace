@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-09-30
-- **Updated:** 2026-10-29 (A26)
+- **Updated:** 2026-10-31 (A27)
 - **Author:** James Hare / Claude Opus
 - **Changes:** [0002](0002-source-graphs-and-mass-ingest.md), [0004](0004-identity-clusters-and-equivalence.md), [0005](0005-crate-organization.md), [0007](0007-actor-identity.md), [0008](0008-namespaces-and-document-pages.md), [0010](0010-site-ui.md), [0013](0013-postgres-storage.md), [0015](0015-record-format-and-partition-registry.md), [0016](0016-permissions-and-access-control.md), [0018](0018-tenants.md), [0023](0023-moderation.md), [0024](0024-subsidiary-accounts.md), [0029](0029-resolver-namespaces.md), [0031](0031-property-constraints.md), [0042](0042-template-expansion-and-parsoid.md), [0046](0046-primary-tenant.md)
 - **Uses:** [0019](0019-discussions.md), [0021](0021-notifications.md), [0028](0028-tenancy-policy.md), [0034](0034-frontend-stack.md), [0038](0038-page-metadata-and-categories.md), [0039](0039-files-and-media.md), [0040](0040-instance-prerogatives.md)
@@ -43,7 +43,7 @@ James's direction, from the design discussion of 2026-09-30:
 
 ### 1. One registry of special pages (extends 0015 §5)
 
-*Changed by A9, A15, A19, A22, A23.*
+*Changed by A9, A15, A19, A22, A23, A27.*
 
 *Current text: [21](../architecture/21-special-pages.md) §1.1, §8.*
 
@@ -501,3 +501,10 @@ Replaced text ([21](../architecture/21-special-pages.md) §8, as it stood):
 Replaced text ([21](../architecture/21-special-pages.md) §3.1, as it stood):
 
 > - `NewProperty` needs `property-create` and a `datatype`.
+
+### A27. Special:SpecialPages lists by the registry's headings
+
+- **Date:** 2026-10-31
+- **Source:** Direct: Claude, while building the grouped Special:SpecialPages, 2026-10-31; unconfirmed
+- **Change:** extends §1
+- **Summary:** §1 gives every page a `group`, "the heading under which `Special:SpecialPages` lists it", and makes `listed` and `restricted` decide whether it is listed, but leaves the order of the headings, their names and the order within one to the page. The page lists its headings in a fixed order, MediaWiki's groups in the order Wikimedia wikis show them, then Wikibase's and Triplespace's, with `other` last as MediaWiki keeps it; names each with MediaWiki's or Wikibase's message, and Triplespace's two as *Identity and corrections* and *Instance administration*; orders the pages under a heading by their names in the reader's language; and gives each heading MediaWiki's class and id (`mw-specialpagesgroup`, `mw-specialpagesgroup-{key}`), which gadgets and user scripts select. Until this entry the page was one list in the order its code gave, and listed restricted pages to every reader. `requires` is not applied by the page yet, since the site does not receive a tenant's `site` settings. The chapter text is 21 §1.1.

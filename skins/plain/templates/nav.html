@@ -1,9 +1,10 @@
 {#- Navigation shared by the pages: a switch between views of one page, and a feed's
     pager. -#}
 {#- A switch between views of one page: the history's source switch, the diff's view
-    switch. A filter nav whose current item says so. -#}
+    switch, search's kind filter. A filter nav whose current item says so; `class` may be
+    empty. -#}
 {%- macro switch(s, class) -%}
-<nav class="ts-search-filter {{ class }}" aria-label="{{ s.label }}"><ul>{% for c in s.items %}<li><a href="{{ c.href }}"{% if c.current %} aria-current="page"{% endif %}>{{ c.label }}</a></li>{% endfor %}</ul></nav>
+<nav class="ts-search-filter{% if class %} {{ class }}{% endif %}" aria-label="{{ s.label }}"><ul>{% for c in s.items %}<li><a href="{{ c.href }}"{% if c.current %} aria-current="page"{% endif %}>{{ c.label }}</a></li>{% endfor %}</ul></nav>
 {%- endmacro -%}
 
 {#- A feed's pager: Newest, Older. -#}

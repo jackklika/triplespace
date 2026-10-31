@@ -7,7 +7,7 @@
       "cache-control": "public, max-age=60, s-maxage=60, stale-while-revalidate=300",
       "content-length": "15805",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 05:34:48 GMT",
+      "date": "Sat, 31 Oct 2026 18:28:52 GMT",
       "etag": "\"eb7f8a269bac27b2190775db07ee7933\"",
       "vary": "Accept, Accept-Language"
     },
@@ -574,7 +574,7 @@
       "cache-tag": "entity:Q6",
       "content-length": "66",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 05:34:48 GMT",
+      "date": "Sat, 31 Oct 2026 18:28:52 GMT",
       "etag": "\"e0f7f310d96f6780ee72907f74589bda\"",
       "vary": "Accept, Accept-Language"
     },
@@ -596,7 +596,7 @@
       "cache-control": "private, no-cache",
       "content-length": "52",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 05:34:48 GMT",
+      "date": "Sat, 31 Oct 2026 18:28:52 GMT",
       "vary": "Accept, Accept-Language"
     },
     "json": {

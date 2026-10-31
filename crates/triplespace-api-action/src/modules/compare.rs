@@ -34,7 +34,6 @@ use triplespace_projections::feed::{self, Direction, Feed, TargetSet, target_kin
 use crate::activity::{comment_text, user_id, viewer, visibility};
 use crate::api::Ctx;
 use crate::entity_json::iso8601;
-use crate::modules::entities::parse_id;
 use crate::modules::pageset::{self, PageAsk};
 use crate::modules::revisions::content_at;
 use crate::pages::{self, Site};
@@ -189,9 +188,7 @@ async fn side(ctx: &Ctx, site: &Site, prefix: &str) -> Result<Option<Rev>, ApiEr
         };
         (ask, None)
     } else if let Some(t) = p("title") {
-        let ask = if pages::names_entity(site, t)
-            && let Ok(id) = parse_id(t)
-        {
+        let ask = if let Some(id) = pages::entity_of_title(site, t) {
             entity(ctx, &id).await?
         } else {
             let title = pages::resolve_title(site, t)

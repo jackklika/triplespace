@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-10-29
-- **Updated:** 2026-10-30 (A6)
+- **Updated:** 2026-10-31 (A7)
 - **Author:** James Hare / Claude Opus
 - **Changes:** [0005](0005-crate-organization.md), [0015](0015-record-format-and-partition-registry.md), [0034](0034-frontend-stack.md), [0057](0057-web-tier.md), [0077](0077-special-version.md), [0086](0086-theming.md), [0095](0095-the-interface-namespace.md)
 - **Uses:** [0012](0012-api-requirements.md), [0028](0028-tenancy-policy.md), [0050](0050-adr-format.md), [0055](0055-templatestyles-templatedata-and-page-properties.md), [0058](0058-packed-record-storage.md), [0085](0085-settings-and-preferences.md)
@@ -68,7 +68,7 @@ James's direction, from the design discussion of 2026-10-29:
 
 ### 9. The template contract (extends 0034 §2)
 
-*Changed by A2, A4, A6.*
+*Changed by A2, A4, A6, A7.*
 
 *Current text: [19](../architecture/19-site-ui.md) §5.10.*
 
@@ -217,3 +217,10 @@ Replaced text ([19](../architecture/19-site-ui.md) §5.10, as it stood):
 - **Source:** Direct: Claude, while building the entity history and diff pages, 2026-10-30; unconfirmed
 - **Change:** extends §9 and A4
 - **Summary:** The History tab (group 4) lists its rows as `Special:RecentChanges` draws them (group 7), by the same code. Until group 7 switches, the tab's view model carries that table as HTML (`list_html`), the way a drawing is carried (A4), and the template places it; when group 7 switches, the field becomes the rows' model and the changes table a macro both draw. A field of this kind is transitional: it names the group it waits for, and the migration does not end with one in place. The chapter text is 19 §5.10.
+
+### A7. The no-JavaScript forms share one set of controls
+
+- **Date:** 2026-10-31
+- **Source:** Direct: James, confirmed 2026-10-31; Claude's call while building group 8's view models (search, the special-page index, all pages, the reports and the redirecting pages), 2026-10-31
+- **Change:** extends §9
+- **Summary:** A form's controls are one vocabulary in Plain, not one per page: a labelled text field, an inline check box, a labelled menu and a fieldset of them, the model `FormItem` and the macro `item` in `changes.html`, which the changes filter form (group 7) introduced. `Special:AllPages`, `Special:PrefixIndex` and the redirecting pages' parameter form (group 8) draw their fields with it rather than with a `forms.html` of their own, since their markup is the same; the groups still to come (9–11) extend it where a control is missing rather than adding a parallel set. The chapter text is 19 §5.10.
