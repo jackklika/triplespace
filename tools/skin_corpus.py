@@ -133,7 +133,7 @@ def seed():
     # redirect, a page moved, a page deleted.
     home = alice.edit("Project:Home", "Welcome to '''Librarybase''', a catalogue of sources.\n\n== About ==\nSee [[Project:About]].")
     alice.edit("Project:Home", "Welcome to '''Librarybase''', a catalogue of sources and the people who cite them.\n\n== About ==\nSee [[Project:About]] and [[Project:Analytics]].\n\n== Lists ==\n* [[Special:ListProperties|Properties]]\n* [[Special:RecentChanges|Recent changes]]")
-    bob.edit("Project:Sandbox", "Testing, testing. [[Item:Q6]] is a number; {{PAGENAME}}.")
+    bob.edit("Project:Sandbox", "Testing, testing. [[Item:Q6]] is a number; {{PAGENAME}}.\n\n[[Category:Tests]] [[Category:Drafts]]")
     alice.edit("Project:Notes", "# Notes\n\nA *markdown* page with a [link](Project:Home) and a list:\n\n- one\n- two\n", contentmodel="markdown")
     alice.edit("Project:Shortcut", "#REDIRECT [[Project:Home]]")
     must("move", alice.post(action="move", **{"from": "Project:Analytics/Orb", "to": "Project:Analytics/Orbit",
@@ -189,16 +189,50 @@ def seed():
                                           "text": "The label says so, the sources do not. --~~~~", "token": alice.token()})
     t1 = must("thread", (st, r))["title"]
     t1_id = r["thread"]
-    must("reply", bob.rest("POST", f"/thread/{t1_id}/post", {"text": "Checked: it is not. ~~~~", "token": bob.token()}))
-    must("reply", alice.rest("POST", f"/thread/{t1_id}/post", {"text": "Then let us fix the label.", "token": alice.token()}))
+    r1 = must("reply", bob.rest("POST", f"/thread/{t1_id}/post", {"text": "Checked: it is not. ~~~~", "token": bob.token()}))
+    r2 = must("reply", alice.rest("POST", f"/thread/{t1_id}/post", {"text": "Then let us fix the label.", "token": alice.token()}))
+    # A reply to a reply, one that sets a status, a range collapsed under a hat, and a
+    # reply nested past the depth the page indents.
+    r3 = must("reply", bob.rest("POST", f"/thread/{t1_id}/post",
+                                {"text": "Agreed; I will do it.", "inReplyTo": r2["revid"], "token": bob.token()}))
+    must("reply", alice.rest("POST", f"/thread/{t1_id}/post",
+                             {"text": "Marking this as in progress.", "status": "in-progress", "token": alice.token()}))
+    r5 = must("reply", carol.rest("POST", f"/thread/{t1_id}/post",
+                                  {"text": "What about seven?", "inReplyTo": r3["revid"], "token": carol.token()}))
+    must("reply", alice.rest("POST", f"/thread/{t1_id}/post",
+                             {"text": "Off topic: sevens are another thread.", "collapse": {"first": r5["revid"], "last": r5["revid"]},
+                              "token": alice.token()}))
+    deep = r3["revid"]
+    for i in range(7):
+        who = (bob, alice)[i % 2]
+        deep = must("reply", who.rest("POST", f"/thread/{t1_id}/post",
+                                      {"text": f"Nested reply {i + 1}.", "inReplyTo": deep, "token": who.token()}))["revid"]
+    facts["reply_to"] = r1["revid"]
     home_id = alice.page_id("Project:Home")
     st, r = bob.rest("POST", "/thread", {"target": {"kind": "page", "id": home_id}, "subject": "Welcome text",
                                         "text": "Could the welcome mention how to cite a source?", "token": bob.token()})
     t2 = must("thread", (st, r))["title"]
+    t2_id = r["thread"]
+    must("reply", alice.rest("POST", f"/thread/{t2_id}/post",
+                             {"text": "Done, see the new paragraph.", "status": "resolved", "token": alice.token()}))
+    st, r = alice.rest("POST", "/thread", {"target": {"kind": "page", "id": home_id}, "subject": "House style",
+                                          "text": "Cite the edition you held.", "token": alice.token()})
+    must("thread", (st, r))
     facts["threads"] = [t1 if t1.startswith("Thread:") else f"Thread:{t1}",
                         t2 if t2.startswith("Thread:") else f"Thread:{t2}",
                         "Thread:2025-08-31/Welcome to Librarybase!"]
 
+    # Moderation of records: Carol's sandbox edit has its user and comment hidden, and a
+    # second one is erased, so the feeds show a hidden actor and an erased row.
+    carol_edit = must("edit", carol.post(action="edit", title="Project:Sandbox", summary="Rude words",
+                                         text="Testing, testing. [[Item:Q6]] is a number.\n\nSpam link.", token=carol.token()))
+    carol_rev = carol_edit["edit"]["newrevid"]
+    carol_edit2 = must("edit", carol.post(action="edit", title="Project:Sandbox", summary="More",
+                                          text="Testing, testing. [[Item:Q6]] is a number.", token=carol.token()))
+    must("hide", alice.post(action="revisiondelete", type="revision", ids=str(carol_rev), hide="user|comment",
+                            reason="Harassment", token=alice.token()))
+    must("erase", alice.post(action="revisiondelete", type="revision", ids=str(carol_edit2["edit"]["newrevid"]),
+                             hide="content|user|comment", suppress="yes", reason="Private data", token=alice.token()))
     # Moderation: a protection, a block, a group.
     must("protect", alice.post(action="protect", title="Item:Q6", protections="edit=sysop|move=sysop",
                                reason="Vandalism", token=alice.token()))
@@ -211,6 +245,8 @@ def seed():
     # Alice looks at her notifications once, so the bell has seen some.
     must("seen", alice.post(action="echomarkseen", type="all", token=alice.token()))
 
+    st, r = alice.rest("GET", "/activity?limit=3&lang=en")
+    facts["rc_next"] = must("activity", (st, r)).get("next")
     rc = alice.api(action="query", list="recentchanges", rcprop="ids|title", rclimit=50)["query"]["recentchanges"]
     facts["rc"] = [(c["title"], c.get("revid"), c.get("old_revid")) for c in rc if c.get("revid")]
     return {"anon": C(), "bob": bob, "alice": alice}, facts
@@ -262,6 +298,15 @@ def paths(facts, viewer):
         (5, "/wiki/Project:Home?action=info"),
         (5, "/wiki/Project:Home?action=render"),
         (5, "/wiki/User:Harej"),
+        (5, "/wiki/Project:Shortcut?redirect=no"),
+        (5, f"/wiki/Project:Home?diff={r1}&oldid={r0}&diffonly=1"),
+        (5, "/wiki/Project:Home?diff=cur"),
+        (5, f"/wiki/Project:Home?diff=prev&oldid={r0}"),
+        (5, "/wiki/Project:Home?diff=x"),
+        (5, "/wiki/Project:Home?oldid=1"),
+        (5, "/wiki/Project:Notes?action=edit"),
+        (5, "/w/index.php?action=edit"),
+        (5, "/wiki/Project:Sandbox?action=render"),
         # Group 6: discussions.
         (6, "/wiki/Item_talk:Q5"),
         (6, "/wiki/Project_talk:Home"),
@@ -272,6 +317,11 @@ def paths(facts, viewer):
         (6, f"/wiki/{quote(t3, safe='/:')}"),
         (6, "/wiki/Item_talk:Q5?action=addtopic"),
         (6, "/wiki/Item_talk:Q5?action=history"),
+        (6, "/wiki/Item_talk:Q5?sort=activity"),
+        (6, f"/wiki/{quote(t1, safe='/:')}?replyto={facts['reply_to']}"),
+        (6, f"/wiki/{quote(t1, safe='/:')}?action=history"),
+        (6, "/wiki/Project_talk:Home?action=addtopic"),
+        (6, "/wiki/Item_talk:Q404"),
         # Group 7: changes.
         (7, "/wiki/Special:RecentChanges"),
         (7, "/wiki/Special:RecentChanges?filtered=1&hidebots=1&limit=10"),
@@ -282,6 +332,18 @@ def paths(facts, viewer):
         (7, "/wiki/Special:Log"),
         (7, "/wiki/Special:Log?type=block"),
         (7, "/wiki/Special:Log/Alice"),
+        (7, "/wiki/Special:RecentChanges?filtered=1&kind=edit&kind=sync&kind=log&kind=job&bots=1"),
+        (7, "/wiki/Special:RecentChanges?filtered=1&kind=edit&limit=50&namespace=120&days=7"),
+        (7, "/wiki/Special:RecentChanges?limit=3"),
+        (7, f"/wiki/Special:RecentChanges?limit=3&continue={quote(facts['rc_next'] or '', safe='')}"),
+        (7, "/wiki/Special:Log/move"),
+        (7, "/wiki/Special:Log?type=delete&page=Project:Consensus"),
+        (7, "/wiki/Special:Log?page=Item:Q6"),
+        (7, "/wiki/Special:Contributions?target=Carol"),
+        (7, "/wiki/Special:Contributions"),
+        (7, "/wiki/Special:NewPages?username=Bob&bots=1"),
+        (7, "/wiki/Special:Watchlist"),
+        (7, "/wiki/Special:Notifications"),
         # Group 8: search, indexes, reports.
         (8, "/wiki/Special:Search"),
         (8, "/w/index.php?title=Special:Search&search=Librarybase&fulltext=1"),
@@ -356,6 +418,7 @@ def paths(facts, viewer):
         (7, "/wiki/Special:EditWatchlist"),
         (7, "/wiki/Special:Notifications"),
         (7, "/wiki/Special:Notifications?read=1"),
+        (7, "/wiki/Special:Notifications?unread=1"),
         (9, "/wiki/Special:Preferences?tab=appearance"),
         (3, "/wiki/Item:Q6?action=render&region=terms"),
     ]
@@ -390,15 +453,20 @@ def private_paths():
 
 def record(clients, facts, out_dir):
     cases = []
-    sets = [("anon", "lb", paths(facts, "anon")), ("bob", "lb-bob", paths(facts, "bob")),
-            ("alice", "lb-alice", paths(facts, "alice"))]
+    public = [("anon", "lb", paths(facts, "anon")), ("bob", "lb-bob", paths(facts, "bob")),
+              ("alice", "lb-alice", paths(facts, "alice"))]
     # Then the tenant private: an outsider sees the login page and the wiki's name, a
     # member everything.
-    alice = clients["alice"]
-    must("private", alice.rest("PUT", "/acl/tenant/librarybase",
-                               {"restrictions": {"read": {"group": "user"}}, "token": alice.token()}))
-    sets += [("anon", "lb-private", private_paths()), ("bob", "lb-private-bob", private_paths())]
-    for viewer, set_name, ps in sets:
+    private = [("anon", "lb-private", private_paths()), ("bob", "lb-private-bob", private_paths())]
+
+    def make_private():
+        alice = clients["alice"]
+        must("private", alice.rest("PUT", "/acl/tenant/librarybase",
+                                   {"restrictions": {"read": {"group": "user"}}, "token": alice.token()}))
+
+    for i, (viewer, set_name, ps) in enumerate(public + private):
+        if i == len(public):
+            make_private()
         c = clients[viewer]
         cmd = [ARGS.web, "record", "--api", ARGS.api, "--host", ARGS.host,
                "--out", str(out_dir / "exchanges" / f"{set_name}.json")]

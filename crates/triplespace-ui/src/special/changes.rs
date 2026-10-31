@@ -25,18 +25,18 @@
 use std::fmt::Write as _;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use askama::Template as _;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
+use serde::Serialize;
 use triplespace_client::activity::{ActivityPage, ActivityQuery, ActivityRow};
 use triplespace_client::{ClientError, SiteInfo};
 
 use crate::Site;
-use crate::codex::{Chip, ChipKind, MessageKind};
+use crate::codex::{Chip, ChipKind, ChipModel, Message, MessageKind, MessageModel};
+use crate::entity::history::{Choice, Pager};
 use crate::features::Feature;
 use crate::frame::{Page, title_url};
-use crate::html::{esc, lang_attrs, link};
 use crate::i18n::Messages;
 use crate::pages::{self, Context, Params, Peer};
 
@@ -324,35 +324,285 @@ fn provider_code<'a>(site: &'a SiteInfo, source: &str) -> Option<&'a str> {
         .map(|p| p.code.as_str())
 }
 
+// ---------------------------------------------------------------------------------------
+// The view models (19 §5.10): what the skin's `changes.html` macros and the
+// `special/changes.html`, `special/watchlist.html` and `special/notifications.html`
+// templates draw.
+// ---------------------------------------------------------------------------------------
+
+/// An account, as a target or as the actor (0095 §3).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum AccountModel {
+    /// The instance's own key: the Server Operator badge.
+    Operator {
+        /// The badge.
+        badge: ChipModel,
+    },
+    /// A person: their name linked to their contributions.
+    Named {
+        /// The person icon's hidden text, where the account is a target.
+        icon: Option<String>,
+        /// The key, as the name's tooltip, where the wiki named the key.
+        title: Option<String>,
+        /// The contributions page.
+        href: String,
+        /// The name shown.
+        shown: String,
+        /// Whether it is the target (`ts-change__target`) or the actor.
+        target: bool,
+        /// The key beside the name, for another wiki's account the wiki has not named.
+        key: Option<String>,
+    },
+}
+
+/// A row's target.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum TargetModel {
+    /// An account.
+    Account {
+        /// The account.
+        account: AccountModel,
+    },
+    /// An ID with no title.
+    Id {
+        /// The ID.
+        id: String,
+    },
+    /// A job, named and not linked.
+    Job {
+        /// "job n".
+        text: String,
+    },
+    /// A title with its label.
+    Labelled {
+        /// The page.
+        href: String,
+        /// The label's language, where it differs from the page's.
+        lang: Option<String>,
+        /// The label.
+        label: String,
+        /// The ID beside it.
+        id: String,
+    },
+    /// A title alone.
+    Titled {
+        /// The page.
+        href: String,
+        /// The title as shown.
+        text: String,
+    },
+}
+
+/// A row's actor.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum ActorModel {
+    /// Hidden.
+    Hidden {
+        /// What the row says.
+        text: String,
+    },
+    /// An account.
+    Account {
+        /// The account.
+        account: AccountModel,
+    },
+    /// None known.
+    None,
+}
+
+/// A row's summary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SummaryModel {
+    /// What the row says of a hidden summary; the rest is empty then.
+    pub hidden: Option<String>,
+    /// The automatic part.
+    pub auto: Option<String>,
+    /// Where a move went.
+    pub moved: Option<String>,
+    /// The user's comment.
+    pub comment: Option<String>,
+}
+
+/// A flag: new, minor, bot.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Flag {
+    /// `new`, `minor` or `bot`.
+    pub class: &'static str,
+    /// The tooltip.
+    pub title: String,
+    /// The letter.
+    pub text: String,
+}
+
+/// The size change.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Size {
+    /// `pos` or `neg`, for a change.
+    pub class: Option<&'static str>,
+    /// `+20`, `−5`, `0` or `(400)`.
+    pub text: String,
+}
+
+/// One row.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RowModel {
+    /// The kind: `edit`, `sync`, `job`, `log`, `erased`.
+    pub kind: String,
+    /// Whether the viewer has not seen it (the watchlist).
+    pub unseen: bool,
+    /// ISO 8601.
+    pub datetime: String,
+    /// `HH:MM`.
+    pub time: String,
+    /// The diff page, where the row has one.
+    pub diff: Option<String>,
+    /// The chip that says where it came from.
+    pub origin: ChipModel,
+    /// What an erased row says, spanning the other columns.
+    pub erased: Option<(usize, String)>,
+    /// The flags.
+    pub flags: Vec<Flag>,
+    /// The target.
+    pub target: Option<TargetModel>,
+    /// The size change.
+    pub size: Option<Size>,
+    /// The actor.
+    pub actor: ActorModel,
+    /// The summary.
+    pub summary: SummaryModel,
+    /// The tags, but for `bot`.
+    pub tags: Vec<String>,
+}
+
+/// A day's rows.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Day {
+    /// The date, as the reader's language writes it.
+    pub date: String,
+    /// The rows.
+    pub rows: Vec<RowModel>,
+}
+
+/// The changes table: the columns and the rows by day.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ListModel {
+    /// The columns: class and heading.
+    pub columns: Vec<(&'static str, String)>,
+    /// The days.
+    pub days: Vec<Day>,
+}
+
+/// One control of the filter form.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum FormItem {
+    /// A text field.
+    Text {
+        /// The label.
+        label: String,
+        /// The `name`.
+        name: String,
+        /// The value.
+        value: String,
+    },
+    /// An inline check box.
+    Check {
+        /// The `name`.
+        name: String,
+        /// The value.
+        value: String,
+        /// Whether it is checked.
+        checked: bool,
+        /// The label.
+        label: String,
+    },
+    /// A labelled menu.
+    Select {
+        /// The label.
+        label: String,
+        /// The `name`.
+        name: String,
+        /// The options: value, text, selected.
+        options: Vec<(String, String, bool)>,
+    },
+    /// The row kinds and the bots box, in a fieldset.
+    Kinds {
+        /// The legend.
+        legend: String,
+        /// The boxes.
+        items: Vec<FormItem>,
+    },
+}
+
+/// The filter form.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct FormModel {
+    /// The accessible name.
+    pub label: String,
+    /// The page it filters.
+    pub title: String,
+    /// The controls.
+    pub items: Vec<FormItem>,
+    /// **Apply**.
+    pub apply: String,
+}
+
+/// The sync strip of 19 §3.9.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Strip {
+    /// "Mirror syncs are hidden."
+    pub text: String,
+    /// **Show them**.
+    pub show: Choice,
+}
+
+/// A feed page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ChangesPage {
+    /// The filter form.
+    pub form: FormModel,
+    /// The sync strip, when syncs are off.
+    pub strip: Option<Strip>,
+    /// What the API refused.
+    pub error: Option<MessageModel>,
+    /// What the page says when it has no rows.
+    pub empty: Option<String>,
+    /// The rows.
+    pub list: Option<ListModel>,
+    /// The pager.
+    pub pager: Option<Pager>,
+    /// The introduction of contributions asked for no one.
+    pub intro: Option<String>,
+}
+
+fn choice(href: String, label: String) -> Choice {
+    Choice {
+        href,
+        label,
+        current: false,
+    }
+}
+
 /// The chip that says where a row came from.
-fn origin_chip(m: &Messages, site: &SiteInfo, row: &ActivityRow) -> String {
-    let chip = match row.kind.as_str() {
+fn origin_chip(m: &Messages, site: &SiteInfo, row: &ActivityRow) -> ChipModel {
+    match row.kind.as_str() {
         "sync" => match provider_code(site, &row.source) {
-            Some(code) => Chip::new(ChipKind::Provider(code.to_string()), code).render(),
-            None => Chip::new(ChipKind::Local, &row.source).render(),
+            Some(code) => Chip::new(ChipKind::Provider(code.to_string()), code).model(),
+            None => Chip::new(ChipKind::Local, &row.source).model(),
         },
-        "job" => Chip::new(ChipKind::Job, &m.get("ts-changes-chip-job")).render(),
-        "log" => Chip::new(ChipKind::Log, &m.get("ts-changes-chip-log")).render(),
-        _ => Chip::new(ChipKind::Local, &m.get("ts-changes-chip-local")).render(),
-    };
-    chip.unwrap_or_default()
+        "job" => Chip::new(ChipKind::Job, &m.get("ts-changes-chip-job")).model(),
+        "log" => Chip::new(ChipKind::Log, &m.get("ts-changes-chip-log")).model(),
+        _ => Chip::new(ChipKind::Local, &m.get("ts-changes-chip-local")).model(),
+    }
 }
 
 /// The instance's own actor key, `instance:{farm code}`, which the site shows as the
 /// **Server Operator** (0095 §3).
 fn operator_key(site: &SiteInfo) -> Option<String> {
     (!site.farm_code.is_empty()).then(|| format!("instance:{}", site.farm_code))
-}
-
-/// The Server Operator badge, with the key it stands for as its tooltip.
-fn operator_badge(m: &Messages, key: &str) -> String {
-    Chip {
-        kind: ChipKind::Operator,
-        text: &m.get("ts-server-operator"),
-        title: Some(key),
-    }
-    .render()
-    .unwrap_or_default()
 }
 
 /// An account, as a target or as the actor (0095 §3): the instance's own key as the
@@ -362,29 +612,30 @@ fn operator_badge(m: &Messages, key: &str) -> String {
 /// the key as its tooltip, else the key. The key is shown beside the name only for an
 /// account of another wiki that the wiki has not named. A key of this wiki's issuer, or
 /// `local`, is this wiki's.
-fn account_html(
+fn account_model(
     m: &Messages,
     site: &SiteInfo,
     key: Option<&str>,
     username: Option<&str>,
     icon: bool,
-) -> String {
+) -> Option<AccountModel> {
     if let (Some(k), Some(op)) = (key, operator_key(site))
         && k == op
     {
-        return format!(
-            "<span class=\"ts-change__part\">{}</span>",
-            operator_badge(m, k)
-        );
+        return Some(AccountModel::Operator {
+            badge: Chip {
+                kind: ChipKind::Operator,
+                text: &m.get("ts-server-operator"),
+                title: Some(k),
+            }
+            .model(),
+        });
     }
     let named = key.and_then(|k| m.name_of(k));
-    let Some(shown) = username
+    let shown = username
         .map(str::to_string)
         .or(named.clone())
-        .or(key.map(str::to_string))
-    else {
-        return String::new();
-    };
+        .or(key.map(str::to_string))?;
     // An API that reports no issuer code (a stock Wikibase) is taken to be naming its own.
     let ours = site.issuer.is_empty()
         || key
@@ -394,110 +645,85 @@ fn account_html(
     // A name the wiki gave the key carries the key as its tooltip.
     let title = key
         .filter(|_| username.is_none() && named.is_some())
-        .map(|k| format!(" title=\"{}\"", esc(k)))
-        .unwrap_or_default();
+        .map(str::to_string);
     let who = username.or(key).unwrap_or(&shown);
-    let mark = if icon {
-        format!(
-            "<svg class=\"ts-change__account-icon\" xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 20 20\" aria-hidden=\"true\" focusable=\"false\"><path d=\"M12 11a6 6 0 016 6v2H2v-2a6 6 0 016-6z\"/><circle cx=\"10\" cy=\"5\" r=\"4\"/></svg><span class=\"ts-visually-hidden\">{} </span>",
-            esc(&m.get("ts-changes-account"))
-        )
-    } else {
-        String::new()
-    };
-    let mut s = format!(
-        "<span class=\"ts-change__part{}\"{title}>{mark}{}</span>",
-        if icon { " ts-change__account" } else { "" },
-        link(
-            &format!("/wiki/Special:Contributions/{}", title_url(who)),
-            &esc(&shown),
-            if icon {
-                " class=\"ts-change__target\""
-            } else {
-                " class=\"ts-change__actor\""
-            },
-        )
-    );
-    if let Some(k) = show_key {
-        let _ = write!(
-            s,
-            "<span class=\"ts-change__part ts-change__id ts-mono\">{}</span>",
-            esc(k)
-        );
-    }
-    s
+    Some(AccountModel::Named {
+        icon: icon.then(|| m.get("ts-changes-account")),
+        title,
+        href: format!("/wiki/Special:Contributions/{}", title_url(who)),
+        shown: shown.clone(),
+        target: icon,
+        key: show_key.map(str::to_string),
+    })
 }
 
 /// The target: its title linked, with its label where one is known. An account is
-/// [`account_html`]'s. In a discussion's history (`subject_only`), a thread is named by
+/// [`account_model`]'s. In a discussion's history (`subject_only`), a thread is named by
 /// its subject, the date and namespace being the same on every row.
-fn target_html(m: &Messages, site: &SiteInfo, row: &ActivityRow, subject_only: bool) -> String {
+fn target_model(
+    m: &Messages,
+    site: &SiteInfo,
+    row: &ActivityRow,
+    subject_only: bool,
+) -> Option<TargetModel> {
     let lang = m.lang();
-    let Some(t) = &row.target else {
-        return String::new();
-    };
+    let t = row.target.as_ref()?;
     if t.kind == "actor" {
-        return account_html(
+        return account_model(
             m,
             site,
             Some(t.id.as_str()).filter(|k| !k.is_empty()),
             t.label.as_ref().map(|l| l.value.as_str()),
             true,
-        );
+        )
+        .map(|account| TargetModel::Account { account });
     }
     let Some(title) = &t.title else {
-        return format!("<span class=\"ts-mono\">{}</span>", esc(&t.id));
+        return Some(TargetModel::Id { id: t.id.clone() });
     };
     // A job's page (`Special:Jobs/{n}`) is not built yet: the job is named, not linked.
     if let Some(n) = title.strip_prefix("Special:Jobs/") {
-        return format!(
-            "<span class=\"ts-change__part ts-change__target\">{}</span>",
-            esc(&m.with("ts-changes-job", &[n]))
-        );
+        return Some(TargetModel::Job {
+            text: m.with("ts-changes-job", &[n]),
+        });
     }
     let href = format!("/wiki/{}", title_url(title));
     if let Some(label) = &t.label {
-        return format!(
-            "<span class=\"ts-change__part\">{}</span><span class=\"ts-change__part ts-change__id ts-mono\">{}</span>",
-            link(
-                &href,
-                &format!(
-                    "<span{}>{}</span>",
-                    lang_attrs(&label.language, lang),
-                    esc(&label.value)
-                ),
-                " class=\"ts-change__target\""
-            ),
-            esc(&t.id)
-        );
+        return Some(TargetModel::Labelled {
+            href,
+            lang: (!label.language.is_empty() && label.language != lang)
+                .then(|| label.language.clone()),
+            label: label.value.clone(),
+            id: t.id.clone(),
+        });
     }
     let shown = if subject_only && is_thread_row(row) {
         title.split_once('/').map_or(title.as_str(), |(_, s)| s)
     } else {
         title.as_str()
     };
-    format!(
-        "<span class=\"ts-change__part\">{}</span>",
-        link(&href, &esc(shown), " class=\"ts-change__target\"")
-    )
+    Some(TargetModel::Titled {
+        href,
+        text: shown.to_string(),
+    })
 }
 
 /// The actor: a link to their contributions, the Server Operator badge for the instance,
 /// or the hidden marker.
-fn actor_html(m: &Messages, site: &SiteInfo, row: &ActivityRow) -> String {
+fn actor_model(m: &Messages, site: &SiteInfo, row: &ActivityRow) -> ActorModel {
     if row.actor.hidden {
-        return format!(
-            "<span class=\"ts-change__part ts-change__hidden\">{}</span>",
-            esc(&m.get("ts-changes-hidden-user"))
-        );
+        return ActorModel::Hidden {
+            text: m.get("ts-changes-hidden-user"),
+        };
     }
-    account_html(
+    account_model(
         m,
         site,
         row.actor.key.as_deref(),
         row.actor.name.as_deref(),
         false,
     )
+    .map_or(ActorModel::None, |account| ActorModel::Account { account })
 }
 
 /// Whether a row is a thread's: its target is a page in the `Thread` namespace.
@@ -546,36 +772,35 @@ fn thread_summary(m: &Messages, row: &ActivityRow, here: Option<u64>) -> Option<
 }
 
 /// The summary: the user's comment, and the automatic part muted.
-fn summary_html(m: &Messages, row: &ActivityRow, here: Option<u64>) -> String {
+fn summary_model(m: &Messages, row: &ActivityRow, here: Option<u64>) -> SummaryModel {
+    let mut out = SummaryModel {
+        hidden: None,
+        auto: None,
+        moved: None,
+        comment: None,
+    };
     if row.summary.hidden {
-        return format!(
-            "<span class=\"ts-change__hidden\">{}</span>",
-            esc(&m.get("ts-changes-hidden-comment"))
-        );
+        out.hidden = Some(m.get("ts-changes-hidden-comment"));
+        return out;
     }
-    let mut s = String::new();
     let auto = match (&row.summary.op, &row.summary.args) {
         (Some(op), Some(args)) => Some(format!("{op}: {args}")),
         (Some(op), None) => Some(op.clone()),
         _ => None,
     };
-    if row.kind == "sync" {
+    out.auto = if row.kind == "sync" {
         let provider = row.source.strip_prefix("mirror/").unwrap_or(&row.source);
-        let _ = write!(
-            s,
-            "<span class=\"ts-change__auto\">{}</span>",
-            esc(&m.with("ts-changes-synced", &[provider]))
-        );
+        Some(m.with("ts-changes-synced", &[provider]))
     } else if let Some(t) = is_thread_row(row)
         .then(|| thread_summary(m, row, here))
         .flatten()
     {
-        let _ = write!(s, "<span class=\"ts-change__auto\">{}</span>", esc(&t));
-    } else if let Some(a) = auto {
-        let _ = write!(s, "<span class=\"ts-change__auto\">{}</span>", esc(&a));
-    }
+        Some(t)
+    } else {
+        auto
+    };
     // A move names where the page went (10 §2.5).
-    if let Some((from, to)) = row
+    out.moved = row
         .log
         .as_ref()
         .filter(|l| l.r#type == "move" && !is_thread_row(row))
@@ -586,44 +811,30 @@ fn summary_html(m: &Messages, row: &ActivityRow, here: Option<u64>) -> String {
                 p.get("target_title")?.as_str()?,
             ))
         })
-    {
-        let _ = write!(
-            s,
-            " <span class=\"ts-change__auto\">{}</span>",
-            esc(&m.with("ts-changes-moved-to", &[from, to]))
-        );
-    }
-    if let Some(c) = &row.comment
-        && !c.is_empty()
-    {
-        if !s.is_empty() {
-            s.push(' ');
-        }
-        let _ = write!(s, "<span class=\"ts-change__comment\">{}</span>", esc(c));
-    }
-    s
+        .map(|(from, to)| m.with("ts-changes-moved-to", &[from, to]));
+    out.comment = row.comment.clone().filter(|c| !c.is_empty());
+    out
 }
 
 /// The size change: `+20`, `−5`, or the size when nothing came before.
-fn size_html(row: &ActivityRow) -> String {
+fn size_model(row: &ActivityRow) -> Option<Size> {
     match (row.delta, row.size) {
-        (Some(d), _) if d != 0 => {
-            let class = if d > 0 { "pos" } else { "neg" };
-            let sign = if d > 0 { "+" } else { "\u{2212}" };
-            format!(
-                "<span class=\"ts-change__delta ts-change__delta--{class}\" dir=\"ltr\">{sign}{}</span>",
-                d.abs()
-            )
-        }
-        (Some(_), _) => "<span class=\"ts-change__delta\" dir=\"ltr\">0</span>".to_string(),
-        (None, Some(size)) => {
-            format!("<span class=\"ts-change__delta\" dir=\"ltr\">({size})</span>")
-        }
-        (None, None) => String::new(),
+        (Some(d), _) if d != 0 => Some(Size {
+            class: Some(if d > 0 { "pos" } else { "neg" }),
+            text: format!("{}{}", if d > 0 { "+" } else { "\u{2212}" }, d.abs()),
+        }),
+        (Some(_), _) => Some(Size {
+            class: None,
+            text: "0".into(),
+        }),
+        (None, Some(size)) => Some(Size {
+            class: None,
+            text: format!("({size})"),
+        }),
+        (None, None) => None,
     }
 }
 
-/// One row.
 /// The diff page of a row (19 §3.8): `?diff={revid}` for a local edit, `?diff={partition}:{offset}`
 /// for a mirror sync, which has no local revision ID; nothing for the other kinds.
 fn diff_href(row: &ActivityRow) -> Option<String> {
@@ -657,140 +868,110 @@ const COLUMNS: [(&str, &str); 7] = [
     ("ts-changes-col-summary", "summary"),
 ];
 
-fn cell(s: &mut String, col: &str, inner: &str) {
-    let _ = write!(
-        s,
-        "<td class=\"ts-change__cell ts-change__cell--{col}\">{inner}</td>"
-    );
-}
-
-fn row_html(m: &Messages, site: &SiteInfo, row: &ActivityRow, here: Option<u64>) -> String {
-    let time = format!(
-        "<time class=\"ts-change__time\" datetime=\"{}\">{}</time>",
-        esc(&row.time),
-        esc(clock(&row.time))
-    );
-    let time = match diff_href(row) {
-        Some(href) => link(&href, &time, " class=\"ts-change__diff\""),
-        None => time,
-    };
-    let mut s = format!(
-        "<tr class=\"ts-change ts-change--{}{}\">",
-        esc(&row.kind),
-        if row.unseen { " ts-change--unseen" } else { "" },
-    );
-    cell(&mut s, "time", &time);
-    cell(&mut s, "origin", &origin_chip(m, site, row));
+fn row_model(m: &Messages, site: &SiteInfo, row: &ActivityRow, here: Option<u64>) -> RowModel {
+    let origin = origin_chip(m, site, row);
     if row.kind == "erased" {
-        let _ = write!(
-            s,
-            "<td class=\"ts-change__cell ts-change__hidden\" colspan=\"{}\">{}</td></tr>",
-            COLUMNS.len() - 2,
-            esc(&m.get("ts-changes-erased"))
-        );
-        return s;
+        return RowModel {
+            kind: row.kind.clone(),
+            unseen: row.unseen,
+            datetime: row.time.clone(),
+            time: clock(&row.time).to_string(),
+            diff: diff_href(row),
+            origin,
+            erased: Some((COLUMNS.len() - 2, m.get("ts-changes-erased"))),
+            flags: Vec::new(),
+            target: None,
+            size: None,
+            actor: ActorModel::None,
+            summary: SummaryModel {
+                hidden: None,
+                auto: None,
+                moved: None,
+                comment: None,
+            },
+            tags: Vec::new(),
+        };
     }
     let mut flags = Vec::new();
-    if row.flags.new {
-        flags.push(("ts-changes-flag-new", "new"));
-    }
-    if row.flags.minor {
-        flags.push(("ts-changes-flag-minor", "minor"));
-    }
-    if row.flags.bot {
-        flags.push(("ts-changes-flag-bot", "bot"));
-    }
-    let mut f = String::new();
-    for (msg, class) in flags {
-        let _ = write!(
-            f,
-            "<abbr class=\"ts-change__flag ts-change__flag--{class}\" title=\"{}\">{}</abbr>",
-            esc(&m.get(&format!("{msg}-title"))),
-            esc(&m.get(msg))
-        );
-    }
-    cell(&mut s, "flags", &f);
-    let mut target = target_html(m, site, row, here.is_some());
-    if target.is_empty()
-        && let Some(j) = row.job
-    {
-        target = format!(
-            "<span class=\"ts-change__part ts-change__target\">{}</span>",
-            esc(&m.with("ts-changes-job", &[&j.to_string()]))
-        );
-    }
-    cell(&mut s, "target", &target);
-    cell(&mut s, "size", &size_html(row));
-    cell(&mut s, "user", &actor_html(m, site, row));
-    let mut summary = summary_html(m, row, here);
-    if !summary.is_empty() {
-        summary = format!("<span class=\"ts-change__summary\">{summary}</span>");
-    }
-    let tags: Vec<&String> = row.tags.iter().filter(|t| *t != "bot").collect();
-    if !tags.is_empty() {
-        summary.push_str("<span class=\"ts-change__tags\">");
-        for t in tags {
-            let _ = write!(summary, "<span class=\"ts-change__tag\">{}</span>", esc(t));
+    for (on, msg, class) in [
+        (row.flags.new, "ts-changes-flag-new", "new"),
+        (row.flags.minor, "ts-changes-flag-minor", "minor"),
+        (row.flags.bot, "ts-changes-flag-bot", "bot"),
+    ] {
+        if on {
+            flags.push(Flag {
+                class,
+                title: m.get(&format!("{msg}-title")),
+                text: m.get(msg),
+            });
         }
-        summary.push_str("</span>");
     }
-    cell(&mut s, "summary", &summary);
-    s.push_str("</tr>");
-    s
+    let target = target_model(m, site, row, here.is_some()).or_else(|| {
+        row.job.map(|j| TargetModel::Job {
+            text: m.with("ts-changes-job", &[&j.to_string()]),
+        })
+    });
+    RowModel {
+        kind: row.kind.clone(),
+        unseen: row.unseen,
+        datetime: row.time.clone(),
+        time: clock(&row.time).to_string(),
+        diff: diff_href(row),
+        origin,
+        erased: None,
+        flags,
+        target,
+        size: size_model(row),
+        actor: actor_model(m, site, row),
+        summary: summary_model(m, row, here),
+        tags: row.tags.iter().filter(|t| *t != "bot").cloned().collect(),
+    }
 }
 
 /// The rows, grouped by day.
-pub(crate) fn list_html(m: &Messages, site: &SiteInfo, rows: &[ActivityRow]) -> String {
-    list_html_here(m, site, rows, None)
+pub(crate) fn list_model(m: &Messages, site: &SiteInfo, rows: &[ActivityRow]) -> Option<ListModel> {
+    list_model_here(m, site, rows, None)
 }
 
 /// The rows as one table, a row group per day headed by its date, as the history of the
 /// talk page `here` reads them: a thread listed on it or moved to or from it says so
 /// (16 §6.1).
-pub(crate) fn list_html_here(
+pub(crate) fn list_model_here(
     m: &Messages,
     site: &SiteInfo,
     rows: &[ActivityRow],
     here: Option<u64>,
-) -> String {
+) -> Option<ListModel> {
     if rows.is_empty() {
-        return String::new();
+        return None;
     }
-    let mut s = String::from(
-        "<div class=\"ts-changes__scroll\"><table class=\"ts-changes__table\"><thead><tr>",
-    );
-    for (msg, col) in COLUMNS {
-        let _ = write!(
-            s,
-            "<th scope=\"col\" class=\"ts-change__head ts-change__head--{col}\">{}</th>",
-            esc(&m.get(msg))
-        );
-    }
-    s.push_str("</tr></thead>");
+    let mut days: Vec<Day> = Vec::new();
     let mut day: Option<&str> = None;
     for row in rows {
         let d = row.time.split('T').next().unwrap_or("");
         if day != Some(d) {
-            if day.is_some() {
-                s.push_str("</tbody>");
-            }
-            let _ = write!(
-                s,
-                "<tbody><tr class=\"ts-changes__dayrow\"><th scope=\"rowgroup\" colspan=\"{}\" class=\"ts-changes__day\">{}</th></tr>",
-                COLUMNS.len(),
-                esc(&date(m, &row.time))
-            );
+            days.push(Day {
+                date: date(m, &row.time),
+                rows: Vec::new(),
+            });
             day = Some(d);
         }
-        s.push_str(&row_html(m, site, row, here));
+        if let Some(last) = days.last_mut() {
+            last.rows.push(row_model(m, site, row, here));
+        }
     }
-    s.push_str("</tbody></table></div>");
-    s
+    Some(ListModel {
+        columns: COLUMNS
+            .iter()
+            .map(|(msg, col)| (*col, m.get(msg)))
+            .collect(),
+        days,
+    })
 }
 
 /// The filter form.
 #[allow(clippy::too_many_lines)]
-fn form_html(m: &Messages, ask: &Ask) -> String {
+fn form_model(m: &Messages, ask: &Ask) -> FormModel {
     let title = match (ask.which, &ask.user) {
         (Which::RecentChanges, _) => "Special:RecentChanges".to_string(),
         (Which::Log, _) => "Special:Log".to_string(),
@@ -798,230 +979,150 @@ fn form_html(m: &Messages, ask: &Ask) -> String {
         (Which::Contributions, None) => "Special:Contributions".to_string(),
         (Which::NewPages, _) => "Special:NewPages".to_string(),
     };
-    let mut s = format!(
-        "<form class=\"ts-changes-form\" action=\"/w/index.php\" method=\"get\" aria-label=\"{}\"><input type=\"hidden\" name=\"title\" value=\"{}\"><input type=\"hidden\" name=\"filtered\" value=\"1\">",
-        esc(&m.get("ts-changes-filter-label")),
-        esc(&title)
-    );
-    if ask.which == Which::Contributions {
-        let _ = write!(
-            s,
-            "<label class=\"ts-changes-form__field\"><span>{}</span> <input class=\"cdx-text-input__input\" type=\"text\" name=\"target\" value=\"{}\"></label>",
-            esc(&m.get("ts-contributions-user")),
-            esc(ask.user.as_deref().unwrap_or(""))
-        );
-    }
-    if ask.which == Which::NewPages {
-        let _ = write!(
-            s,
-            "<label class=\"ts-changes-form__field\"><span>{}</span> <input class=\"cdx-text-input__input\" type=\"text\" name=\"username\" value=\"{}\"></label><label class=\"cdx-checkbox cdx-checkbox--inline\"><input class=\"cdx-checkbox__input\" type=\"checkbox\" name=\"bots\" value=\"1\"{}><span class=\"cdx-checkbox__icon\"></span><span class=\"cdx-checkbox__label\">{}</span></label>",
-            esc(&m.get("ts-newpages-user")),
-            esc(ask.user.as_deref().unwrap_or("")),
-            if ask.hide_bots { "" } else { " checked" },
-            esc(&m.get("ts-changes-bots"))
-        );
-    }
-    if ask.which == Which::Log {
-        let _ = write!(
-            s,
-            "<label class=\"ts-changes-form__field\"><span>{}</span> <select class=\"cdx-select\" name=\"type\"><option value=\"\"{}>{}</option>",
-            esc(&m.get("ts-log-type")),
-            if ask.log_type.is_none() {
-                " selected"
-            } else {
-                ""
-            },
-            esc(&m.get("ts-log-type-all")),
-        );
-        for (kind, msg) in LOG_TYPES {
-            let _ = write!(
-                s,
-                "<option value=\"{kind}\"{}>{}</option>",
-                if ask.log_type.as_deref() == Some(kind) {
-                    " selected"
-                } else {
-                    ""
-                },
-                esc(&m.get(msg))
-            );
+    let text = |label: String, name: &str, value: Option<&str>| FormItem::Text {
+        label,
+        name: name.to_string(),
+        value: value.unwrap_or("").to_string(),
+    };
+    let bots = || FormItem::Check {
+        name: "bots".into(),
+        value: "1".into(),
+        checked: !ask.hide_bots,
+        label: m.get("ts-changes-bots"),
+    };
+    let select = |label: String, name: &str, options: Vec<(String, String)>, current: &str| {
+        FormItem::Select {
+            label,
+            name: name.to_string(),
+            options: options
+                .into_iter()
+                .map(|(v, t)| {
+                    let selected = v == current;
+                    (v, t, selected)
+                })
+                .collect(),
         }
-        let _ = write!(
-            s,
-            "</select></label><label class=\"ts-changes-form__field\"><span>{}</span> <input class=\"cdx-text-input__input\" type=\"text\" name=\"user\" value=\"{}\"></label><label class=\"ts-changes-form__field\"><span>{}</span> <input class=\"cdx-text-input__input\" type=\"text\" name=\"page\" value=\"{}\"></label>",
-            esc(&m.get("ts-log-user")),
-            esc(ask.user.as_deref().unwrap_or("")),
-            esc(&m.get("ts-log-page")),
-            esc(ask.page.as_deref().unwrap_or("")),
+    };
+    let days = || {
+        select(
+            m.get("ts-changes-days"),
+            "days",
+            DAYS.iter()
+                .map(|d| {
+                    (
+                        d.to_string(),
+                        m.with("ts-changes-days-n", &[&d.to_string()]),
+                    )
+                })
+                .collect(),
+            &ask.days.to_string(),
+        )
+    };
+    let limit = || {
+        select(
+            m.get("ts-changes-limit"),
+            "limit",
+            LIMITS
+                .iter()
+                .map(|l| (l.to_string(), l.to_string()))
+                .collect(),
+            &ask.limit.to_string(),
+        )
+    };
+    let namespace = || {
+        let mut namespaces = vec![(String::new(), m.get("ts-changes-namespace-all"))];
+        namespaces.extend(
+            NAMESPACES
+                .iter()
+                .map(|(n, msg)| ((*n).to_string(), m.get(msg))),
         );
+        select(
+            m.get("ts-changes-namespace"),
+            "namespace",
+            namespaces,
+            ask.namespace.as_deref().unwrap_or(""),
+        )
+    };
+    let mut items = Vec::new();
+    match ask.which {
+        Which::Contributions => {
+            items.push(text(
+                m.get("ts-contributions-user"),
+                "target",
+                ask.user.as_deref(),
+            ));
+        }
+        Which::NewPages => {
+            items.push(text(
+                m.get("ts-newpages-user"),
+                "username",
+                ask.user.as_deref(),
+            ));
+            items.push(bots());
+        }
+        Which::Log => {
+            let mut options = vec![(String::new(), m.get("ts-log-type-all"))];
+            options.extend(
+                LOG_TYPES
+                    .iter()
+                    .map(|(k, msg)| ((*k).to_string(), m.get(msg))),
+            );
+            items.push(select(
+                m.get("ts-log-type"),
+                "type",
+                options,
+                ask.log_type.as_deref().unwrap_or(""),
+            ));
+            items.push(text(m.get("ts-log-user"), "user", ask.user.as_deref()));
+            items.push(text(m.get("ts-log-page"), "page", ask.page.as_deref()));
+        }
+        Which::RecentChanges => {}
     }
     if ask.which == Which::Log {
-        let days: Vec<(String, String)> = DAYS
-            .iter()
-            .map(|d| {
-                (
-                    d.to_string(),
-                    m.with("ts-changes-days-n", &[&d.to_string()]),
-                )
-            })
-            .collect();
-        select_html(
-            &mut s,
-            "days",
-            &m.get("ts-changes-days"),
-            &days,
-            &ask.days.to_string(),
-        );
-        let limits: Vec<(String, String)> = LIMITS
-            .iter()
-            .map(|l| (l.to_string(), l.to_string()))
-            .collect();
-        select_html(
-            &mut s,
-            "limit",
-            &m.get("ts-changes-limit"),
-            &limits,
-            &ask.limit.to_string(),
-        );
-        let _ = write!(
-            s,
-            " <button class=\"cdx-button cdx-button--action-progressive cdx-button--weight-primary\" type=\"submit\">{}</button></form>",
-            esc(&m.get("ts-changes-apply"))
-        );
-        return s;
+        items.push(days());
+        items.push(limit());
+    } else {
+        if ask.which != Which::NewPages {
+            let mut kinds: Vec<FormItem> = KINDS
+                .iter()
+                .map(|(kind, msg, _)| FormItem::Check {
+                    name: "kind".into(),
+                    value: (*kind).to_string(),
+                    checked: ask.kinds.iter().any(|k| k == kind),
+                    label: m.get(msg),
+                })
+                .collect();
+            kinds.push(bots());
+            items.push(FormItem::Kinds {
+                legend: m.get("ts-changes-kinds"),
+                items: kinds,
+            });
+        }
+        items.push(namespace());
+        items.push(days());
+        items.push(limit());
     }
-    if ask.which != Which::NewPages {
-        kinds_html(&mut s, m, ask);
+    FormModel {
+        label: m.get("ts-changes-filter-label"),
+        title,
+        items,
+        apply: m.get("ts-changes-apply"),
     }
-    s.push_str(&rest_of_form(m, ask));
-    s
-}
-
-/// The row kinds and the bots box, for every feed but the log and new pages.
-fn kinds_html(s: &mut String, m: &Messages, ask: &Ask) {
-    s.push_str("<fieldset class=\"ts-changes-form__kinds\"><legend>");
-    s.push_str(&esc(&m.get("ts-changes-kinds")));
-    s.push_str("</legend>");
-    for (kind, msg, _) in KINDS {
-        let _ = write!(
-            s,
-            "<label class=\"cdx-checkbox cdx-checkbox--inline\"><input class=\"cdx-checkbox__input\" type=\"checkbox\" name=\"kind\" value=\"{kind}\"{}><span class=\"cdx-checkbox__icon\"></span><span class=\"cdx-checkbox__label\">{}</span></label>",
-            if ask.kinds.iter().any(|k| k == kind) {
-                " checked"
-            } else {
-                ""
-            },
-            esc(&m.get(msg))
-        );
-    }
-    let _ = write!(
-        s,
-        "<label class=\"cdx-checkbox cdx-checkbox--inline\"><input class=\"cdx-checkbox__input\" type=\"checkbox\" name=\"bots\" value=\"1\"{}><span class=\"cdx-checkbox__icon\"></span><span class=\"cdx-checkbox__label\">{}</span></label></fieldset>",
-        if ask.hide_bots { "" } else { " checked" },
-        esc(&m.get("ts-changes-bots"))
-    );
-}
-
-/// The namespace, the window, the page size and the button.
-fn rest_of_form(m: &Messages, ask: &Ask) -> String {
-    let mut s = String::new();
-    let mut namespaces = vec![(String::new(), m.get("ts-changes-namespace-all"))];
-    namespaces.extend(
-        NAMESPACES
-            .iter()
-            .map(|(n, msg)| ((*n).to_string(), m.get(msg))),
-    );
-    select_html(
-        &mut s,
-        "namespace",
-        &m.get("ts-changes-namespace"),
-        &namespaces,
-        ask.namespace.as_deref().unwrap_or(""),
-    );
-    let days: Vec<(String, String)> = DAYS
-        .iter()
-        .map(|d| {
-            (
-                d.to_string(),
-                m.with("ts-changes-days-n", &[&d.to_string()]),
-            )
-        })
-        .collect();
-    select_html(
-        &mut s,
-        "days",
-        &m.get("ts-changes-days"),
-        &days,
-        &ask.days.to_string(),
-    );
-    let limits: Vec<(String, String)> = LIMITS
-        .iter()
-        .map(|l| (l.to_string(), l.to_string()))
-        .collect();
-    select_html(
-        &mut s,
-        "limit",
-        &m.get("ts-changes-limit"),
-        &limits,
-        &ask.limit.to_string(),
-    );
-    let _ = write!(
-        s,
-        " <button class=\"cdx-button cdx-button--action-progressive cdx-button--weight-primary\" type=\"submit\">{}</button></form>",
-        esc(&m.get("ts-changes-apply"))
-    );
-    s
-}
-
-/// A labelled menu of the form.
-fn select_html(
-    s: &mut String,
-    name: &str,
-    label: &str,
-    options: &[(String, String)],
-    current: &str,
-) {
-    let _ = write!(
-        s,
-        "<label class=\"ts-changes-form__field\"><span>{}</span> <select class=\"cdx-select\" name=\"{name}\">",
-        esc(label)
-    );
-    for (value, text) in options {
-        let _ = write!(
-            s,
-            "<option value=\"{}\"{}>{}</option>",
-            esc(value),
-            if value == current { " selected" } else { "" },
-            esc(text)
-        );
-    }
-    s.push_str("</select></label>");
 }
 
 /// The pager: **Newest** when on a later page, **Older** when there is one.
-fn pager_html(m: &Messages, ask: &Ask, next: Option<&str>) -> String {
+fn pager_model(m: &Messages, ask: &Ask, next: Option<&str>) -> Option<Pager> {
     if ask.cursor.is_none() && next.is_none() {
-        return String::new();
+        return None;
     }
-    let mut s = format!(
-        "<nav class=\"ts-pager\" aria-label=\"{}\">",
-        esc(&m.get("ts-search-pages-label"))
-    );
-    if ask.cursor.is_some() {
-        let _ = write!(
-            s,
-            "{} ",
-            link(&ask.href(None), &esc(&m.get("ts-changes-newest")), "")
-        );
-    }
-    if let Some(n) = next {
-        s.push_str(&link(
-            &ask.href(Some(n)),
-            &esc(&m.get("ts-changes-older")),
-            " rel=\"next\"",
-        ));
-    }
-    s.push_str("</nav>");
-    s
+    Some(Pager {
+        label: m.get("ts-search-pages-label"),
+        newest: ask
+            .cursor
+            .as_ref()
+            .map(|_| choice(ask.href(None), m.get("ts-changes-newest"))),
+        older: next.map(|n| choice(ask.href(Some(n)), m.get("ts-changes-older"))),
+    })
 }
 
 /// Fetches the page, adding its caching to the context.
@@ -1059,18 +1160,17 @@ async fn fetch(
 }
 
 /// The sync strip of 19 §3.9: when syncs are off, says so and offers them.
-fn sync_strip(m: &Messages, ask: &Ask) -> String {
+fn strip_model(m: &Messages, ask: &Ask) -> Option<Strip> {
     if ask.kinds.iter().any(|k| k == "sync") {
-        return String::new();
+        return None;
     }
     let mut with = ask.clone();
     with.kinds.push("sync".into());
     with.cursor = None;
-    format!(
-        "<p class=\"ts-changes__strip\">{} {}</p>",
-        esc(&m.get("ts-changes-syncs-hidden")),
-        link(&with.href(None), &esc(&m.get("ts-changes-syncs-show")), "")
-    )
+    Some(Strip {
+        text: m.get("ts-changes-syncs-hidden"),
+        show: choice(with.href(None), m.get("ts-changes-syncs-show")),
+    })
 }
 
 async fn serve_page(
@@ -1108,35 +1208,34 @@ async fn serve_page(
         }
     }
     let m = &cx.m;
-    let mut body = form_html(m, &ask);
-    if which == Which::RecentChanges {
-        body.push_str(&sync_strip(m, &ask));
-    }
-    if let Some(e) = &error {
-        body.push_str(&pages::message(MessageKind::Error, e));
-    }
-    match (&page, &ask.user, which) {
-        (Some(p), _, _) if p.rows.is_empty() => {
-            let text = match (&ask.user, which) {
-                (Some(u), Which::Contributions) => m.with("ts-contributions-none", &[u]),
-                (_, Which::NewPages) => m.get("ts-newpages-none"),
-                _ => m.get("ts-changes-none"),
-            };
-            let _ = write!(body, "<p class=\"ts-empty\">{}</p>", esc(&text));
+    let empty = match (&page, &ask.user, which) {
+        (Some(p), Some(u), Which::Contributions) if p.rows.is_empty() => {
+            Some(m.with("ts-contributions-none", &[u]))
         }
-        (Some(p), _, _) => {
-            body.push_str(&list_html(m, &cx.site, &p.rows));
-            body.push_str(&pager_html(m, &ask, p.next.as_deref()));
-        }
-        (None, None, Which::Contributions) => {
-            let _ = write!(
-                body,
-                "<p class=\"ts-search-intro\">{}</p>",
-                esc(&m.get("ts-contributions-intro"))
-            );
-        }
-        (None, _, _) => {}
-    }
+        (Some(p), _, Which::NewPages) if p.rows.is_empty() => Some(m.get("ts-newpages-none")),
+        (Some(p), _, _) if p.rows.is_empty() => Some(m.get("ts-changes-none")),
+        _ => None,
+    };
+    let body = cx.draw(
+        "special/changes.html",
+        ChangesPage {
+            form: form_model(m, &ask),
+            strip: (which == Which::RecentChanges)
+                .then(|| strip_model(m, &ask))
+                .flatten(),
+            error: error
+                .as_deref()
+                .map(|e| Message::block(MessageKind::Error, e).model()),
+            empty,
+            list: page.as_ref().and_then(|p| list_model(m, &cx.site, &p.rows)),
+            pager: page
+                .as_ref()
+                .filter(|p| !p.rows.is_empty())
+                .and_then(|p| pager_model(m, &ask, p.next.as_deref())),
+            intro: (page.is_none() && ask.user.is_none() && which == Which::Contributions)
+                .then(|| m.get("ts-contributions-intro")),
+        },
+    );
     let title = match (which, &ask.user) {
         (Which::RecentChanges, _) => m.get("ts-recentchanges-title"),
         (Which::Log, _) => m.get("ts-log-title"),
@@ -1148,7 +1247,6 @@ async fn serve_page(
         (Which::Contributions, Some(u)) => format!("Special:Contributions/{u}"),
         _ => title_key.to_string(),
     };
-    let body = format!("<div class=\"ts-changes\">{body}</div>");
     pages::respond(&cx, headers, StatusCode::OK, |_| Page {
         title,
         returnto: Some(returnto),
@@ -1310,11 +1408,11 @@ mod tests {
             size: Some(400),
             ..ActivityRow::default()
         };
-        assert!(size_html(&r).contains("+20"));
+        assert_eq!(size_model(&r).map(|s| s.text).as_deref(), Some("+20"));
         r.delta = Some(-5);
-        assert!(size_html(&r).contains("\u{2212}5"));
+        assert_eq!(size_model(&r).map(|s| s.text).as_deref(), Some("\u{2212}5"));
         r.delta = None;
-        assert!(size_html(&r).contains("(400)"));
+        assert_eq!(size_model(&r).map(|s| s.text).as_deref(), Some("(400)"));
     }
 
     #[test]
@@ -1358,14 +1456,12 @@ mod tests {
             diff_href(&post).as_deref(),
             Some("/wiki/Thread:2026-10-25/Why_is_P31_wrong_here%3F#post-930")
         );
-        assert!(
-            row_html(&m, &SiteInfo::default(), &post, Some(7))
-                .contains(">Why is P31 wrong here?</a>")
-        );
-        assert!(
-            row_html(&m, &SiteInfo::default(), &post, None)
-                .contains(">Thread:2026-10-25/Why is P31 wrong here?</a>")
-        );
+        let shown = |here| match row_model(&m, &SiteInfo::default(), &post, here).target {
+            Some(TargetModel::Titled { text, .. }) => text,
+            other => panic!("{other:?}"),
+        };
+        assert_eq!(shown(Some(7)), "Why is P31 wrong here?");
+        assert_eq!(shown(None), "Thread:2026-10-25/Why is P31 wrong here?");
     }
 
     /// A log row whose target is an account, as `rights/rights` writes them.
@@ -1394,56 +1490,58 @@ mod tests {
             farm_code: "gpu".into(),
             ..SiteInfo::default()
         };
+        let target = |m: &Messages, row: &ActivityRow| match row_model(m, &site, row, None).target {
+            Some(TargetModel::Account { account }) => account,
+            other => panic!("{other:?}"),
+        };
         // An account of this wiki: the icon, its name to its contributions, no key.
-        let html = row_html(
+        let a = target(
             &m,
-            &site,
             &rights_row("wwq:25", "Harej bot 2", "wwq:7", Some("Harej")),
-            None,
         );
-        assert!(html.contains("ts-change__account-icon"), "{html}");
-        assert!(html.contains("<span class=\"ts-visually-hidden\">Account </span>"));
-        assert!(html.contains("href=\"/wiki/Special:Contributions/Harej_bot_2\""));
-        assert!(
-            !html.contains("wwq:25</span>"),
-            "no key for this wiki's account"
-        );
-        assert!(
-            !html.contains("/wiki/User:Harej_bot_2"),
+        let AccountModel::Named {
+            icon, href, key, ..
+        } = &a
+        else {
+            panic!("{a:?}");
+        };
+        assert_eq!(icon.as_deref(), Some("Account"));
+        assert_eq!(
+            href, "/wiki/Special:Contributions/Harej_bot_2",
             "not its user page"
         );
+        assert_eq!(key, &None, "no key for this wiki's account");
+        let actor = |m: &Messages, row: &ActivityRow| match row_model(m, &site, row, None).actor {
+            ActorModel::Account { account } => account,
+            other => panic!("{other:?}"),
+        };
         // The instance acting: the badge, the key only as its tooltip.
-        let html = row_html(
+        let a = actor(
             &m,
-            &site,
             &rights_row("wwq:1", "Librarybase", "instance:gpu", None),
-            None,
         );
-        assert!(html.contains("<span class=\"ts-chip ts-chip--operator\" title=\"instance:gpu\">Server Operator</span>"), "{html}");
+        let AccountModel::Operator { badge } = &a else {
+            panic!("{a:?}");
+        };
+        assert_eq!(badge.text, "Server Operator");
+        assert_eq!(badge.title.as_deref(), Some("instance:gpu"));
         // Another wiki's account keeps its key beside its name; a named one does not.
-        let html = row_html(
-            &m,
-            &site,
-            &rights_row("other:3", "Ann", "wwq:7", Some("Harej")),
-            None,
-        );
-        assert!(
-            html.contains("<span class=\"ts-change__part ts-change__id ts-mono\">other:3</span>"),
-            "{html}"
-        );
+        let a = target(&m, &rights_row("other:3", "Ann", "wwq:7", Some("Harej")));
+        let AccountModel::Named { key, .. } = &a else {
+            panic!("{a:?}");
+        };
+        assert_eq!(key.as_deref(), Some("other:3"));
         let named = Messages::for_language("en").with_overrides(
             serde_json::from_value(serde_json::json!({"name/instance:far": {"": "Far Farm"}}))
                 .unwrap(),
             "en",
         );
-        let html = row_html(
-            &named,
-            &site,
-            &rights_row("wwq:1", "X", "instance:far", None),
-            None,
-        );
-        assert!(html.contains(">Far Farm</a>"), "{html}");
-        assert!(html.contains("title=\"instance:far\""));
+        let a = actor(&named, &rights_row("wwq:1", "X", "instance:far", None));
+        let AccountModel::Named { shown, title, .. } = &a else {
+            panic!("{a:?}");
+        };
+        assert_eq!(shown, "Far Farm");
+        assert_eq!(title.as_deref(), Some("instance:far"));
     }
 
     #[test]
@@ -1458,8 +1556,11 @@ mod tests {
             "summary": {},
         }))
         .unwrap();
-        let html = row_html(&m, &SiteInfo::default(), &row, None);
-        assert!(html.contains("ts-mono\">Q100001</span>"), "{html}");
-        assert!(!html.contains("ts-change__account-icon"));
+        let t = row_model(&m, &SiteInfo::default(), &row, None).target;
+        let Some(TargetModel::Labelled { id, label, .. }) = t else {
+            panic!("{t:?}");
+        };
+        assert_eq!(id, "Q100001");
+        assert_eq!(label, "The Supreme Court");
     }
 }

@@ -27,21 +27,23 @@
 //! tabs, the side-by-side live preview in WebAssembly, CodeMirror, link autocomplete,
 //! **Insert template…**, line-marked conflicts and the Format selector.
 
-use std::fmt::Write as _;
-
-use askama::Template as _;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
+use serde::Serialize;
 use triplespace_client::{
     CacheInfo, ClientError, DiffAsk, DiffSide, EditForm, Incoming, Lookup, PageDiff, Parsed, Saved,
     Source,
 };
 
 use crate::Site;
-use crate::codex::{Action as ButtonAction, Button, Field, MessageKind, Weight};
+use crate::codex::{
+    Action as ButtonAction, Button, ButtonModel, Field, FieldModel, Message, MessageKind,
+    MessageModel, Weight,
+};
 use crate::entity::history;
+use crate::entity::history::Choice;
+use crate::entity::model::Restricted;
 use crate::frame::{Page, Tab, title_url};
-use crate::html::{esc, link};
 use crate::i18n::Messages;
 use crate::pages::{self, Context, ModerationTabs, Params};
 use crate::{home, special};
@@ -133,68 +135,277 @@ fn actions(
     v
 }
 
-/// The categories at the foot of a page (0038 §3), hidden ones left out.
-fn categories_html(m: &Messages, parsed: &Parsed) -> String {
-    let shown: Vec<_> = parsed.categories.iter().filter(|c| !c.hidden).collect();
-    if shown.is_empty() {
-        return String::new();
-    }
-    let mut s = format!(
-        "<div class=\"ts-catlinks\"><span class=\"ts-catlinks__label\">{}</span><ul class=\"ts-catlinks__list\">",
-        esc(&m.get("ts-page-categories"))
-    );
-    for c in shown {
-        let _ = write!(
-            s,
-            "<li class=\"ts-catlinks__item\">{}</li>",
-            link(
-                &format!("/wiki/Category:{}", title_url(&c.name)),
-                &esc(&c.name),
-                ""
-            )
-        );
-    }
-    s.push_str("</ul></div>");
-    s
-}
+// ---------------------------------------------------------------------------------------
+// The view models (19 §5.10): what the skin's `document/*.html` templates draw.
+// ---------------------------------------------------------------------------------------
 
 /// A page's content, as `action=render` and the Read tab show it.
-fn content_html(m: &Messages, parsed: &Parsed) -> String {
-    format!(
-        "<div class=\"ts-document__content\">{}</div>{}",
-        parsed.html,
-        categories_html(m, parsed)
-    )
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Content {
+    /// The rendered page, HTML: the API's, sanitized there (0008 A39).
+    pub content_html: String,
+    /// The categories at the foot, when the page is in any that are shown.
+    pub categories: Option<Categories>,
+}
+
+/// The categories at the foot of a page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Categories {
+    /// "Categories:".
+    pub label: String,
+    /// Each category's page.
+    pub items: Vec<Choice>,
 }
 
 /// What goes under the title: where a redirect was followed from, or that the revision
 /// is an old one.
-fn subtitle(m: &Messages, parsed: &Parsed, oldid: Option<u64>) -> Option<String> {
-    if let Some(from) = &parsed.redirected_from {
-        return Some(format!(
-            "<span class=\"ts-document__redirected\">{}</span>",
-            esc(&m.with("ts-page-redirected-from", &["\u{1}"])).replacen(
-                '\u{1}',
-                &link(
-                    &format!("/wiki/{}?redirect=no", title_url(from)),
-                    &esc(from),
-                    ""
-                ),
-                1
-            )
-        ));
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum Subtitle {
+    /// "(Redirected from …)", the title linked.
+    Redirected {
+        /// The text before the link.
+        before: String,
+        /// The title it was followed from.
+        from: Choice,
+        /// The text after the link.
+        after: String,
+    },
+    /// "This is an old revision of this page.", with the current one linked.
+    Old {
+        /// The text.
+        text: String,
+        /// The current revision.
+        current: Choice,
+    },
+}
+
+/// The identity line of a page: its kind, and the Restricted pill where its visibility
+/// is not public.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Identity {
+    /// "page".
+    pub kind: String,
+    /// The pill.
+    pub restricted: Option<Restricted>,
+}
+
+/// A page a title has none of.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Missing {
+    /// The notice.
+    pub notice: MessageModel,
+    /// **Create this page**, for a signed-in viewer.
+    pub create: Option<Choice>,
+}
+
+/// A page asking the viewer to log in first.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct LoginNeeded {
+    /// The notice.
+    pub notice: MessageModel,
+    /// The login page, where the site has one.
+    pub login: Option<Choice>,
+}
+
+/// The edit form.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct EditFormModel {
+    /// Where it posts.
+    pub action: String,
+    /// The CSRF token.
+    pub token: String,
+    /// The base revision.
+    pub base: Option<u64>,
+    /// The base revision's time.
+    pub base_time: Option<String>,
+    /// Whether the page is being created.
+    pub create: bool,
+    /// The text area's label.
+    pub text_label: String,
+    /// The text, with the leading newline the textarea's parser eats.
+    pub text: String,
+    /// The summary field.
+    pub summary: FieldModel,
+    /// Whether the minor flag is set.
+    pub minor: bool,
+    /// The minor flag's label.
+    pub minor_label: String,
+    /// **Save**.
+    pub save: ButtonModel,
+    /// **Show preview**.
+    pub preview: ButtonModel,
+    /// **Cancel**.
+    pub cancel: Choice,
+}
+
+/// The edit page: notices, a preview, the form and the current text of a conflict.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct EditPage {
+    /// The notices.
+    pub notices: Vec<MessageModel>,
+    /// The preview.
+    pub preview: Option<Preview>,
+    /// The form.
+    pub form: EditFormModel,
+    /// The current text of a conflict.
+    pub current: Option<Current>,
+}
+
+/// A preview above the form.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Preview {
+    /// The heading.
+    pub heading: String,
+    /// The note that it is only a preview.
+    pub note: MessageModel,
+    /// The rendered text.
+    pub content: Content,
+}
+
+/// The current text of a page the viewer's edit conflicted with.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Current {
+    /// The heading, and the text area's accessible name.
+    pub heading: String,
+    /// The text, with the leading newline the textarea's parser eats.
+    pub text: String,
+}
+
+/// The New page form.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct NewPage {
+    /// The introduction.
+    pub intro: String,
+    /// The title field.
+    pub title: FieldModel,
+    /// **Go**.
+    pub go: ButtonModel,
+}
+
+/// One side of a page diff's header.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Side {
+    /// The revision, linked, as "Revision as of …".
+    pub revision: Choice,
+    /// Who, linked; `None` where hidden.
+    pub user: Option<Choice>,
+    /// What the page says of a hidden user.
+    pub hidden_user: String,
+    /// The summary; `None` where hidden; empty where there is none.
+    pub comment: Option<String>,
+    /// What the page says of a hidden summary.
+    pub hidden_comment: String,
+    /// The way to the next diff along.
+    pub nav: Option<Choice>,
+}
+
+/// The diff table: both sides' headers, and the API's rows.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DiffTable {
+    /// The table's accessible name.
+    pub label: String,
+    /// The old side; `None` where the new side created the page.
+    pub from: Option<Side>,
+    /// What the old side says of a creation.
+    pub creation: String,
+    /// The new side.
+    pub to: Side,
+    /// MediaWiki's table rows, HTML, built by `scatter_pages::diff` with every text in
+    /// them escaped; empty where the two texts are equal.
+    pub body_html: String,
+    /// What the table says when they are equal.
+    pub none: String,
+    /// The same diff in MediaWiki's inline layout, HTML; empty where there is none.
+    pub inline_html: String,
+}
+
+/// `?diff=`: the table, and the newer revision rendered below.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DiffPage {
+    /// The table.
+    pub table: DiffTable,
+    /// The newer side's heading and rendering, unless `diffonly=1`.
+    pub below: Option<(String, Content)>,
+}
+
+/// The context of a template drawn from one model.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+struct ContentCtx {
+    content: Content,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+struct SubtitleCtx {
+    subtitle: Subtitle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+struct TableCtx {
+    table: DiffTable,
+}
+
+fn choice(href: String, label: String) -> Choice {
+    Choice {
+        href,
+        label,
+        current: false,
     }
-    oldid.map(|_| {
-        format!(
-            "<span class=\"ts-document__old\">{} {}</span>",
-            esc(&m.get("ts-page-old-revision")),
-            link(
-                &format!("/wiki/{}", title_url(&parsed.title)),
-                &esc(&m.get("ts-page-current-revision")),
-                ""
-            )
-        )
+}
+
+fn message_model(kind: MessageKind, text: &str) -> MessageModel {
+    Message::block(kind, text).model()
+}
+
+fn content_model(m: &Messages, parsed: &Parsed) -> Content {
+    let shown: Vec<_> = parsed.categories.iter().filter(|c| !c.hidden).collect();
+    Content {
+        content_html: parsed.html.clone(),
+        categories: (!shown.is_empty()).then(|| Categories {
+            label: m.get("ts-page-categories"),
+            items: shown
+                .iter()
+                .map(|c| {
+                    choice(
+                        format!("/wiki/Category:{}", title_url(&c.name)),
+                        c.name.clone(),
+                    )
+                })
+                .collect(),
+        }),
+    }
+}
+
+fn subtitle_model(m: &Messages, parsed: &Parsed, oldid: Option<u64>) -> Option<Subtitle> {
+    if let Some(from) = &parsed.redirected_from {
+        let text = m.with("ts-page-redirected-from", &["\u{1}"]);
+        let (before, after) = text.split_once('\u{1}').unwrap_or((&text, ""));
+        return Some(Subtitle::Redirected {
+            before: before.to_string(),
+            from: choice(
+                format!("/wiki/{}?redirect=no", title_url(from)),
+                from.clone(),
+            ),
+            after: after.to_string(),
+        });
+    }
+    oldid.map(|_| Subtitle::Old {
+        text: m.get("ts-page-old-revision"),
+        current: choice(
+            format!("/wiki/{}", title_url(&parsed.title)),
+            m.get("ts-page-current-revision"),
+        ),
     })
+}
+
+/// What the Read tab draws of the content, as the skin draws it.
+fn content_html(cx: &Context, parsed: &Parsed) -> String {
+    cx.draw(
+        "document/content.html",
+        ContentCtx {
+            content: content_model(&cx.m, parsed),
+        },
+    )
 }
 
 /// The Read tab, or `action=render`.
@@ -243,9 +454,7 @@ async fn read(
     cx.inputs.push(parsed.cache);
     let parsed = parsed.value;
     if render {
-        return pages::fragment(&cx, headers, StatusCode::OK, || {
-            content_html(&cx.m, &parsed)
-        });
+        return pages::fragment(&cx, headers, StatusCode::OK, || content_html(&cx, &parsed));
     }
     let watch = crate::watch::control(site, &cx, incoming, &parsed.title).await;
     pages::respond(&cx, headers, StatusCode::OK, |m| Page {
@@ -253,18 +462,26 @@ async fn read(
         returnto: Some(parsed.title.clone()),
         watch,
         identity_html: parsed.visibility.as_ref().map(|v| {
-            format!(
-                "<span>{}</span>{}",
-                esc(&m.get("ts-kind-page")),
-                crate::frame::restricted_pill(m, &v.groups, &v.sets)
+            cx.draw(
+                "document/identity.html",
+                Identity {
+                    kind: m.get("ts-kind-page"),
+                    restricted: Some(Restricted {
+                        tip: crate::frame::restricted_tip(m, &v.groups, &v.sets),
+                        text: m.get("ts-restricted"),
+                    }),
+                },
             )
         }),
-        subtitle_html: subtitle(m, &parsed, oldid),
+        subtitle_html: subtitle_model(m, &parsed, oldid)
+            .map(|subtitle| cx.draw("document/subtitle.html", SubtitleCtx { subtitle })),
         tabs: tabs(m, &parsed.title, true, TabName::Read),
         actions: actions(m, &parsed.title, true, cx.moderation_tabs()),
-        body: format!(
-            "<div class=\"ts-document\">{}</div>",
-            content_html(m, &parsed)
+        body: cx.draw(
+            "document/read.html",
+            ContentCtx {
+                content: content_model(m, &parsed),
+            },
         ),
         ..Page::default()
     })
@@ -286,18 +503,18 @@ fn missing(cx: &Context, headers: &HeaderMap, title: String, render: bool) -> Re
         return pages::fragment(cx, headers, StatusCode::NOT_FOUND, String::new);
     }
     pages::respond(cx, headers, StatusCode::NOT_FOUND, |m| {
-        let mut body = pages::message(MessageKind::Notice, &m.get("ts-page-missing"));
-        if cx.user.is_some() {
-            let _ = write!(
-                body,
-                "<p>{}</p>",
-                link(
-                    &format!("/wiki/{}?action=edit", title_url(&title)),
-                    &esc(&m.get("ts-page-missing-create")),
-                    ""
-                )
-            );
-        }
+        let body = cx.draw(
+            "document/missing.html",
+            Missing {
+                notice: message_model(MessageKind::Notice, &m.get("ts-page-missing")),
+                create: cx.user.as_ref().map(|_| {
+                    choice(
+                        format!("/wiki/{}?action=edit", title_url(&title)),
+                        m.get("ts-page-missing-create"),
+                    )
+                }),
+            },
+        );
         Page {
             returnto: Some(title.clone()),
             tabs: tabs(m, &title, false, TabName::Read),
@@ -385,37 +602,17 @@ impl Draft {
 }
 
 /// The edit form, with a preview, notices and the current text of a conflict.
-fn edit_form(m: &Messages, token: &str, d: &Draft) -> String {
-    let mut s = format!(
-        "<form class=\"ts-form ts-editform\" method=\"post\" action=\"/w/index.php?title={}&amp;action=submit\"><input type=\"hidden\" name=\"wpEditToken\" value=\"{}\">",
-        title_url(&d.title),
-        esc(token)
-    );
-    if let Some(b) = d.base {
-        let _ = write!(
-            s,
-            "<input type=\"hidden\" name=\"baseRevId\" value=\"{b}\">"
-        );
-    }
-    if let Some(t) = &d.base_time {
-        let _ = write!(
-            s,
-            "<input type=\"hidden\" name=\"wpEdittime\" value=\"{}\">",
-            esc(t)
-        );
-    }
-    if !d.exists {
-        s.push_str("<input type=\"hidden\" name=\"wpCreateonly\" value=\"1\">");
-    }
-    let _ = write!(
-        s,
-        "<div class=\"cdx-field\"><div class=\"cdx-label\"><label class=\"cdx-label__label\" for=\"wpTextbox1\"><span class=\"cdx-label__label__text\">{}</span></label></div><div class=\"cdx-field__control\"><div class=\"cdx-text-area\"><textarea class=\"cdx-text-area__textarea ts-editform__text\" id=\"wpTextbox1\" name=\"wpTextbox1\" rows=\"25\" lang=\"\" dir=\"auto\" spellcheck=\"true\">{}</textarea></div></div></div>",
-        esc(&m.get("ts-pageedit-text")),
+fn edit_form_model(m: &Messages, token: &str, d: &Draft) -> EditFormModel {
+    EditFormModel {
+        action: format!("/w/index.php?title={}&action=submit", title_url(&d.title)),
+        token: token.to_string(),
+        base: d.base,
+        base_time: d.base_time.clone(),
+        create: !d.exists,
+        text_label: m.get("ts-pageedit-text"),
         // A leading newline would be eaten by the parser of the textarea's content.
-        esc(&format!("\n{}", d.text))
-    );
-    s.push_str(
-        &Field {
+        text: format!("\n{}", d.text),
+        summary: Field {
             id: "wpSummary",
             name: "wpSummary",
             kind: "text",
@@ -426,42 +623,26 @@ fn edit_form(m: &Messages, token: &str, d: &Draft) -> String {
             required: false,
             autocomplete: Some("off"),
         }
-        .render()
-        .unwrap_or_default(),
-    );
-    let _ = write!(
-        s,
-        "<div class=\"cdx-checkbox\"><div class=\"cdx-checkbox__wrapper\"><input class=\"cdx-checkbox__input\" type=\"checkbox\" id=\"wpMinoredit\" name=\"wpMinoredit\" value=\"1\"{}><span class=\"cdx-checkbox__icon\"></span><div class=\"cdx-checkbox__label cdx-label\"><label class=\"cdx-label__label\" for=\"wpMinoredit\"><span class=\"cdx-label__label__text\">{}</span></label></div></div></div>",
-        if d.minor { " checked" } else { "" },
-        esc(&m.get("ts-pageedit-minor"))
-    );
-    let save = Button {
-        label: &m.get(if d.exists {
-            "ts-pageedit-save"
-        } else {
-            "ts-pageedit-save-new"
-        }),
-        kind: "submit",
-        action: ButtonAction::Progressive,
-        weight: Weight::Primary,
+        .model(),
+        minor: d.minor,
+        minor_label: m.get("ts-pageedit-minor"),
+        save: Button {
+            label: &m.get(if d.exists {
+                "ts-pageedit-save"
+            } else {
+                "ts-pageedit-save-new"
+            }),
+            kind: "submit",
+            action: ButtonAction::Progressive,
+            weight: Weight::Primary,
+        }
+        .model(),
+        preview: Button::submit(&m.get("ts-pageedit-preview")).model(),
+        cancel: choice(
+            format!("/wiki/{}", title_url(&d.title)),
+            m.get("ts-pageedit-cancel"),
+        ),
     }
-    .render()
-    .unwrap_or_default()
-    .replacen("<button ", "<button name=\"wpSave\" value=\"1\" ", 1);
-    let preview = Button::submit(&m.get("ts-pageedit-preview"))
-        .render()
-        .unwrap_or_default()
-        .replacen("<button ", "<button name=\"wpPreview\" value=\"1\" ", 1);
-    let cancel = link(
-        &format!("/wiki/{}", title_url(&d.title)),
-        &esc(&m.get("ts-pageedit-cancel")),
-        " class=\"ts-editform__cancel\"",
-    );
-    let _ = write!(
-        s,
-        "<div class=\"ts-form__actions\">{save} {preview} {cancel}</div></form>"
-    );
-    s
 }
 
 /// The edit page.
@@ -476,30 +657,22 @@ fn edit_page(
     current: Option<&str>,
 ) -> Response {
     pages::respond(cx, headers, StatusCode::OK, |m| {
-        let mut body = String::from("<div class=\"ts-edit-document\">");
-        for (k, t) in notices {
-            body.push_str(&pages::message(*k, t));
-        }
-        if let Some(p) = preview {
-            let _ = write!(
-                body,
-                "<section class=\"ts-editform__preview\" aria-labelledby=\"ts-preview-heading\"><h2 id=\"ts-preview-heading\">{}</h2>{}<div class=\"ts-document\">{}</div></section>",
-                esc(&m.get("ts-pageedit-preview-heading")),
-                pages::message(MessageKind::Warning, &m.get("ts-pageedit-preview-note")),
-                content_html(m, p)
-            );
-        }
-        body.push_str(&edit_form(m, token, d));
-        if let Some(c) = current {
-            let _ = write!(
-                body,
-                "<section class=\"ts-editform__current\"><h2>{}</h2><div class=\"cdx-text-area\"><textarea class=\"cdx-text-area__textarea ts-editform__text\" rows=\"15\" readonly dir=\"auto\" aria-label=\"{}\">{}</textarea></div></section>",
-                esc(&m.get("ts-pageedit-conflict-current")),
-                esc(&m.get("ts-pageedit-conflict-current")),
-                esc(&format!("\n{c}"))
-            );
-        }
-        body.push_str("</div>");
+        let body = cx.draw(
+            "document/edit.html",
+            EditPage {
+                notices: notices.iter().map(|(k, t)| message_model(*k, t)).collect(),
+                preview: preview.map(|p| Preview {
+                    heading: m.get("ts-pageedit-preview-heading"),
+                    note: message_model(MessageKind::Warning, &m.get("ts-pageedit-preview-note")),
+                    content: content_model(m, p),
+                }),
+                form: edit_form_model(m, token, d),
+                current: current.map(|c| Current {
+                    heading: m.get("ts-pageedit-conflict-current"),
+                    text: format!("\n{c}"),
+                }),
+            },
+        );
         Page {
             title: m.with(
                 if d.exists {
@@ -522,21 +695,21 @@ fn edit_page(
 /// A page asking a viewer who is not signed in to log in first.
 fn login_needed(cx: &Context, headers: &HeaderMap, title: &str) -> Response {
     pages::respond(cx, headers, StatusCode::OK, |m| {
-        let mut body = pages::message(MessageKind::Notice, &m.get("ts-pageedit-login"));
-        if cx.features.has(crate::features::Feature::Login) {
-            let _ = write!(
-                body,
-                "<p>{}</p>",
-                link(
-                    &format!(
-                        "/w/index.php?title=Special:UserLogin&returnto={}",
-                        title_url(title)
-                    ),
-                    &esc(&m.get("ts-login-title")),
-                    ""
-                )
-            );
-        }
+        let body = cx.draw(
+            "login.html",
+            LoginNeeded {
+                notice: message_model(MessageKind::Notice, &m.get("ts-pageedit-login")),
+                login: cx.features.has(crate::features::Feature::Login).then(|| {
+                    choice(
+                        format!(
+                            "/w/index.php?title=Special:UserLogin&returnto={}",
+                            title_url(title)
+                        ),
+                        m.get("ts-login-title"),
+                    )
+                }),
+            },
+        );
         Page {
             title: title.to_string(),
             returnto: Some(title.to_string()),
@@ -560,43 +733,34 @@ async fn token(
 
 /// The New page form: a title to create.
 fn new_page(cx: &Context, headers: &HeaderMap) -> Response {
-    pages::respond(cx, headers, StatusCode::OK, |m| {
-        let mut body = format!(
-            "<p>{}</p><form class=\"ts-form\" method=\"get\" action=\"/w/index.php\"><input type=\"hidden\" name=\"action\" value=\"edit\">",
-            esc(&m.get("ts-newpage-intro"))
-        );
-        body.push_str(
-            &Field {
-                id: "ts-newpage-title",
-                name: "title",
-                kind: "text",
-                value: "",
-                label: &m.get("ts-newpage-label"),
-                description: None,
-                help: None,
-                required: true,
-                autocomplete: Some("off"),
-            }
-            .render()
-            .unwrap_or_default(),
-        );
-        let _ = write!(
-            body,
-            "<div class=\"ts-form__actions\">{}</div></form>",
-            Button {
-                label: &m.get("ts-newpage-go"),
-                kind: "submit",
-                action: ButtonAction::Progressive,
-                weight: Weight::Primary,
-            }
-            .render()
-            .unwrap_or_default()
-        );
-        Page {
-            title: m.get("ts-newpage-title"),
-            body,
-            ..Page::default()
-        }
+    pages::respond(cx, headers, StatusCode::OK, |m| Page {
+        title: m.get("ts-newpage-title"),
+        body: cx.draw(
+            "document/new.html",
+            NewPage {
+                intro: m.get("ts-newpage-intro"),
+                title: Field {
+                    id: "ts-newpage-title",
+                    name: "title",
+                    kind: "text",
+                    value: "",
+                    label: &m.get("ts-newpage-label"),
+                    description: None,
+                    help: None,
+                    required: true,
+                    autocomplete: Some("off"),
+                }
+                .model(),
+                go: Button {
+                    label: &m.get("ts-newpage-go"),
+                    kind: "submit",
+                    action: ButtonAction::Progressive,
+                    weight: Weight::Primary,
+                }
+                .model(),
+            },
+        ),
+        ..Page::default()
     })
 }
 
@@ -828,120 +992,74 @@ fn when(m: &Messages, iso: &str) -> String {
 
 /// One side's header: the revision linked, who, the summary, and the way to the next
 /// diff along.
-fn side_html(m: &Messages, side: &DiffSide, latest: bool, nav: Option<(String, String)>) -> String {
+fn side_model(m: &Messages, side: &DiffSide, latest: bool, nav: Option<Choice>) -> Side {
     let key = if latest {
         "ts-pagediff-latest-as-of"
     } else {
         "ts-pagediff-revision-as-of"
     };
-    let mut s = format!(
-        "<div class=\"ts-page-diff__revision\"><strong>{}</strong></div>",
-        link(
-            &format!("/wiki/{}?oldid={}", title_url(&side.title), side.revid),
-            &esc(&m.with(key, &[&when(m, &side.timestamp)])),
-            ""
-        )
-    );
-    match &side.user {
-        Some(u) => {
-            let _ = write!(
-                s,
-                "<div class=\"ts-page-diff__user\">{}</div>",
-                link(
-                    &format!("/wiki/Special:Contributions/{}", title_url(u)),
-                    &esc(u),
-                    ""
-                )
-            );
-        }
-        None => {
-            let _ = write!(
-                s,
-                "<div class=\"ts-page-diff__user ts-change__hidden\">{}</div>",
-                esc(&m.get("ts-changes-hidden-user"))
-            );
-        }
+    Side {
+        revision: choice(
+            format!("/wiki/{}?oldid={}", title_url(&side.title), side.revid),
+            m.with(key, &[&when(m, &side.timestamp)]),
+        ),
+        user: side.user.as_ref().map(|u| {
+            choice(
+                format!("/wiki/Special:Contributions/{}", title_url(u)),
+                u.clone(),
+            )
+        }),
+        hidden_user: m.get("ts-changes-hidden-user"),
+        comment: side.comment.clone(),
+        hidden_comment: m.get("ts-changes-hidden-comment"),
+        nav,
     }
-    match &side.comment {
-        Some(c) if !c.is_empty() => {
-            let _ = write!(s, "<div class=\"ts-page-diff__comment\">({})</div>", esc(c));
-        }
-        Some(_) => {}
-        None => {
-            let _ = write!(
-                s,
-                "<div class=\"ts-page-diff__comment ts-change__hidden\">{}</div>",
-                esc(&m.get("ts-changes-hidden-comment"))
-            );
-        }
-    }
-    if let Some((href, label)) = nav {
-        let _ = write!(
-            s,
-            "<div class=\"ts-page-diff__nav\">{}</div>",
-            link(&href, &esc(&label), "")
-        );
-    }
-    s
 }
 
-/// The diff table: both sides' headers, and the API's rows.
-pub(crate) fn diff_html(m: &Messages, d: &PageDiff, latest_revid: Option<u64>) -> String {
+/// The diff table's model: both sides' headers, and the API's rows.
+fn diff_table_model(m: &Messages, d: &PageDiff, latest_revid: Option<u64>) -> DiffTable {
     let title = &d.to.title;
-    let old = match &d.from {
-        Some(f) => side_html(
+    DiffTable {
+        label: m.get("ts-pagediff-label"),
+        from: d.from.as_ref().map(|f| {
+            side_model(
+                m,
+                f,
+                false,
+                d.prev.map(|_| {
+                    choice(
+                        format!("/wiki/{}?diff=prev&oldid={}", title_url(title), f.revid),
+                        m.get("ts-pagediff-older"),
+                    )
+                }),
+            )
+        }),
+        creation: m.get("ts-pagediff-creation"),
+        to: side_model(
             m,
-            f,
-            false,
-            d.prev.map(|_| {
-                (
-                    format!("/wiki/{}?diff=prev&oldid={}", title_url(title), f.revid),
-                    m.get("ts-pagediff-older"),
+            &d.to,
+            latest_revid == Some(d.to.revid),
+            d.next.map(|_| {
+                choice(
+                    format!("/wiki/{}?diff=next&oldid={}", title_url(title), d.to.revid),
+                    m.get("ts-pagediff-newer"),
                 )
             }),
         ),
-        None => format!(
-            "<div class=\"ts-page-diff__revision\">{}</div>",
-            esc(&m.get("ts-pagediff-creation"))
-        ),
-    };
-    let new = side_html(
-        m,
-        &d.to,
-        latest_revid == Some(d.to.revid),
-        d.next.map(|_| {
-            (
-                format!("/wiki/{}?diff=next&oldid={}", title_url(title), d.to.revid),
-                m.get("ts-pagediff-newer"),
-            )
-        }),
-    );
-    let mut s = format!(
-        "<table class=\"diff ts-page-diff__table\" aria-label=\"{}\"><colgroup><col class=\"diff-marker\"><col class=\"diff-content\"><col class=\"diff-marker\"><col class=\"diff-content\"></colgroup><thead><tr><th colspan=\"2\" scope=\"col\" class=\"diff-otitle\">{old}</th><th colspan=\"2\" scope=\"col\" class=\"diff-ntitle\">{new}</th></tr></thead><tbody>",
-        esc(&m.get("ts-pagediff-label"))
-    );
-    if d.body.is_empty() {
-        let _ = write!(
-            s,
-            "<tr><td colspan=\"4\" class=\"diff-notice\"><div class=\"mw-diff-empty\">{}</div></td></tr>",
-            esc(&m.get("ts-pagediff-none"))
-        );
-    } else {
-        // The API's rows: built by `scatter_pages::diff`, every text in them escaped.
-        s.push_str(&d.body);
+        body_html: d.body.clone(),
+        none: m.get("ts-pagediff-none"),
+        inline_html: d.inline.clone(),
     }
-    s.push_str("</tbody></table>");
-    // The same diff in one column, which the stylesheet shows in place of the table's
-    // rows on a narrow screen (MediaWiki's inline layout).
-    if !d.inline.is_empty() {
-        let _ = write!(
-            s,
-            "<div class=\"ts-page-diff__inline mw-diff-inline\" role=\"region\" aria-label=\"{}\">{}</div>",
-            esc(&m.get("ts-pagediff-label")),
-            d.inline
-        );
-    }
-    s
+}
+
+/// The diff table as the skin draws it, for `Special:ComparePages`.
+pub(crate) fn diff_html(cx: &Context, d: &PageDiff, latest_revid: Option<u64>) -> String {
+    cx.draw(
+        "document/difftable.html",
+        TableCtx {
+            table: diff_table_model(&cx.m, d, latest_revid),
+        },
+    )
 }
 
 /// `?diff=`: two revisions compared, the newer rendered below unless `diffonly=1`.
@@ -1001,24 +1119,23 @@ async fn page_diff(
         }
     };
     pages::respond(&cx, headers, StatusCode::OK, |m| {
-        let mut body = format!(
-            "<div class=\"ts-page-diff\">{}",
-            diff_html(m, &diff, latest)
+        let body = cx.draw(
+            "document/diff.html",
+            DiffPage {
+                table: diff_table_model(m, &diff, latest),
+                below: below.as_ref().map(|p| {
+                    let key = if latest.is_some() {
+                        "ts-pagediff-latest-as-of"
+                    } else {
+                        "ts-pagediff-revision-as-of"
+                    };
+                    (
+                        m.with(key, &[&when(m, &diff.to.timestamp)]),
+                        content_model(m, p),
+                    )
+                }),
+            },
         );
-        if let Some(p) = &below {
-            let key = if latest.is_some() {
-                "ts-pagediff-latest-as-of"
-            } else {
-                "ts-pagediff-revision-as-of"
-            };
-            let _ = write!(
-                body,
-                "<h2 class=\"ts-page-diff__heading\">{}</h2><div class=\"ts-document\">{}</div>",
-                esc(&m.with(key, &[&when(m, &diff.to.timestamp)])),
-                content_html(m, p)
-            );
-        }
-        body.push_str("</div>");
         Page {
             doc_title: Some(m.with("ts-pagediff-title", &[&page_title])),
             returnto: Some(page_title.clone()),
@@ -1128,36 +1245,38 @@ mod tests {
             prev: Some(5),
             next: None,
         };
-        let html = diff_html(&m, &d, Some(9));
-        assert!(
-            html.contains(
-                "href=\"/wiki/Project:Home?oldid=7\">Revision as of 15:04, 20 October 2026</a>"
-            ),
-            "{html}"
+        let t = diff_table_model(&m, &d, Some(9));
+        let from = t.from.as_ref().expect("an old side");
+        assert_eq!(from.revision.href, "/wiki/Project:Home?oldid=7");
+        assert_eq!(from.revision.label, "Revision as of 15:04, 20 October 2026");
+        assert_eq!(
+            t.to.revision.label,
+            "Latest revision as of 15:04, 20 October 2026"
         );
-        assert!(html.contains("Latest revision as of 15:04, 20 October 2026"));
-        assert!(html.contains("href=\"/wiki/Special:Contributions/Harej\""));
-        assert!(html.contains("(&lt;b&gt;sum&lt;/b&gt;)"));
-        assert!(html.contains("?diff=prev&amp;oldid=7\">← Older edit</a>"));
-        assert!(!html.contains("Newer edit"));
-        assert!(html.contains(&m.get("ts-changes-hidden-user")));
-        assert!(html.contains("<tr><td>row</td></tr>"));
-        assert!(
-            html.contains("<div class=\"ts-page-diff__inline mw-diff-inline\" role=\"region\"")
+        assert_eq!(
+            from.user.as_ref().map(|u| u.href.as_str()),
+            Some("/wiki/Special:Contributions/Harej")
         );
+        assert_eq!(t.to.user, None, "a hidden user says so");
+        assert_eq!(from.comment.as_deref(), Some("<b>sum</b>"));
+        assert_eq!(
+            from.nav.as_ref().map(|n| n.href.as_str()),
+            Some("/wiki/Project:Home?diff=prev&oldid=7")
+        );
+        assert_eq!(t.to.nav, None, "nothing newer");
+        assert_eq!(t.body_html, "<tr><td>row</td></tr>");
+        assert!(!t.inline_html.is_empty());
         let created = PageDiff {
             from: None,
             body: String::new(),
             inline: String::new(),
             ..d
         };
-        let html = diff_html(&m, &created, None);
-        assert!(html.contains("(Page created)"));
-        assert!(html.contains("(No difference)"));
-        assert!(
-            !html.contains("ts-page-diff__inline"),
-            "nothing to show in one column"
-        );
+        let t = diff_table_model(&m, &created, None);
+        assert_eq!(t.from, None);
+        assert_eq!(t.creation, "(Page created)");
+        assert_eq!(t.none, "(No difference)");
+        assert!(t.inline_html.is_empty(), "nothing to show in one column");
     }
 
     #[test]
@@ -1216,10 +1335,11 @@ mod tests {
             ],
             ..Parsed::default()
         };
-        let html = categories_html(&m, &p);
-        assert!(html.contains("href=\"/wiki/Category:Policy_pages\">Policy pages</a>"));
-        assert!(!html.contains("Tracking"));
-        assert_eq!(categories_html(&m, &Parsed::default()), "");
+        let c = content_model(&m, &p).categories.expect("shown categories");
+        assert_eq!(c.items.len(), 1);
+        assert_eq!(c.items[0].href, "/wiki/Category:Policy_pages");
+        assert_eq!(c.items[0].label, "Policy pages");
+        assert_eq!(content_model(&m, &Parsed::default()).categories, None);
     }
 
     #[test]
@@ -1234,15 +1354,18 @@ mod tests {
             base: Some(7),
             base_time: Some("2026-10-19T00:00:00Z".into()),
         };
-        let html = edit_form(&m, "tok+\\", &d);
-        assert!(html.contains("action=\"/w/index.php?title=Project:Sandbox&amp;action=submit\""));
-        assert!(html.contains(">\n&lt;b&gt;a&lt;/b&gt; &amp; b</textarea>"));
-        assert!(html.contains("name=\"baseRevId\" value=\"7\""));
-        assert!(html.contains("value=\"x&#34;y\""));
-        assert!(html.contains("name=\"wpMinoredit\" value=\"1\" checked"));
-        assert!(html.contains("name=\"wpSave\""));
-        assert!(html.contains("name=\"wpPreview\""));
-        assert!(!html.contains("wpCreateonly"));
+        let f = edit_form_model(&m, "tok+\\", &d);
+        assert_eq!(f.action, "/w/index.php?title=Project:Sandbox&action=submit");
+        assert_eq!(f.token, "tok+\\");
+        assert_eq!(
+            f.text, "\n<b>a</b> & b",
+            "the leading newline the textarea eats"
+        );
+        assert_eq!(f.base, Some(7));
+        assert_eq!(f.summary.value, "x\"y");
+        assert!(f.minor);
+        assert!(!f.create);
+        assert_eq!(f.save.label, m.get("ts-pageedit-save"));
         let back = Draft::of_form(
             "Project:Sandbox",
             &params(&[

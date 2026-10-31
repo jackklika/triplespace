@@ -1,0 +1,5 @@
+{#- `?diff=`: two revisions compared, the newer rendered below unless `diffonly=1`. -#}
+{%- import "document.html" as document -%}
+<div class="ts-page-diff">{{ document.difftable(table) }}
+{%- if below %}<h2 class="ts-page-diff__heading">{{ below[0] }}</h2><div class="ts-document">{{ document.content(below[1]) }}</div>{% endif -%}
+</div>

@@ -16,141 +16,121 @@
    "name": "lb-project-shortcut",
    "set": "lb",
    "path": "/wiki/Project:Shortcut",
-   "group": 1,
-   "status": 404
+   "group": 1
   },
   {
    "name": "lb-item-q6",
    "set": "lb",
    "path": "/wiki/Item:Q6",
-   "group": 3,
-   "status": 404
+   "group": 3
   },
   {
    "name": "lb-item-q5",
    "set": "lb",
    "path": "/wiki/Item:Q5",
-   "group": 3,
-   "status": 404
+   "group": 3
   },
   {
    "name": "lb-property-p3",
    "set": "lb",
    "path": "/wiki/Property:P3",
-   "group": 3,
-   "status": 404
+   "group": 3
   },
   {
    "name": "lb-domain-wikipedia-org",
    "set": "lb",
    "path": "/wiki/Domain:wikipedia.org",
-   "group": 3,
-   "status": 404
+   "group": 3
   },
   {
    "name": "lb-item-q6-tab-labels",
    "set": "lb",
    "path": "/wiki/Item:Q6?tab=labels",
-   "group": 3,
-   "status": 404
+   "group": 3
   },
   {
    "name": "lb-item-q6-tab-identifiers",
    "set": "lb",
    "path": "/wiki/Item:Q6?tab=identifiers",
-   "group": 3,
-   "status": 404
+   "group": 3
   },
   {
    "name": "lb-item-q6-action-render-region-terms",
    "set": "lb",
    "path": "/wiki/Item:Q6?action=render&region=terms",
-   "group": 3,
-   "status": 404
+   "group": 3
   },
   {
    "name": "lb-item-q6-action-render-region-statements-p3",
    "set": "lb",
    "path": "/w/index.php?title=Item:Q6&action=render&region=statements/P3",
-   "group": 3,
-   "status": 404
+   "group": 3
   },
   {
    "name": "lb-item-q6-action-history",
    "set": "lb",
    "path": "/wiki/Item:Q6?action=history",
-   "group": 4,
-   "status": 404
+   "group": 4
   },
   {
    "name": "lb-item-q5-action-history",
    "set": "lb",
    "path": "/wiki/Item:Q5?action=history",
-   "group": 4,
-   "status": 404
+   "group": 4
   },
   {
    "name": "lb-domain-wikipedia-org-action-history",
    "set": "lb",
    "path": "/wiki/Domain:wikipedia.org?action=history",
-   "group": 4,
-   "status": 404
+   "group": 4
   },
   {
    "name": "lb-item-q6-diff-248250",
    "set": "lb",
    "path": "/wiki/Item:Q6?diff=248250",
-   "group": 4,
-   "status": 404
+   "group": 4
   },
   {
    "name": "lb-item-q6-diff-248250-view-changeset",
    "set": "lb",
    "path": "/wiki/Item:Q6?diff=248250&view=changeset",
-   "group": 4,
-   "status": 404
+   "group": 4
   },
   {
    "name": "lb-item-q6-diff-248249",
    "set": "lb",
    "path": "/wiki/Item:Q6?diff=248249",
-   "group": 4,
-   "status": 404
+   "group": 4
   },
   {
    "name": "lb-item-q6-oldid-916-diff-248250",
    "set": "lb",
    "path": "/wiki/Item:Q6?oldid=916&diff=248250",
-   "group": 4,
-   "status": 404
+   "group": 4
   },
   {
    "name": "lb-item-q6-oldid-248249",
    "set": "lb",
    "path": "/wiki/Item:Q6?oldid=248249",
-   "group": 4,
-   "status": 404
+   "group": 4
   },
   {
    "name": "lb-item-q5-diff-248248",
    "set": "lb",
    "path": "/wiki/Item:Q5?diff=248248",
-   "group": 4,
-   "status": 404
+   "group": 4
   },
   {
-   "name": "lb-domain-wikipedia-org-diff-17297809506867244273-1",
+   "name": "lb-domain-wikipedia-org-diff-8384190344328252969-1",
    "set": "lb",
-   "path": "/wiki/Domain:wikipedia.org?diff=17297809506867244273:1",
-   "group": 4,
-   "status": 404
+   "path": "/wiki/Domain:wikipedia.org?diff=8384190344328252969:1",
+   "group": 4
   },
   {
    "name": "lb-domain-wikipedia-org-action-history-source-local",
    "set": "lb",
    "path": "/wiki/Domain:wikipedia.org?action=history&source=local",
-   "group": 4,
-   "status": 404
+   "group": 4
   },
   {
    "name": "lb-project-home",
@@ -162,36 +142,31 @@
    "name": "lb-project-about",
    "set": "lb",
    "path": "/wiki/Project:About",
-   "group": 5,
-   "status": 404
+   "group": 5
   },
   {
    "name": "lb-project-notes",
    "set": "lb",
    "path": "/wiki/Project:Notes",
-   "group": 5,
-   "status": 404
+   "group": 5
   },
   {
    "name": "lb-project-sandbox",
    "set": "lb",
    "path": "/wiki/Project:Sandbox",
-   "group": 5,
-   "status": 404
+   "group": 5
   },
   {
    "name": "lb-project-analytics-orbit",
    "set": "lb",
    "path": "/wiki/Project:Analytics/Orbit",
-   "group": 5,
-   "status": 404
+   "group": 5
   },
   {
    "name": "lb-project-analytics-orb",
    "set": "lb",
    "path": "/wiki/Project:Analytics/Orb",
-   "group": 5,
-   "status": 404
+   "group": 5
   },
   {
    "name": "lb-project-consensus",
@@ -228,8 +203,7 @@
    "name": "lb-project-never-written-action-edit",
    "set": "lb",
    "path": "/wiki/Project:Never_written?action=edit",
-   "group": 5,
-   "status": 404
+   "group": 5
   },
   {
    "name": "lb-project-home-action-info",
@@ -247,69 +221,146 @@
    "name": "lb-user-harej",
    "set": "lb",
    "path": "/wiki/User:Harej",
+   "group": 5
+  },
+  {
+   "name": "lb-project-shortcut-redirect-no",
+   "set": "lb",
+   "path": "/wiki/Project:Shortcut?redirect=no",
+   "group": 5
+  },
+  {
+   "name": "lb-project-home-diff-248240-oldid-247585-diffonly-1",
+   "set": "lb",
+   "path": "/wiki/Project:Home?diff=248240&oldid=247585&diffonly=1",
+   "group": 5
+  },
+  {
+   "name": "lb-project-home-diff-cur",
+   "set": "lb",
+   "path": "/wiki/Project:Home?diff=cur",
+   "group": 5
+  },
+  {
+   "name": "lb-project-home-diff-prev-oldid-247585",
+   "set": "lb",
+   "path": "/wiki/Project:Home?diff=prev&oldid=247585",
+   "group": 5
+  },
+  {
+   "name": "lb-project-home-diff-x",
+   "set": "lb",
+   "path": "/wiki/Project:Home?diff=x",
+   "group": 5,
+   "status": 400
+  },
+  {
+   "name": "lb-project-home-oldid-1",
+   "set": "lb",
+   "path": "/wiki/Project:Home?oldid=1",
    "group": 5,
    "status": 404
+  },
+  {
+   "name": "lb-project-notes-action-edit",
+   "set": "lb",
+   "path": "/wiki/Project:Notes?action=edit",
+   "group": 5
+  },
+  {
+   "name": "lb-w-index-php-action-edit",
+   "set": "lb",
+   "path": "/w/index.php?action=edit",
+   "group": 5
+  },
+  {
+   "name": "lb-project-sandbox-action-render",
+   "set": "lb",
+   "path": "/wiki/Project:Sandbox?action=render",
+   "group": 5
   },
   {
    "name": "lb-item-talk-q5",
    "set": "lb",
    "path": "/wiki/Item_talk:Q5",
-   "group": 6,
-   "status": 404
+   "group": 6
   },
   {
    "name": "lb-project-talk-home",
    "set": "lb",
    "path": "/wiki/Project_talk:Home",
-   "group": 6,
-   "status": 404
+   "group": 6
   },
   {
    "name": "lb-user-talk-harej",
    "set": "lb",
    "path": "/wiki/User_talk:Harej",
-   "group": 6,
-   "status": 404
+   "group": 6
   },
   {
    "name": "lb-item-talk-q6",
    "set": "lb",
    "path": "/wiki/Item_talk:Q6",
-   "group": 6,
-   "status": 404
+   "group": 6
   },
   {
    "name": "lb-thread-2026-10-31-is-20five-20a-20city-3f",
    "set": "lb",
    "path": "/wiki/Thread:2026-10-31/Is%20five%20a%20city%3F",
-   "group": 6,
-   "status": 404
+   "group": 6
   },
   {
    "name": "lb-thread-2026-10-31-welcome-20text",
    "set": "lb",
    "path": "/wiki/Thread:2026-10-31/Welcome%20text",
-   "group": 6,
-   "status": 404
+   "group": 6
   },
   {
    "name": "lb-thread-2025-08-31-welcome-20to-20librarybase-21",
    "set": "lb",
    "path": "/wiki/Thread:2025-08-31/Welcome%20to%20Librarybase%21",
-   "group": 6,
-   "status": 404
+   "group": 6
   },
   {
    "name": "lb-item-talk-q5-action-addtopic",
    "set": "lb",
    "path": "/wiki/Item_talk:Q5?action=addtopic",
-   "group": 6,
-   "status": 404
+   "group": 6
   },
   {
    "name": "lb-item-talk-q5-action-history",
    "set": "lb",
    "path": "/wiki/Item_talk:Q5?action=history",
+   "group": 6
+  },
+  {
+   "name": "lb-item-talk-q5-sort-activity",
+   "set": "lb",
+   "path": "/wiki/Item_talk:Q5?sort=activity",
+   "group": 6
+  },
+  {
+   "name": "lb-thread-2026-10-31-is-20five-20a-20city-3f-replyto-248252",
+   "set": "lb",
+   "path": "/wiki/Thread:2026-10-31/Is%20five%20a%20city%3F?replyto=248252",
+   "group": 6
+  },
+  {
+   "name": "lb-thread-2026-10-31-is-20five-20a-20city-3f-action-history",
+   "set": "lb",
+   "path": "/wiki/Thread:2026-10-31/Is%20five%20a%20city%3F?action=history",
+   "group": 6
+  },
+  {
+   "name": "lb-project-talk-home-action-addtopic",
+   "set": "lb",
+   "path": "/wiki/Project_talk:Home?action=addtopic",
+   "group": 6
+  },
+  {
+   "name": "lb-item-talk-q404",
+   "set": "lb",
+   "path": "/wiki/Item_talk:Q404",
    "group": 6,
    "status": 404
   },
@@ -317,85 +368,145 @@
    "name": "lb-special-recentchanges",
    "set": "lb",
    "path": "/wiki/Special:RecentChanges",
-   "group": 7,
-   "status": 404
+   "group": 7
   },
   {
    "name": "lb-special-recentchanges-filtered-1-hidebots-1-limit-10",
    "set": "lb",
    "path": "/wiki/Special:RecentChanges?filtered=1&hidebots=1&limit=10",
-   "group": 7,
-   "status": 404
+   "group": 7
   },
   {
    "name": "lb-special-newpages",
    "set": "lb",
    "path": "/wiki/Special:NewPages",
-   "group": 7,
-   "status": 404
+   "group": 7
   },
   {
    "name": "lb-special-contributions-alice",
    "set": "lb",
    "path": "/wiki/Special:Contributions/Alice",
-   "group": 7,
-   "status": 404
+   "group": 7
   },
   {
    "name": "lb-special-contributions-bob",
    "set": "lb",
    "path": "/wiki/Special:Contributions/Bob",
-   "group": 7,
-   "status": 404
+   "group": 7
   },
   {
    "name": "lb-special-contributions-nobody",
    "set": "lb",
    "path": "/wiki/Special:Contributions/Nobody",
-   "group": 7,
-   "status": 404
+   "group": 7
   },
   {
    "name": "lb-special-log",
    "set": "lb",
    "path": "/wiki/Special:Log",
-   "group": 7,
-   "status": 404
+   "group": 7
   },
   {
    "name": "lb-special-log-type-block",
    "set": "lb",
    "path": "/wiki/Special:Log?type=block",
-   "group": 7,
-   "status": 404
+   "group": 7
   },
   {
    "name": "lb-special-log-alice",
    "set": "lb",
    "path": "/wiki/Special:Log/Alice",
-   "group": 7,
-   "status": 404
+   "group": 7
+  },
+  {
+   "name": "lb-special-recentchanges-filtered-1-kind-edit-kind-sync-kind-log-kind-job-bots-1",
+   "set": "lb",
+   "path": "/wiki/Special:RecentChanges?filtered=1&kind=edit&kind=sync&kind=log&kind=job&bots=1",
+   "group": 7
+  },
+  {
+   "name": "lb-special-recentchanges-filtered-1-kind-edit-limit-50-namespace-120-days-7",
+   "set": "lb",
+   "path": "/wiki/Special:RecentChanges?filtered=1&kind=edit&limit=50&namespace=120&days=7",
+   "group": 7
+  },
+  {
+   "name": "lb-special-recentchanges-limit-3",
+   "set": "lb",
+   "path": "/wiki/Special:RecentChanges?limit=3",
+   "group": 7
+  },
+  {
+   "name": "lb-special-recentchanges-limit-3-continue-1793424828794235-7c1628708205722745118",
+   "set": "lb",
+   "path": "/wiki/Special:RecentChanges?limit=3&continue=1793424828794235%7C16287082057227451183%7C9",
+   "group": 7
+  },
+  {
+   "name": "lb-special-log-move",
+   "set": "lb",
+   "path": "/wiki/Special:Log/move",
+   "group": 7
+  },
+  {
+   "name": "lb-special-log-type-delete-page-project-consensus",
+   "set": "lb",
+   "path": "/wiki/Special:Log?type=delete&page=Project:Consensus",
+   "group": 7
+  },
+  {
+   "name": "lb-special-log-page-item-q6",
+   "set": "lb",
+   "path": "/wiki/Special:Log?page=Item:Q6",
+   "group": 7
+  },
+  {
+   "name": "lb-special-contributions-target-carol",
+   "set": "lb",
+   "path": "/wiki/Special:Contributions?target=Carol",
+   "group": 7
+  },
+  {
+   "name": "lb-special-contributions",
+   "set": "lb",
+   "path": "/wiki/Special:Contributions",
+   "group": 7
+  },
+  {
+   "name": "lb-special-newpages-username-bob-bots-1",
+   "set": "lb",
+   "path": "/wiki/Special:NewPages?username=Bob&bots=1",
+   "group": 7
+  },
+  {
+   "name": "lb-special-watchlist",
+   "set": "lb",
+   "path": "/wiki/Special:Watchlist",
+   "group": 7
+  },
+  {
+   "name": "lb-special-notifications",
+   "set": "lb",
+   "path": "/wiki/Special:Notifications",
+   "group": 7
   },
   {
    "name": "lb-special-search",
    "set": "lb",
    "path": "/wiki/Special:Search",
-   "group": 8,
-   "status": 404
+   "group": 8
   },
   {
    "name": "lb-special-search-search-librarybase-fulltext-1",
    "set": "lb",
    "path": "/w/index.php?title=Special:Search&search=Librarybase&fulltext=1",
-   "group": 8,
-   "status": 404
+   "group": 8
   },
   {
    "name": "lb-special-search-search-six",
    "set": "lb",
    "path": "/w/index.php?title=Special:Search&search=six",
-   "group": 8,
-   "status": 404
+   "group": 8
   },
   {
    "name": "lb-special-specialpages",
@@ -407,183 +518,158 @@
    "name": "lb-special-allpages",
    "set": "lb",
    "path": "/wiki/Special:AllPages",
-   "group": 8,
-   "status": 404
+   "group": 8
   },
   {
    "name": "lb-special-allpages-namespace-4",
    "set": "lb",
    "path": "/wiki/Special:AllPages?namespace=4",
-   "group": 8,
-   "status": 404
+   "group": 8
   },
   {
    "name": "lb-special-prefixindex-project-analytics",
    "set": "lb",
    "path": "/wiki/Special:PrefixIndex/Project:Analytics/",
-   "group": 8,
-   "status": 404
+   "group": 8
   },
   {
    "name": "lb-special-listredirects",
    "set": "lb",
    "path": "/wiki/Special:ListRedirects",
-   "group": 8,
-   "status": 404
+   "group": 8
   },
   {
    "name": "lb-special-listproperties",
    "set": "lb",
    "path": "/wiki/Special:ListProperties",
-   "group": 8,
-   "status": 404
+   "group": 8
   },
   {
    "name": "lb-special-wantedpages",
    "set": "lb",
    "path": "/wiki/Special:WantedPages",
-   "group": 8,
-   "status": 404
+   "group": 8
   },
   {
    "name": "lb-special-shortpages",
    "set": "lb",
    "path": "/wiki/Special:ShortPages",
-   "group": 8,
-   "status": 404
+   "group": 8
   },
   {
    "name": "lb-special-mostrevisions",
    "set": "lb",
    "path": "/wiki/Special:MostRevisions",
-   "group": 8,
-   "status": 404
+   "group": 8
   },
   {
    "name": "lb-special-lonelypages",
    "set": "lb",
    "path": "/wiki/Special:LonelyPages",
-   "group": 8,
-   "status": 404
+   "group": 8
   },
   {
    "name": "lb-special-doubleredirects",
    "set": "lb",
    "path": "/wiki/Special:DoubleRedirects",
-   "group": 8,
-   "status": 404
+   "group": 8
   },
   {
    "name": "lb-special-protectedpages",
    "set": "lb",
    "path": "/wiki/Special:ProtectedPages",
-   "group": 8,
-   "status": 404
+   "group": 8
   },
   {
    "name": "lb-special-protectedtitles",
    "set": "lb",
    "path": "/wiki/Special:ProtectedTitles",
-   "group": 8,
-   "status": 404
+   "group": 8
   },
   {
    "name": "lb-special-blocklist",
    "set": "lb",
    "path": "/wiki/Special:BlockList",
-   "group": 8,
-   "status": 404
+   "group": 8
   },
   {
    "name": "lb-special-userlogin",
    "set": "lb",
    "path": "/wiki/Special:UserLogin",
-   "group": 9,
-   "status": 404
+   "group": 9
   },
   {
    "name": "lb-special-userlogin-returnto-item-q6",
    "set": "lb",
    "path": "/wiki/Special:UserLogin?returnto=Item:Q6",
-   "group": 9,
-   "status": 404
+   "group": 9
   },
   {
    "name": "lb-special-createaccount",
    "set": "lb",
    "path": "/wiki/Special:CreateAccount",
-   "group": 9,
-   "status": 404
+   "group": 9
   },
   {
    "name": "lb-special-preferences",
    "set": "lb",
    "path": "/wiki/Special:Preferences",
-   "group": 9,
-   "status": 404
+   "group": 9
   },
   {
    "name": "lb-special-account",
    "set": "lb",
    "path": "/wiki/Special:Account",
-   "group": 9,
-   "status": 404
+   "group": 9
   },
   {
    "name": "lb-special-wikisettings",
    "set": "lb",
    "path": "/wiki/Special:WikiSettings",
-   "group": 10,
-   "status": 404
+   "group": 10
   },
   {
    "name": "lb-special-instancesettings",
    "set": "lb",
    "path": "/wiki/Special:InstanceSettings",
-   "group": 10,
-   "status": 404
+   "group": 10
   },
   {
    "name": "lb-special-tenancy",
    "set": "lb",
    "path": "/wiki/Special:Tenancy",
    "group": 10,
-   "status": 404
+   "status": 302
   },
   {
    "name": "lb-special-block",
    "set": "lb",
    "path": "/wiki/Special:Block",
-   "group": 11,
-   "status": 404
+   "group": 11
   },
   {
    "name": "lb-special-block-carol",
    "set": "lb",
    "path": "/wiki/Special:Block/Carol",
-   "group": 11,
-   "status": 404
+   "group": 11
   },
   {
    "name": "lb-special-unblock-carol",
    "set": "lb",
    "path": "/wiki/Special:Unblock/Carol",
-   "group": 11,
-   "status": 404
+   "group": 11
   },
   {
    "name": "lb-special-userrights-bob",
    "set": "lb",
    "path": "/wiki/Special:UserRights/Bob",
-   "group": 11,
-   "status": 404
+   "group": 11
   },
   {
    "name": "lb-special-undelete",
    "set": "lb",
    "path": "/wiki/Special:Undelete",
-   "group": 11,
-   "status": 404
+   "group": 11
   },
   {
    "name": "lb-special-undelete-project-consensus",
@@ -596,71 +682,61 @@
    "name": "lb-special-movepage-project-about",
    "set": "lb",
    "path": "/wiki/Special:MovePage/Project:About",
-   "group": 11,
-   "status": 404
+   "group": 11
   },
   {
    "name": "lb-item-q6-action-protect",
    "set": "lb",
    "path": "/wiki/Item:Q6?action=protect",
-   "group": 11,
-   "status": 404
+   "group": 11
   },
   {
    "name": "lb-project-about-action-delete",
    "set": "lb",
    "path": "/wiki/Project:About?action=delete",
-   "group": 11,
-   "status": 404
+   "group": 11
   },
   {
    "name": "lb-project-about-action-protect",
    "set": "lb",
    "path": "/wiki/Project:About?action=protect",
-   "group": 11,
-   "status": 404
+   "group": 11
   },
   {
    "name": "lb-special-version",
    "set": "lb",
    "path": "/wiki/Special:Version",
-   "group": 12,
-   "status": 404
+   "group": 12
   },
   {
    "name": "lb-special-newitem",
    "set": "lb",
    "path": "/wiki/Special:NewItem",
-   "group": 12,
-   "status": 404
+   "group": 12
   },
   {
    "name": "lb-special-newproperty",
    "set": "lb",
    "path": "/wiki/Special:NewProperty",
-   "group": 12,
-   "status": 404
+   "group": 12
   },
   {
    "name": "lb-special-setlabel-q6",
    "set": "lb",
    "path": "/wiki/Special:SetLabel/Q6",
-   "group": 12,
-   "status": 404
+   "group": 12
   },
   {
    "name": "lb-special-setdescription-q6-de",
    "set": "lb",
    "path": "/wiki/Special:SetDescription/Q6/de",
-   "group": 12,
-   "status": 404
+   "group": 12
   },
   {
    "name": "lb-special-setlabeldescriptionaliases-q6",
    "set": "lb",
    "path": "/wiki/Special:SetLabelDescriptionAliases/Q6",
-   "group": 12,
-   "status": 404
+   "group": 12
   },
   {
    "name": "lb-special-allmessages",
@@ -684,15 +760,13 @@
    "name": "lb-special-comparepages",
    "set": "lb",
    "path": "/wiki/Special:ComparePages",
-   "group": 12,
-   "status": 404
+   "group": 12
   },
   {
    "name": "lb-special-comparepages-page1-project-home-page2-project-about",
    "set": "lb",
    "path": "/wiki/Special:ComparePages?page1=Project:Home&page2=Project:About",
-   "group": 12,
-   "status": 404
+   "group": 12
   },
   {
    "name": "lb-special-listdatatypes",
@@ -729,14 +803,14 @@
    "set": "lb",
    "path": "/wiki/Special:MyPage",
    "group": 12,
-   "status": 404
+   "status": 302
   },
   {
    "name": "lb-special-mytalk",
    "set": "lb",
    "path": "/wiki/Special:MyTalk",
    "group": 12,
-   "status": 404
+   "status": 302
   },
   {
    "name": "lb-special-editpage-project-home",
@@ -756,8 +830,7 @@
    "name": "lb-item-q6-uselang-ar",
    "set": "lb",
    "path": "/wiki/Item:Q6?uselang=ar",
-   "group": 3,
-   "status": 404
+   "group": 3
   },
   {
    "name": "lb-project-home-uselang-ar",
@@ -769,8 +842,7 @@
    "name": "lb-special-recentchanges-uselang-ar",
    "set": "lb",
    "path": "/wiki/Special:RecentChanges?uselang=ar",
-   "group": 7,
-   "status": 404
+   "group": 7
   },
   {
    "name": "lb-special-specialpages-uselang-he",
@@ -782,22 +854,19 @@
    "name": "lb-special-userlogin-uselang-ar",
    "set": "lb",
    "path": "/wiki/Special:UserLogin?uselang=ar",
-   "group": 9,
-   "status": 404
+   "group": 9
   },
   {
    "name": "lb-item-q6-uselang-pt-br",
    "set": "lb",
    "path": "/wiki/Item:Q6?uselang=pt-br",
-   "group": 3,
-   "status": 404
+   "group": 3
   },
   {
    "name": "lb-special-version-uselang-de",
    "set": "lb",
    "path": "/wiki/Special:Version?uselang=de",
-   "group": 12,
-   "status": 404
+   "group": 12
   },
   {
    "name": "lb-bob-nothing-here",
@@ -934,9 +1003,9 @@
    "viewer": "user"
   },
   {
-   "name": "lb-bob-domain-wikipedia-org-diff-17297809506867244273-1",
+   "name": "lb-bob-domain-wikipedia-org-diff-8384190344328252969-1",
    "set": "lb-bob",
-   "path": "/wiki/Domain:wikipedia.org?diff=17297809506867244273:1",
+   "path": "/wiki/Domain:wikipedia.org?diff=8384190344328252969:1",
    "group": 4,
    "viewer": "user"
   },
@@ -1054,6 +1123,71 @@
    "viewer": "user"
   },
   {
+   "name": "lb-bob-project-shortcut-redirect-no",
+   "set": "lb-bob",
+   "path": "/wiki/Project:Shortcut?redirect=no",
+   "group": 5,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-project-home-diff-248240-oldid-247585-diffonly-1",
+   "set": "lb-bob",
+   "path": "/wiki/Project:Home?diff=248240&oldid=247585&diffonly=1",
+   "group": 5,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-project-home-diff-cur",
+   "set": "lb-bob",
+   "path": "/wiki/Project:Home?diff=cur",
+   "group": 5,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-project-home-diff-prev-oldid-247585",
+   "set": "lb-bob",
+   "path": "/wiki/Project:Home?diff=prev&oldid=247585",
+   "group": 5,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-project-home-diff-x",
+   "set": "lb-bob",
+   "path": "/wiki/Project:Home?diff=x",
+   "group": 5,
+   "viewer": "user",
+   "status": 400
+  },
+  {
+   "name": "lb-bob-project-home-oldid-1",
+   "set": "lb-bob",
+   "path": "/wiki/Project:Home?oldid=1",
+   "group": 5,
+   "viewer": "user",
+   "status": 404
+  },
+  {
+   "name": "lb-bob-project-notes-action-edit",
+   "set": "lb-bob",
+   "path": "/wiki/Project:Notes?action=edit",
+   "group": 5,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-w-index-php-action-edit",
+   "set": "lb-bob",
+   "path": "/w/index.php?action=edit",
+   "group": 5,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-project-sandbox-action-render",
+   "set": "lb-bob",
+   "path": "/wiki/Project:Sandbox?action=render",
+   "group": 5,
+   "viewer": "user"
+  },
+  {
    "name": "lb-bob-item-talk-q5",
    "set": "lb-bob",
    "path": "/wiki/Item_talk:Q5",
@@ -1117,6 +1251,42 @@
    "viewer": "user"
   },
   {
+   "name": "lb-bob-item-talk-q5-sort-activity",
+   "set": "lb-bob",
+   "path": "/wiki/Item_talk:Q5?sort=activity",
+   "group": 6,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-thread-2026-10-31-is-20five-20a-20city-3f-replyto-248252",
+   "set": "lb-bob",
+   "path": "/wiki/Thread:2026-10-31/Is%20five%20a%20city%3F?replyto=248252",
+   "group": 6,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-thread-2026-10-31-is-20five-20a-20city-3f-action-history",
+   "set": "lb-bob",
+   "path": "/wiki/Thread:2026-10-31/Is%20five%20a%20city%3F?action=history",
+   "group": 6,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-project-talk-home-action-addtopic",
+   "set": "lb-bob",
+   "path": "/wiki/Project_talk:Home?action=addtopic",
+   "group": 6,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-item-talk-q404",
+   "set": "lb-bob",
+   "path": "/wiki/Item_talk:Q404",
+   "group": 6,
+   "viewer": "user",
+   "status": 404
+  },
+  {
    "name": "lb-bob-special-recentchanges",
    "set": "lb-bob",
    "path": "/wiki/Special:RecentChanges",
@@ -1176,6 +1346,90 @@
    "name": "lb-bob-special-log-alice",
    "set": "lb-bob",
    "path": "/wiki/Special:Log/Alice",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-recentchanges-filtered-1-kind-edit-kind-sync-kind-log-kind-job-bo",
+   "set": "lb-bob",
+   "path": "/wiki/Special:RecentChanges?filtered=1&kind=edit&kind=sync&kind=log&kind=job&bots=1",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-recentchanges-filtered-1-kind-edit-limit-50-namespace-120-days-7",
+   "set": "lb-bob",
+   "path": "/wiki/Special:RecentChanges?filtered=1&kind=edit&limit=50&namespace=120&days=7",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-recentchanges-limit-3",
+   "set": "lb-bob",
+   "path": "/wiki/Special:RecentChanges?limit=3",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-recentchanges-limit-3-continue-1793424828794235-7c162870820572274",
+   "set": "lb-bob",
+   "path": "/wiki/Special:RecentChanges?limit=3&continue=1793424828794235%7C16287082057227451183%7C9",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-log-move",
+   "set": "lb-bob",
+   "path": "/wiki/Special:Log/move",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-log-type-delete-page-project-consensus",
+   "set": "lb-bob",
+   "path": "/wiki/Special:Log?type=delete&page=Project:Consensus",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-log-page-item-q6",
+   "set": "lb-bob",
+   "path": "/wiki/Special:Log?page=Item:Q6",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-contributions-target-carol",
+   "set": "lb-bob",
+   "path": "/wiki/Special:Contributions?target=Carol",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-contributions",
+   "set": "lb-bob",
+   "path": "/wiki/Special:Contributions",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-newpages-username-bob-bots-1",
+   "set": "lb-bob",
+   "path": "/wiki/Special:NewPages?username=Bob&bots=1",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-watchlist",
+   "set": "lb-bob",
+   "path": "/wiki/Special:Watchlist",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-notifications",
+   "set": "lb-bob",
+   "path": "/wiki/Special:Notifications",
    "group": 7,
    "viewer": "user"
   },
@@ -1654,6 +1908,13 @@
    "viewer": "user"
   },
   {
+   "name": "lb-bob-special-notifications-unread-1",
+   "set": "lb-bob",
+   "path": "/wiki/Special:Notifications?unread=1",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
    "name": "lb-bob-special-preferences-tab-appearance",
    "set": "lb-bob",
    "path": "/wiki/Special:Preferences?tab=appearance",
@@ -1802,9 +2063,9 @@
    "viewer": "user"
   },
   {
-   "name": "lb-alice-domain-wikipedia-org-diff-17297809506867244273-1",
+   "name": "lb-alice-domain-wikipedia-org-diff-8384190344328252969-1",
    "set": "lb-alice",
-   "path": "/wiki/Domain:wikipedia.org?diff=17297809506867244273:1",
+   "path": "/wiki/Domain:wikipedia.org?diff=8384190344328252969:1",
    "group": 4,
    "viewer": "user"
   },
@@ -1921,6 +2182,71 @@
    "viewer": "user"
   },
   {
+   "name": "lb-alice-project-shortcut-redirect-no",
+   "set": "lb-alice",
+   "path": "/wiki/Project:Shortcut?redirect=no",
+   "group": 5,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-project-home-diff-248240-oldid-247585-diffonly-1",
+   "set": "lb-alice",
+   "path": "/wiki/Project:Home?diff=248240&oldid=247585&diffonly=1",
+   "group": 5,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-project-home-diff-cur",
+   "set": "lb-alice",
+   "path": "/wiki/Project:Home?diff=cur",
+   "group": 5,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-project-home-diff-prev-oldid-247585",
+   "set": "lb-alice",
+   "path": "/wiki/Project:Home?diff=prev&oldid=247585",
+   "group": 5,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-project-home-diff-x",
+   "set": "lb-alice",
+   "path": "/wiki/Project:Home?diff=x",
+   "group": 5,
+   "viewer": "user",
+   "status": 400
+  },
+  {
+   "name": "lb-alice-project-home-oldid-1",
+   "set": "lb-alice",
+   "path": "/wiki/Project:Home?oldid=1",
+   "group": 5,
+   "viewer": "user",
+   "status": 404
+  },
+  {
+   "name": "lb-alice-project-notes-action-edit",
+   "set": "lb-alice",
+   "path": "/wiki/Project:Notes?action=edit",
+   "group": 5,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-w-index-php-action-edit",
+   "set": "lb-alice",
+   "path": "/w/index.php?action=edit",
+   "group": 5,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-project-sandbox-action-render",
+   "set": "lb-alice",
+   "path": "/wiki/Project:Sandbox?action=render",
+   "group": 5,
+   "viewer": "user"
+  },
+  {
    "name": "lb-alice-item-talk-q5",
    "set": "lb-alice",
    "path": "/wiki/Item_talk:Q5",
@@ -1984,6 +2310,42 @@
    "viewer": "user"
   },
   {
+   "name": "lb-alice-item-talk-q5-sort-activity",
+   "set": "lb-alice",
+   "path": "/wiki/Item_talk:Q5?sort=activity",
+   "group": 6,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-thread-2026-10-31-is-20five-20a-20city-3f-replyto-248252",
+   "set": "lb-alice",
+   "path": "/wiki/Thread:2026-10-31/Is%20five%20a%20city%3F?replyto=248252",
+   "group": 6,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-thread-2026-10-31-is-20five-20a-20city-3f-action-history",
+   "set": "lb-alice",
+   "path": "/wiki/Thread:2026-10-31/Is%20five%20a%20city%3F?action=history",
+   "group": 6,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-project-talk-home-action-addtopic",
+   "set": "lb-alice",
+   "path": "/wiki/Project_talk:Home?action=addtopic",
+   "group": 6,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-item-talk-q404",
+   "set": "lb-alice",
+   "path": "/wiki/Item_talk:Q404",
+   "group": 6,
+   "viewer": "user",
+   "status": 404
+  },
+  {
    "name": "lb-alice-special-recentchanges",
    "set": "lb-alice",
    "path": "/wiki/Special:RecentChanges",
@@ -2043,6 +2405,90 @@
    "name": "lb-alice-special-log-alice",
    "set": "lb-alice",
    "path": "/wiki/Special:Log/Alice",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-recentchanges-filtered-1-kind-edit-kind-sync-kind-log-kind-job-",
+   "set": "lb-alice",
+   "path": "/wiki/Special:RecentChanges?filtered=1&kind=edit&kind=sync&kind=log&kind=job&bots=1",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-recentchanges-filtered-1-kind-edit-limit-50-namespace-120-days-",
+   "set": "lb-alice",
+   "path": "/wiki/Special:RecentChanges?filtered=1&kind=edit&limit=50&namespace=120&days=7",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-recentchanges-limit-3",
+   "set": "lb-alice",
+   "path": "/wiki/Special:RecentChanges?limit=3",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-recentchanges-limit-3-continue-1793424828794235-7c1628708205722",
+   "set": "lb-alice",
+   "path": "/wiki/Special:RecentChanges?limit=3&continue=1793424828794235%7C16287082057227451183%7C9",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-log-move",
+   "set": "lb-alice",
+   "path": "/wiki/Special:Log/move",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-log-type-delete-page-project-consensus",
+   "set": "lb-alice",
+   "path": "/wiki/Special:Log?type=delete&page=Project:Consensus",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-log-page-item-q6",
+   "set": "lb-alice",
+   "path": "/wiki/Special:Log?page=Item:Q6",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-contributions-target-carol",
+   "set": "lb-alice",
+   "path": "/wiki/Special:Contributions?target=Carol",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-contributions",
+   "set": "lb-alice",
+   "path": "/wiki/Special:Contributions",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-newpages-username-bob-bots-1",
+   "set": "lb-alice",
+   "path": "/wiki/Special:NewPages?username=Bob&bots=1",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-watchlist",
+   "set": "lb-alice",
+   "path": "/wiki/Special:Watchlist",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-notifications",
+   "set": "lb-alice",
+   "path": "/wiki/Special:Notifications",
    "group": 7,
    "viewer": "user"
   },
@@ -2510,6 +2956,13 @@
    "name": "lb-alice-special-notifications-read-1",
    "set": "lb-alice",
    "path": "/wiki/Special:Notifications?read=1",
+   "group": 7,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-notifications-unread-1",
+   "set": "lb-alice",
+   "path": "/wiki/Special:Notifications?unread=1",
    "group": 7,
    "viewer": "user"
   },

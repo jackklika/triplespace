@@ -2,6 +2,7 @@
     revisions, or a sync; drawn as statements, with "About this edit" beside. -#}
 {%- import "codex.html" as codex -%}
 {%- import "entity.html" as entity -%}
+{%- import "nav.html" as shared -%}
 
 {#- A revision's line in the header: time, actor, comment. -#}
 {%- macro revision_line(l) -%}
@@ -68,7 +69,7 @@
 {%- if head %}<p class="ts-diff__head">{{ revision_line(head) }}</p>{% endif -%}
 {%- if nav %}<p class="ts-diff__nav"><a href="{{ nav.previous.href }}" rel="prev">{{ nav.previous.label }}</a> · <a href="{{ nav.compare.href }}">{{ nav.compare.label }}</a></p>{% endif -%}
 {%- if revisions %}<table class="ts-diff__revisions"><tr><th>{{ msg("ts-diff-before") }}</th><td>{{ revision_line(revisions.before) }}</td></tr><tr><th>{{ msg("ts-diff-after") }}</th><td>{{ revision_line(revisions.after) }}</td></tr></table>{% endif -%}
-{%- if switch %}{{ entity.switch(switch, "ts-diff__views") }}{% endif -%}
+{%- if switch %}{{ shared.switch(switch, "ts-diff__views") }}{% endif -%}
 <div class="ts-diff__body"><div class="ts-diff__main">
 {%- if main.kind == "changeset" %}<pre class="ts-diff__changeset" dir="ltr">{{ main.json }}</pre>
 {%- elif main.kind == "sync" %}<p class="ts-diff__sync">{{ main.line }}</p>{% if main.rows %}{{ summary(main.rows) }}{% else %}<p class="ts-empty">{{ main.none }}</p>{% endif %}

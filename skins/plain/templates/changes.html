@@ -1,0 +1,78 @@
+{#- The changes table and the filter form of the feeds (0010 §7; 19 §3.9; 16 §6.1), over
+    the models of `triplespace_ui::special::changes`: recent changes, contributions, the
+    log, new pages, the watchlist and every history tab draw their rows with these. -#}
+{%- import "codex.html" as codex -%}
+
+{#- An account, as a target or as the actor (0095 §3). -#}
+{%- macro account(a) -%}
+{%- if a.kind == "operator" %}<span class="ts-change__part">{{ codex.chip(a.badge) }}</span>
+{%- else %}<span class="ts-change__part{% if a.target %} ts-change__account{% endif %}"{% if a.title %} title="{{ a.title }}"{% endif %}>{% if a.icon is not none %}<svg class="ts-change__account-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M12 11a6 6 0 016 6v2H2v-2a6 6 0 016-6z"/><circle cx="10" cy="5" r="4"/></svg><span class="ts-visually-hidden">{{ a.icon }} </span>{% endif %}<a href="{{ a.href }}" class="{% if a.target %}ts-change__target{% else %}ts-change__actor{% endif %}">{{ a.shown }}</a></span>{% if a.key %}<span class="ts-change__part ts-change__id ts-mono">{{ a.key }}</span>{% endif %}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- A row's target. -#}
+{%- macro target(t) -%}
+{%- if t.kind == "account" %}{{ account(t.account) }}
+{%- elif t.kind == "id" %}<span class="ts-mono">{{ t.id }}</span>
+{%- elif t.kind == "job" %}<span class="ts-change__part ts-change__target">{{ t.text }}</span>
+{%- elif t.kind == "labelled" %}<span class="ts-change__part"><a href="{{ t.href }}" class="ts-change__target"><span{% if t.lang %} lang="{{ t.lang }}" dir="auto"{% endif %}>{{ t.label }}</span></a></span><span class="ts-change__part ts-change__id ts-mono">{{ t.id }}</span>
+{%- else %}<span class="ts-change__part"><a href="{{ t.href }}" class="ts-change__target">{{ t.text }}</a></span>{% endif -%}
+{%- endmacro -%}
+
+{#- A row's summary. -#}
+{%- macro summary(s) -%}
+{%- if s.hidden %}<span class="ts-change__hidden">{{ s.hidden }}</span>
+{%- else -%}
+{%- if s.auto %}<span class="ts-change__auto">{{ s.auto }}</span>{% endif -%}
+{%- if s.moved %} <span class="ts-change__auto">{{ s.moved }}</span>{% endif -%}
+{%- if s.comment %}{% if s.auto or s.moved %} {% endif %}<span class="ts-change__comment">{{ s.comment }}</span>{% endif -%}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- One row. The target, the actor and the summary are drawn inline, not through the
+    macros above, since a feed draws hundreds of rows and each macro call costs. -#}
+{%- macro row(r) -%}
+<tr class="ts-change ts-change--{{ r.kind }}{% if r.unseen %} ts-change--unseen{% endif %}"><td class="ts-change__cell ts-change__cell--time">{% if r.diff %}<a href="{{ r.diff }}" class="ts-change__diff"><time class="ts-change__time" datetime="{{ r.datetime }}">{{ r.time }}</time></a>{% else %}<time class="ts-change__time" datetime="{{ r.datetime }}">{{ r.time }}</time>{% endif %}</td><td class="ts-change__cell ts-change__cell--origin"><span class="{{ r.origin.classes }}"{% if r.origin.title %} title="{{ r.origin.title }}"{% endif %}>{{ r.origin.text }}</span></td>
+{%- if r.erased %}<td class="ts-change__cell ts-change__hidden" colspan="{{ r.erased[0] }}">{{ r.erased[1] }}</td></tr>
+{%- else -%}
+<td class="ts-change__cell ts-change__cell--flags">{% for f in r.flags %}<abbr class="ts-change__flag ts-change__flag--{{ f.class }}" title="{{ f.title }}">{{ f.text }}</abbr>{% endfor %}</td>
+<td class="ts-change__cell ts-change__cell--target">
+{%- if r.target -%}
+{%- set t = r.target -%}
+{%- if t.kind == "account" %}{{ account(t.account) }}
+{%- elif t.kind == "id" %}<span class="ts-mono">{{ t.id }}</span>
+{%- elif t.kind == "job" %}<span class="ts-change__part ts-change__target">{{ t.text }}</span>
+{%- elif t.kind == "labelled" %}<span class="ts-change__part"><a href="{{ t.href }}" class="ts-change__target"><span{% if t.lang %} lang="{{ t.lang }}" dir="auto"{% endif %}>{{ t.label }}</span></a></span><span class="ts-change__part ts-change__id ts-mono">{{ t.id }}</span>
+{%- else %}<span class="ts-change__part"><a href="{{ t.href }}" class="ts-change__target">{{ t.text }}</a></span>{% endif -%}
+{%- endif -%}
+</td>
+<td class="ts-change__cell ts-change__cell--size">{% if r.size %}<span class="ts-change__delta{% if r.size.class %} ts-change__delta--{{ r.size.class }}{% endif %}" dir="ltr">{{ r.size.text }}</span>{% endif %}</td>
+<td class="ts-change__cell ts-change__cell--user">{% if r.actor.kind == "hidden" %}<span class="ts-change__part ts-change__hidden">{{ r.actor.text }}</span>{% elif r.actor.kind == "account" %}{% set a = r.actor.account %}{% if a.kind == "operator" %}<span class="ts-change__part"><span class="{{ a.badge.classes }}"{% if a.badge.title %} title="{{ a.badge.title }}"{% endif %}>{{ a.badge.text }}</span></span>{% else %}<span class="ts-change__part"{% if a.title %} title="{{ a.title }}"{% endif %}><a href="{{ a.href }}" class="ts-change__actor">{{ a.shown }}</a></span>{% if a.key %}<span class="ts-change__part ts-change__id ts-mono">{{ a.key }}</span>{% endif %}{% endif %}{% endif %}</td>
+<td class="ts-change__cell ts-change__cell--summary">
+{%- set s = r.summary -%}
+{%- if s.hidden %}<span class="ts-change__summary"><span class="ts-change__hidden">{{ s.hidden }}</span></span>
+{%- elif s.auto or s.moved or s.comment %}<span class="ts-change__summary">{% if s.auto %}<span class="ts-change__auto">{{ s.auto }}</span>{% endif %}{% if s.moved %} <span class="ts-change__auto">{{ s.moved }}</span>{% endif %}{% if s.comment %}{% if s.auto or s.moved %} {% endif %}<span class="ts-change__comment">{{ s.comment }}</span>{% endif %}</span>{% endif -%}
+{%- if r.tags %}<span class="ts-change__tags">{% for t in r.tags %}<span class="ts-change__tag">{{ t }}</span>{% endfor %}</span>{% endif -%}
+</td></tr>
+{%- endif -%}
+{%- endmacro -%}
+
+{#- The rows as one table, a row group per day headed by its date. -#}
+{%- macro list(l) -%}
+<div class="ts-changes__scroll"><table class="ts-changes__table"><thead><tr>{% for c in l.columns %}<th scope="col" class="ts-change__head ts-change__head--{{ c[0] }}">{{ c[1] }}</th>{% endfor %}</tr></thead>
+{%- for d in l.days %}<tbody><tr class="ts-changes__dayrow"><th scope="rowgroup" colspan="{{ l.columns|length }}" class="ts-changes__day">{{ d.date }}</th></tr>{% for r in d.rows %}{{ row(r) }}{% endfor %}</tbody>{% endfor -%}
+</table></div>
+{%- endmacro -%}
+
+{#- One control of the filter form. -#}
+{%- macro item(i) -%}
+{%- if i.kind == "text" %}<label class="ts-changes-form__field"><span>{{ i.label }}</span> <input class="cdx-text-input__input" type="text" name="{{ i.name }}" value="{{ i.value }}"></label>
+{%- elif i.kind == "check" %}<label class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" name="{{ i.name }}" value="{{ i.value }}"{% if i.checked %} checked{% endif %}><span class="cdx-checkbox__icon"></span><span class="cdx-checkbox__label">{{ i.label }}</span></label>
+{%- elif i.kind == "select" %}<label class="ts-changes-form__field"><span>{{ i.label }}</span> <select class="cdx-select" name="{{ i.name }}">{% for o in i.options %}<option value="{{ o[0] }}"{% if o[2] %} selected{% endif %}>{{ o[1] }}</option>{% endfor %}</select></label>
+{%- else %}<fieldset class="ts-changes-form__kinds"><legend>{{ i.legend }}</legend>{% for c in i.items %}{{ item(c) }}{% endfor %}</fieldset>{% endif -%}
+{%- endmacro -%}
+
+{#- The filter form. -#}
+{%- macro form(f) -%}
+<form class="ts-changes-form" action="/w/index.php" method="get" aria-label="{{ f.label }}"><input type="hidden" name="title" value="{{ f.title }}"><input type="hidden" name="filtered" value="1">{% for i in f.items %}{{ item(i) }}{% endfor %} <button class="cdx-button cdx-button--action-progressive cdx-button--weight-primary" type="submit">{{ f.apply }}</button></form>
+{%- endmacro -%}

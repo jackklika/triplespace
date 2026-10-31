@@ -76,7 +76,7 @@ pub async fn serve(site: &Site, headers: &HeaderMap, peer: Peer, params: &Params
             cx.inputs.push(d.cache);
             let html = format!(
                 "<div class=\"ts-page-diff\">{}</div>",
-                diff_html(&cx.m, &d.value, None)
+                diff_html(&cx, &d.value, None)
             );
             page(&cx, headers, q, StatusCode::OK, None, &html)
         }

@@ -161,9 +161,8 @@ pub struct HistoryModel {
     pub note: Option<String>,
     /// What the tab says when it has no rows.
     pub empty: Option<String>,
-    /// The rows as `Special:RecentChanges` draws them, HTML: the changes table is drawn
-    /// by the binary until its group switches (19 §5.10 group 7).
-    pub list_html: String,
+    /// The rows as `Special:RecentChanges` draws them.
+    pub list: Option<crate::special::changes::ListModel>,
     /// The pager, when there is another page.
     pub pager: Option<Pager>,
 }
@@ -259,11 +258,7 @@ fn model(
             .then(|| latest_only_model(m, site, provenance))
             .flatten(),
         empty: page.rows.is_empty().then(|| m.get("ts-history-none")),
-        list_html: if page.rows.is_empty() {
-            String::new()
-        } else {
-            crate::special::changes::list_html_here(m, site, &page.rows, here)
-        },
+        list: crate::special::changes::list_model_here(m, site, &page.rows, here),
         pager: if page.rows.is_empty() {
             None
         } else {

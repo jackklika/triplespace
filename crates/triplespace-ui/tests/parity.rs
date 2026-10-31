@@ -505,3 +505,30 @@ async fn draw_or_follows_the_renderer() {
         assert!(drawn.contains("ts-terms__description--none"), "{drawn}");
     }
 }
+
+/// One case's whole-page render time, for finding where a group's time goes: `CASE`
+/// names it (`CASE=lb-special-recentchanges cargo test --release -p triplespace-ui
+/// --test parity -- profile_one_case --ignored --nocapture`).
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "a profile, run by hand with --ignored --nocapture"]
+async fn profile_one_case() {
+    let name = std::env::var("CASE").unwrap_or_else(|_| "lb-special-recentchanges-limit-3".into());
+    let corpus = corpus();
+    let case = corpus
+        .cases
+        .iter()
+        .find(|c| c.name == name)
+        .expect("a case");
+    let client = client(&case.set);
+    for _ in 0..20 {
+        render(&client, case, Renderer::Builtin).await;
+    }
+    let mut us = Vec::new();
+    for _ in 0..300 {
+        let t = Instant::now();
+        render(&client, case, Renderer::Builtin).await;
+        us.push(t.elapsed().as_micros());
+    }
+    let (med, p95) = stats(us);
+    eprintln!("{name}: median {med} us, p95 {p95} us");
+}
