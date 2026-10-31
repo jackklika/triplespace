@@ -13,6 +13,9 @@ publish = false
 scatter-log-postgres.workspace = true
 tokio-postgres.workspace = true
 deadpool-postgres.workspace = true
+rustls.workspace = true
+rustls-platform-verifier.workspace = true
+tokio-postgres-rustls.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 

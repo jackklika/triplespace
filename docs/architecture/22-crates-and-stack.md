@@ -299,7 +299,7 @@ The appending transaction, tier 1 of the write path ([0083](../decisions/0083-wr
 | Instance and client signatures | `ed25519-dalek` | The key chain of [0006](../decisions/0006-log-integrity-and-erasure.md); subsidiary signing keys ([0024](../decisions/0024-subsidiary-accounts.md) §4). |
 | HMAC | `hmac` | Binding digests ([0018](../decisions/0018-tenants.md) §10), Atom tokens. |
 | RSA for ActivityPub HTTP Signatures ([0021](../decisions/0021-notifications.md) §5, [0022](../decisions/0022-federation.md)) | `aws-lc-rs` | Constant-time RSA signing. Not the `rsa` crate. |
-| TLS | `rustls` with the `aws-lc-rs` provider | One crypto provider for TLS and RSA signing. `ring` is the fallback if musl builds (§4.10) become a requirement. |
+| TLS | `rustls` with the `aws-lc-rs` provider | One crypto provider for TLS and RSA signing. `ring` is the fallback if musl builds (§4.10) become a requirement. Postgres connections whose URL says `sslmode=require` use it through `tokio-postgres-rustls`, with `rustls-platform-verifier` (0033 A24). |
 | Password issuer ([0007](../decisions/0007-actor-identity.md) §1) | `argon2` | Argon2id, parameters in site config. |
 | Sealing secrets at rest: OAuth client secrets, publication credentials, upstream grants ([0088](../decisions/0088-external-identity-providers.md) §3) | `chacha20poly1305` (XChaCha20-Poly1305) | Under the instance sealing key, a subkey of the signing seed (`ts-seal-v1`); a 24-byte random nonce per value; the table, tenant and issuer or owner as associated data. |
 | Sealing private extracts ([0027](../decisions/0027-preferences-and-portability.md) Q1) | `age` (X25519 recipients) | Proposed; 0027 Q1 stays open until James agrees. Never the Ed25519 instance key. |

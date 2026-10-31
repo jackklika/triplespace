@@ -9,6 +9,7 @@ use scatter_log::cbor::Value;
 use scatter_log::store::Draft;
 use scatter_projection::Pipeline;
 use tokio_postgres::{Client, Config, NoTls};
+use triplespace_db::pool::{tls, wants_tls};
 use triplespace_api_ingest::PgIngest;
 use triplespace_projections::{Farm, PgBackend, milestone_pipeline};
 
@@ -54,16 +55,30 @@ pub fn random_partition() -> Result<u64> {
     Ok(u64::from_le_bytes(bytes).max(1))
 }
 
-/// A plain connection.
+/// A plain connection, over TLS when the URL says `sslmode=require` (0033 A24).
 pub async fn connect(database: &str) -> Result<Client> {
     let config: Config = database.parse().context("database URL")?;
-    let (client, connection) = config.connect(NoTls).await.context("connect")?;
+    if wants_tls(&config) {
+        let (client, connection) = config.connect(tls().context("TLS")?).await.context("connect")?;
+        drive(connection);
+        Ok(client)
+    } else {
+        let (client, connection) = config.connect(NoTls).await.context("connect")?;
+        drive(connection);
+        Ok(client)
+    }
+}
+
+/// Runs a connection's I/O on its own task, reporting how it ended.
+fn drive<F>(connection: F)
+where
+    F: Future<Output = Result<(), tokio_postgres::Error>> + Send + 'static,
+{
     tokio::spawn(async move {
         if let Err(e) = connection.await {
             eprintln!("connection: {e}");
         }
     });
-    Ok(client)
 }
 
 /// The store and its pipeline.

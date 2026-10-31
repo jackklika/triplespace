@@ -160,6 +160,11 @@ pollster = "1"
 tokio = { version = "1", default-features = false }
 tokio-postgres = { version = "0.7", features = ["with-serde_json-1"] }
 deadpool-postgres = "0.14"
+# Postgres over TLS when the database URL says `sslmode=require` (0033 A24): rustls on
+# aws-lc-rs, the one crypto provider (0033 §6), with the platform's roots as the web tier uses
+rustls = { version = "0.23", default-features = false, features = ["std", "tls12", "aws_lc_rs"] }
+rustls-platform-verifier = "0.7"
+tokio-postgres-rustls = { version = "0.14", features = ["aws-lc-rs"] }
 # The HTTP server (0033 §3): axum on hyper, tower middleware
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "query", "form", "json", "matched-path"] }
 tower = "0.5"

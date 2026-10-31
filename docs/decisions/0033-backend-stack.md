@@ -399,3 +399,11 @@ Replaced text ([22](../architecture/22-crates-and-stack.md) §3.4, as it stood):
 - **Source:** Direct: James, design discussion of 2026-10-25
 - **Change:** extends §12
 - **Summary:** An instance's deployment configuration can be kept in a `.env` file instead of ad-hoc environment variables and long command lines. `triplespace`, `triplespace-server` and `triplespace-web` read it into the environment with `dotenvy` when they start, before `clap` parses their flags, so every flag bound to a `TRIPLESPACE_*` variable, and every variable read directly such as `TRIPLESPACE_OWNER_PASSWORD`, can be set there. A flag wins over the environment and the environment over the file, which never overrides a variable already set. The file read is the one `TRIPLESPACE_ENV_FILE` names, which must exist, else `.env` in the working directory if there is one; a file that cannot be read or parsed stops the binary. The chapter text is [23](../architecture/23-configuration-and-registry.md) §5.1.
+
+### A24. TLS to Postgres when the URL says `sslmode=require`
+
+- **Date:** 2026-10-31
+- **Source:** Direct: Claude, while building TLS to a managed Postgres (Neon), 2026-10-31; unconfirmed
+- **Change:** extends §4
+- **Summary:** The pool and the CLI's single connection open TLS when the database URL's `sslmode` is `require`. They use `tokio-postgres-rustls` over rustls on the aws-lc-rs provider (§6), and `rustls-platform-verifier` checks the server's certificate against the platform's roots, as the web tier's HTTP client does. `disable`, and `prefer` (`tokio-postgres`'s default), stay plaintext as before, so a local server or one behind a TLS-terminating proxy is unaffected. This lets the small profile run on a managed Postgres that refuses plaintext, Neon among them, with no proxy. Two calls are open for James. First, `prefer` does not try TLS, unlike libpq; that keeps current deployments unchanged, but a URL that wants TLS has to say `require`. Second, `require` here also verifies the certificate, which is stricter than libpq's `require` and matches its `verify-full`. The chapter text is [03](../architecture/03-storage-caches-and-search.md) §1.4 and [22](../architecture/22-crates-and-stack.md) §4.4.
+
