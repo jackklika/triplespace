@@ -9,8 +9,8 @@ use scatter_log::cbor::Value;
 use scatter_log::store::Draft;
 use scatter_projection::Pipeline;
 use tokio_postgres::{Client, Config, NoTls};
-use triplespace_db::pool::{tls, wants_tls};
 use triplespace_api_ingest::PgIngest;
+use triplespace_db::pool::{tls, wants_tls};
 use triplespace_projections::{Farm, PgBackend, milestone_pipeline};
 
 /// The farm a database serves (0046 §6; 0079 §4): the instance `config`'s `farm` record,
@@ -59,7 +59,10 @@ pub fn random_partition() -> Result<u64> {
 pub async fn connect(database: &str) -> Result<Client> {
     let config: Config = database.parse().context("database URL")?;
     if wants_tls(&config) {
-        let (client, connection) = config.connect(tls().context("TLS")?).await.context("connect")?;
+        let (client, connection) = config
+            .connect(tls().context("TLS")?)
+            .await
+            .context("connect")?;
         drive(connection);
         Ok(client)
     } else {

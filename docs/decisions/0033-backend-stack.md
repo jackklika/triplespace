@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-09-27
-- **Updated:** 2026-10-25 (A23)
+- **Updated:** 2026-10-31 (A24)
 - **Author:** James Hare / Claude
 - **Changes:** [0005](0005-crate-organization.md)
 - **Uses:** [0006](0006-log-integrity-and-erasure.md), [0007](0007-actor-identity.md), [0011](0011-logs.md), [0012](0012-api-requirements.md), [0013](0013-postgres-storage.md), [0014](0014-caches-and-search.md), [0015](0015-record-format-and-partition-registry.md), [0019](0019-discussions.md), [0021](0021-notifications.md), [0022](0022-federation.md), [0025](0025-oauth-server.md), [0027](0027-preferences-and-portability.md), [0030](0030-edit-filters.md), [0032](0032-sparql-update-stream.md), [0034](0034-frontend-stack.md)
@@ -42,7 +42,7 @@ This ADR records the rest. The frontend is in 0034.
 
 ### 4. Postgres
 
-*Changed by A9, A20.*
+*Changed by A9, A20, A24.*
 
 *Current text: [03](../architecture/03-storage-caches-and-search.md) §1.4, §5.*
 
@@ -403,7 +403,7 @@ Replaced text ([22](../architecture/22-crates-and-stack.md) §3.4, as it stood):
 ### A24. TLS to Postgres when the URL says `sslmode=require`
 
 - **Date:** 2026-10-31
-- **Source:** Direct: Claude, while building TLS to a managed Postgres (Neon), 2026-10-31; unconfirmed
+- **Source:** Direct: Claude, while building TLS to a managed Postgres, 2026-10-31; unconfirmed
 - **Change:** extends §4
 - **Summary:** The pool and the CLI's single connection open TLS when the database URL's `sslmode` is `require`. They use `tokio-postgres-rustls` over rustls on the aws-lc-rs provider (§6), and `rustls-platform-verifier` checks the server's certificate against the platform's roots, as the web tier's HTTP client does. `disable`, and `prefer` (`tokio-postgres`'s default), stay plaintext as before, so a local server or one behind a TLS-terminating proxy is unaffected. This lets the small profile run on a managed Postgres that refuses plaintext, Neon among them, with no proxy. Two calls are open for James. First, `prefer` does not try TLS, unlike libpq; that keeps current deployments unchanged, but a URL that wants TLS has to say `require`. Second, `require` here also verifies the certificate, which is stricter than libpq's `require` and matches its `verify-full`. The chapter text is [03](../architecture/03-storage-caches-and-search.md) §1.4 and [22](../architecture/22-crates-and-stack.md) §4.4.
 

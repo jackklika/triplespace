@@ -71,9 +71,15 @@ mod tests {
     fn tls_only_when_required() {
         let parse = |url: &str| url.parse::<tokio_postgres::Config>().expect("url");
         assert!(!wants_tls(&parse("postgres://u@localhost/db")));
-        assert!(!wants_tls(&parse("postgres://u@localhost/db?sslmode=disable")));
-        assert!(!wants_tls(&parse("postgres://u@localhost/db?sslmode=prefer")));
-        assert!(wants_tls(&parse("postgres://u@db.example/db?sslmode=require")));
+        assert!(!wants_tls(&parse(
+            "postgres://u@localhost/db?sslmode=disable"
+        )));
+        assert!(!wants_tls(&parse(
+            "postgres://u@localhost/db?sslmode=prefer"
+        )));
+        assert!(wants_tls(&parse(
+            "postgres://u@db.example/db?sslmode=require"
+        )));
     }
 
     // 0033 A24: the connector builds with the aws-lc-rs provider and the platform verifier.
