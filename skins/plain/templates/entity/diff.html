@@ -1,0 +1,77 @@
+{#- The diff page of an entity (0010 §5–6; 19 §3.7): one change, a comparison of two
+    revisions, or a sync; drawn as statements, with "About this edit" beside. -#}
+{%- import "codex.html" as codex -%}
+{%- import "entity.html" as entity -%}
+
+{#- A revision's line in the header: time, actor, comment. -#}
+{%- macro revision_line(l) -%}
+{%- if l.revision %}<a href="{{ l.revision.href }}">{{ l.revision.label }}</a> {% endif -%}
+<time datetime="{{ l.datetime }}">{{ l.time }}</time>
+{%- if l.actor %} · <a href="{{ l.actor.href }}">{{ l.actor.label }}</a>{% endif -%}
+{%- if l.comment %} · <span class="ts-change__comment">{{ l.comment }}</span>{% endif -%}
+{%- endmacro -%}
+
+{#- One side of a keyed list. -#}
+{%- macro cell(value, lang, class) -%}
+{%- if value is not none %}<td class="ts-diff__cell ts-diff__cell--{{ class }}"><span{% if lang %} lang="{{ lang }}" dir="auto"{% endif %}>{{ value }}</span></td>{% else %}<td class="ts-diff__cell ts-diff__cell--empty"></td>{% endif -%}
+{%- endmacro -%}
+
+{#- A keyed list's table: terms or sitelinks, before and after. -#}
+{%- macro keyed_table(t) -%}
+<section class="ts-diff__section"><h3 class="ts-diff__heading">{{ t.heading }}</h3><table class="ts-diff__table"><thead><tr><th>{{ msg("ts-diff-key") }}</th><th>{{ msg("ts-diff-before") }}</th><th>{{ msg("ts-diff-after") }}</th></tr></thead><tbody>
+{%- for r in t.rows %}<tr><th scope="row" class="ts-diff__key">{{ r.key }}</th>{{ cell(r.before, r.lang, r.before_class) }}{{ cell(r.after, r.lang, r.after_class) }}</tr>{% endfor -%}
+</tbody></table></section>
+{%- endmacro -%}
+
+{#- A statement as the diff draws it: the value, qualifiers and references. -#}
+{%- macro statement(s) -%}
+<div class="ts-diff__statement"><div class="ts-statement__main">{{ entity.value(s.main) }}{% if s.rank %} {{ codex.chip(s.rank) }}{% endif %}</div>
+{%- if s.qualifiers %}{{ entity.snaks(s.qualifiers, "ts-qualifiers") }}{% endif -%}
+{%- if s.references %}<details class="cdx-accordion">
+	<summary><span class="cdx-accordion__header"><span class="cdx-accordion__header__title">{{ s.references.title }}</span></span></summary>
+	<div class="cdx-accordion__content"><ol class="ts-references">{% for ref in s.references.list %}<li>{{ entity.snaks(ref, "ts-snaks") }}</li>{% endfor %}</ol></div>
+</details>{% endif -%}
+</div>
+{%- endmacro -%}
+
+{#- One side of a statement's row. -#}
+{%- macro side(s, class) -%}
+{%- if s is not none %}<td class="ts-diff__cell ts-diff__cell--{{ class }}">{{ statement(s) }}</td>{% else %}<td class="ts-diff__cell ts-diff__cell--empty"></td>{% endif -%}
+{%- endmacro -%}
+
+{#- A property's statements. -#}
+{%- macro claims(g) -%}
+<section class="ts-diff__section"><h3 class="ts-diff__heading">{{ entity.link(g.property) }}</h3><table class="ts-diff__table ts-diff__table--statements"><thead><tr><th>{{ msg("ts-diff-change") }}</th><th>{{ msg("ts-diff-before") }}</th><th>{{ msg("ts-diff-after") }}</th></tr></thead><tbody>
+{%- for r in g.rows %}<tr class="ts-diff__row ts-diff__row--{{ r.class }}"><th scope="row" class="ts-diff__mark">{{ r.mark }}</th>{{ side(r.before, r.before_class) }}{{ side(r.after, r.after_class) }}</tr>{% endfor -%}
+</tbody></table></section>
+{%- endmacro -%}
+
+{#- A sync's summary of what changed, per property, language and site. -#}
+{%- macro summary(rows) -%}
+<section class="ts-diff__section"><h3 class="ts-diff__heading">{{ msg("ts-diff-sync-summary") }}</h3><table class="ts-diff__table"><thead><tr><th>{{ msg("ts-diff-key") }}</th><th>{{ msg("ts-diff-added") }}</th><th>{{ msg("ts-diff-removed") }}</th><th>{{ msg("ts-diff-changed") }}</th></tr></thead><tbody>
+{%- for r in rows %}<tr><th scope="row" class="ts-diff__key">{% if r.key.kind == "property" %}{{ entity.link(r.key.link) }}{% else %}{{ r.key.text }}{% endif %}</th><td dir="ltr">{{ r.added }}</td><td dir="ltr">{{ r.removed }}</td><td dir="ltr">{{ r.changed }}</td></tr>{% endfor -%}
+</tbody></table></section>
+{%- endmacro -%}
+
+{#- "About this edit". -#}
+{%- macro about_panel(a) -%}
+<aside class="ts-diff__about"><h3>{{ msg("ts-diff-about") }}</h3><dl>
+{%- for row in a.rows %}<div><dt>{{ row[0] }}</dt><dd>
+{%- if row[1].kind == "ltr" %}<span dir="ltr">{{ row[1].text }}</span>
+{%- elif row[1].kind == "mono" %}<span class="ts-mono" dir="ltr">{{ row[1].text }}</span>
+{%- else %}{{ row[1].text }}{% endif -%}
+</dd></div>{% endfor -%}
+</dl></aside>
+{%- endmacro -%}
+
+<div class="ts-diff">
+{%- if head %}<p class="ts-diff__head">{{ revision_line(head) }}</p>{% endif -%}
+{%- if nav %}<p class="ts-diff__nav"><a href="{{ nav.previous.href }}" rel="prev">{{ nav.previous.label }}</a> · <a href="{{ nav.compare.href }}">{{ nav.compare.label }}</a></p>{% endif -%}
+{%- if revisions %}<table class="ts-diff__revisions"><tr><th>{{ msg("ts-diff-before") }}</th><td>{{ revision_line(revisions.before) }}</td></tr><tr><th>{{ msg("ts-diff-after") }}</th><td>{{ revision_line(revisions.after) }}</td></tr></table>{% endif -%}
+{%- if switch %}{{ entity.switch(switch, "ts-diff__views") }}{% endif -%}
+<div class="ts-diff__body"><div class="ts-diff__main">
+{%- if main.kind == "changeset" %}<pre class="ts-diff__changeset" dir="ltr">{{ main.json }}</pre>
+{%- elif main.kind == "sync" %}<p class="ts-diff__sync">{{ main.line }}</p>{% if main.rows %}{{ summary(main.rows) }}{% else %}<p class="ts-empty">{{ main.none }}</p>{% endif %}
+{%- elif main.kind == "diff" %}{% if main.nothing %}<p class="ts-empty">{{ main.nothing }}</p>{% endif %}{% for t in main.tables %}{{ keyed_table(t) }}{% endfor %}{% for g in main.claims %}{{ claims(g) }}{% endfor %}
+{%- endif -%}
+</div>{% if about %}{{ about_panel(about) }}{% endif %}</div></div>

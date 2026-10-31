@@ -1,0 +1,607 @@
+[
+  {
+    "method": "GET",
+    "path_and_query": "/w/api.php?action=query&meta=siteinfo&siprop=general%7Ctriplespace%7Cproviders&format=json&formatversion=2",
+    "status": 200,
+    "headers": {
+      "cache-control": "public, max-age=60, s-maxage=60, stale-while-revalidate=300",
+      "content-length": "15805",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Sat, 31 Oct 2026 01:35:23 GMT",
+      "etag": "\"eb7f8a269bac27b2190775db07ee7933\"",
+      "vary": "Accept, Accept-Language"
+    },
+    "json": {
+      "batchcomplete": true,
+      "query": {
+        "general": {
+          "lang": "en",
+          "mainpage": "Project:Home",
+          "private": true,
+          "server": "https://librarybase.org",
+          "sitename": "librarybase"
+        },
+        "triplespace": {
+          "account": {
+            "approval": false,
+            "statement": "optional"
+          },
+          "api_version": 6,
+          "at_farm": true,
+          "challenge": {
+            "algorithm": "sha256-leading-zero-bits",
+            "bits": 10,
+            "triggers": [
+              "createaccount",
+              "tempaccount",
+              "badlogin"
+            ]
+          },
+          "login": [],
+          "skins": {
+            "default": "worksheet"
+          },
+          "tenant": "librarybase",
+          "theme": {
+            "choice": "any",
+            "palette": "parchment",
+            "palettes": [
+              {
+                "accessibility": false,
+                "border-radius-base": "2px",
+                "dark": {
+                  "box-shadow-color-progressive--focus": "#6485D1",
+                  "color-placeholder": "#797F85",
+                  "outline-color-progressive--focus": "#6485D1"
+                },
+                "dark-more": {
+                  "background-color-base": "#0B0E11",
+                  "background-color-destructive": "#8F2D21",
+                  "background-color-destructive--active": "#6B2119",
+                  "background-color-destructive--hover": "#7D271D",
+                  "background-color-progressive": "#264C98",
+                  "background-color-progressive--active": "#152A55",
+                  "background-color-progressive--focus": "#264C98",
+                  "background-color-progressive--hover": "#1D3A75",
+                  "border-color-base": "#80868C",
+                  "border-color-divider": "#72777D",
+                  "border-color-interactive": "#80868C",
+                  "border-color-progressive": "#9DB3EC",
+                  "border-color-progressive--focus": "#9DB3EC",
+                  "box-shadow-color-progressive--focus": "#9DB3EC",
+                  "color-base": "#F8F9FA",
+                  "color-destructive": "#FD9585",
+                  "color-emphasized": "#FFFFFF",
+                  "color-error": "#FD9585",
+                  "color-placeholder": "#A2A7AC",
+                  "color-progressive": "#9DB3EC",
+                  "color-progressive--active": "#CCD8F6",
+                  "color-progressive--focus": "#9DB3EC",
+                  "color-progressive--hover": "#B6C7F2",
+                  "color-subtle": "#B3B9C0",
+                  "color-success": "#33C9A2",
+                  "color-visited": "#B9AEDA",
+                  "color-visited--active": "#DAD4EB",
+                  "color-visited--hover": "#CBC2E3",
+                  "color-warning": "#D9AE52",
+                  "outline-color-progressive--focus": "#9DB3EC"
+                },
+                "label": "Encyclopedia",
+                "light": {
+                  "border-color-base": "#8C959F"
+                },
+                "light-more": {
+                  "background-color-destructive": "#8F2D21",
+                  "background-color-destructive--active": "#6B2119",
+                  "background-color-destructive--hover": "#7D271D",
+                  "background-color-progressive": "#264C98",
+                  "background-color-progressive--active": "#152A55",
+                  "background-color-progressive--focus": "#264C98",
+                  "background-color-progressive--hover": "#1D3A75",
+                  "border-color-base": "#6E7783",
+                  "border-color-divider": "#72777D",
+                  "border-color-interactive": "#5C6168",
+                  "border-color-progressive": "#264C98",
+                  "border-color-progressive--focus": "#264C98",
+                  "border-color-subtle": "#A2A9B1",
+                  "box-shadow-color-progressive--focus": "#264C98",
+                  "color-base": "#101418",
+                  "color-destructive": "#8F2D21",
+                  "color-error": "#8F2D21",
+                  "color-placeholder": "#505458",
+                  "color-progressive": "#264C98",
+                  "color-progressive--active": "#152A55",
+                  "color-progressive--focus": "#264C98",
+                  "color-progressive--hover": "#1D3A75",
+                  "color-subtle": "#45494D",
+                  "color-success": "#115947",
+                  "color-visited": "#574D9C",
+                  "color-visited--active": "#352F5E",
+                  "color-visited--hover": "#463E7D",
+                  "color-warning": "#5E4418",
+                  "outline-color-progressive--focus": "#264C98"
+                },
+                "name": "encyclopedia"
+              },
+              {
+                "accessibility": false,
+                "alternate": {
+                  "by": {
+                    "dark": {
+                      "background-color-destructive": "#B3263E",
+                      "background-color-destructive--active": "#B3263E",
+                      "background-color-destructive--hover": "#B3263E",
+                      "background-color-destructive-subtle": "#341419",
+                      "background-color-error-subtle": "#341419",
+                      "background-color-success-subtle": "#2E3414",
+                      "background-color-warning-subtle": "#2D241B",
+                      "border-color-destructive": "#DD6176",
+                      "border-color-error": "#DD6176",
+                      "border-color-success": "#83A81E",
+                      "border-color-warning": "#A48976",
+                      "color-destructive": "#DD6176",
+                      "color-error": "#DD6176",
+                      "color-success": "#83A81E",
+                      "color-visited": "#CE64AE",
+                      "color-visited--active": "#D271B5",
+                      "color-visited--hover": "#CF66AF",
+                      "color-warning": "#A48976"
+                    },
+                    "dark-more": {
+                      "background-color-destructive": "#A6233A",
+                      "background-color-destructive--active": "#941F34",
+                      "background-color-destructive--hover": "#9D2137",
+                      "background-color-destructive-subtle": "#290F14",
+                      "background-color-error-subtle": "#290F14",
+                      "background-color-success-subtle": "#24290F",
+                      "background-color-warning-subtle": "#231C15",
+                      "border-color-destructive": "#E78C9C",
+                      "border-color-error": "#E78C9C",
+                      "border-color-success": "#97C222",
+                      "border-color-warning": "#BAA697",
+                      "color-destructive": "#E78C9C",
+                      "color-error": "#E78C9C",
+                      "color-success": "#97C222",
+                      "color-visited": "#DB8EC4",
+                      "color-visited--active": "#DD95C8",
+                      "color-visited--hover": "#DB8EC4",
+                      "color-warning": "#BAA697"
+                    },
+                    "light": {
+                      "background-color-destructive": "#B3263E",
+                      "background-color-destructive--active": "#B3263E",
+                      "background-color-destructive--hover": "#B3263E",
+                      "background-color-destructive-subtle": "#FBE4E8",
+                      "background-color-error-subtle": "#FBE4E8",
+                      "background-color-success-subtle": "#EEF2DC",
+                      "background-color-warning-subtle": "#EFE9E3",
+                      "border-color-destructive": "#B3263E",
+                      "border-color-error": "#B3263E",
+                      "border-color-success": "#587114",
+                      "border-color-warning": "#5C4A3D",
+                      "color-destructive": "#B3263E",
+                      "color-error": "#B3263E",
+                      "color-success": "#587114",
+                      "color-visited": "#8A2C6E",
+                      "color-visited--active": "#8A2C6E",
+                      "color-visited--hover": "#8A2C6E",
+                      "color-warning": "#5C4A3D"
+                    },
+                    "light-more": {
+                      "background-color-destructive": "#A6233A",
+                      "background-color-destructive--active": "#941F34",
+                      "background-color-destructive--hover": "#9D2137",
+                      "background-color-destructive-subtle": "#FBE4E8",
+                      "background-color-error-subtle": "#FBE4E8",
+                      "background-color-success-subtle": "#EEF2DC",
+                      "background-color-warning-subtle": "#EFE9E3",
+                      "border-color-destructive": "#901E32",
+                      "border-color-error": "#901E32",
+                      "border-color-success": "#42550F",
+                      "border-color-warning": "#5A483B",
+                      "color-destructive": "#901E32",
+                      "color-error": "#901E32",
+                      "color-success": "#42550F",
+                      "color-visited": "#8A2C6E",
+                      "color-visited--active": "#862B6B",
+                      "color-visited--hover": "#8A2C6E",
+                      "color-warning": "#5A483B"
+                    }
+                  },
+                  "rg": {
+                    "dark": {
+                      "background-color-destructive": "#A84300",
+                      "background-color-destructive--active": "#A84300",
+                      "background-color-destructive--hover": "#A84300",
+                      "background-color-destructive-subtle": "#342214",
+                      "background-color-error-subtle": "#342214",
+                      "background-color-success-subtle": "#142E34",
+                      "background-color-warning-subtle": "#2D241B",
+                      "border-color-destructive": "#F26100",
+                      "border-color-error": "#F26100",
+                      "border-color-success": "#0BA0C4",
+                      "border-color-warning": "#C18045",
+                      "color-destructive": "#F26100",
+                      "color-error": "#F26100",
+                      "color-success": "#0BA0C4",
+                      "color-visited": "#A977BB",
+                      "color-visited--active": "#B082C0",
+                      "color-visited--hover": "#AA79BC",
+                      "color-warning": "#C18045"
+                    },
+                    "dark-more": {
+                      "background-color-destructive": "#953B00",
+                      "background-color-destructive--active": "#853500",
+                      "background-color-destructive--hover": "#8D3800",
+                      "background-color-destructive-subtle": "#291B0F",
+                      "background-color-error-subtle": "#291B0F",
+                      "background-color-success-subtle": "#0F2429",
+                      "background-color-warning-subtle": "#231D15",
+                      "border-color-destructive": "#FF8B3E",
+                      "border-color-error": "#FF8B3E",
+                      "border-color-success": "#0DBCE7",
+                      "border-color-warning": "#D1A075",
+                      "color-destructive": "#FF8B3E",
+                      "color-error": "#FF8B3E",
+                      "color-success": "#0DBCE7",
+                      "color-visited": "#BF99CC",
+                      "color-visited--active": "#C3A0CF",
+                      "color-visited--hover": "#BF99CC",
+                      "color-warning": "#D1A075"
+                    },
+                    "light": {
+                      "background-color-destructive": "#A84300",
+                      "background-color-destructive--active": "#A84300",
+                      "background-color-destructive--hover": "#A84300",
+                      "background-color-destructive-subtle": "#FBE7D6",
+                      "background-color-error-subtle": "#FBE7D6",
+                      "background-color-success-subtle": "#E6F3F6",
+                      "background-color-warning-subtle": "#F3ECE4",
+                      "border-color-destructive": "#A84300",
+                      "border-color-error": "#A84300",
+                      "border-color-success": "#087691",
+                      "border-color-warning": "#634021",
+                      "color-destructive": "#A84300",
+                      "color-error": "#A84300",
+                      "color-success": "#087691",
+                      "color-visited": "#6A3D7A",
+                      "color-visited--active": "#6A3D7A",
+                      "color-visited--hover": "#6A3D7A",
+                      "color-warning": "#634021"
+                    },
+                    "light-more": {
+                      "background-color-destructive": "#953B00",
+                      "background-color-destructive--active": "#853500",
+                      "background-color-destructive--hover": "#8D3800",
+                      "background-color-destructive-subtle": "#FBE7D6",
+                      "background-color-error-subtle": "#FBE7D6",
+                      "background-color-success-subtle": "#E6F3F6",
+                      "background-color-warning-subtle": "#F3ECE4",
+                      "border-color-destructive": "#823400",
+                      "border-color-error": "#823400",
+                      "border-color-success": "#06576B",
+                      "border-color-warning": "#634021",
+                      "color-destructive": "#823400",
+                      "color-error": "#823400",
+                      "color-success": "#06576B",
+                      "color-visited": "#6A3D7A",
+                      "color-visited--active": "#6A3D7A",
+                      "color-visited--hover": "#6A3D7A",
+                      "color-warning": "#634021"
+                    }
+                  }
+                },
+                "border-radius-base": "6px",
+                "dark": {
+                  "background-color-base": "#1E1813",
+                  "background-color-interactive": "#31281F",
+                  "background-color-interactive--active": "#473B2F",
+                  "background-color-interactive--hover": "#3B3127",
+                  "background-color-neutral": "#31281F",
+                  "background-color-neutral-subtle": "#271F19",
+                  "background-color-progressive": "#4C73C2",
+                  "background-color-progressive--active": "#4061A5",
+                  "background-color-progressive--focus": "#4C73C2",
+                  "background-color-progressive--hover": "#476BB5",
+                  "background-color-progressive-subtle": "#262C38",
+                  "background-color-progressive-subtle--active": "#384257",
+                  "background-color-progressive-subtle--hover": "#2E3646",
+                  "background-color-warning-subtle": "#3B2914",
+                  "border-color-base": "#8E7E6A",
+                  "border-color-divider": "#4A3E33",
+                  "border-color-emphasized": "#EDE4D6",
+                  "border-color-interactive": "#9C8B76",
+                  "border-color-interactive--active": "#EDE4D6",
+                  "border-color-interactive--hover": "#CABBA6",
+                  "border-color-muted": "#3B3127",
+                  "border-color-progressive": "#9DB6EA",
+                  "border-color-progressive--active": "#CDDAF6",
+                  "border-color-progressive--focus": "#9DB6EA",
+                  "border-color-progressive--hover": "#B8CBF1",
+                  "border-color-subtle": "#4A3E33",
+                  "box-shadow-color-progressive--focus": "#9DB6EA",
+                  "color-base": "#EDE4D6",
+                  "color-emphasized": "#FBF6EE",
+                  "color-inverted": "#1E1813",
+                  "color-neutral": "#D9CEBE",
+                  "color-placeholder": "#A89A85",
+                  "color-progressive": "#9DB6EA",
+                  "color-progressive--active": "#CDDAF6",
+                  "color-progressive--focus": "#9DB6EA",
+                  "color-progressive--hover": "#B8CBF1",
+                  "color-subtle": "#BBAD99",
+                  "color-visited": "#C5B3EC",
+                  "color-visited--active": "#E2D9F7",
+                  "color-visited--hover": "#D5C8F2",
+                  "color-warning": "#F2B66A",
+                  "outline-color-progressive--focus": "#9DB6EA"
+                },
+                "dark-more": {
+                  "background-color-base": "#17120E",
+                  "background-color-destructive": "#9F3225",
+                  "background-color-destructive--active": "#7D271D",
+                  "background-color-destructive--hover": "#8D2C21",
+                  "background-color-neutral-subtle": "#1F1913",
+                  "background-color-progressive": "#385694",
+                  "background-color-progressive--active": "#2D498A",
+                  "background-color-progressive--focus": "#385694",
+                  "background-color-progressive--hover": "#335090",
+                  "background-color-progressive-subtle": "#1E2430",
+                  "background-color-warning-subtle": "#2E200F",
+                  "border-color-base": "#B3A38D",
+                  "border-color-divider": "#6B5D4E",
+                  "border-color-interactive": "#C0B09A",
+                  "border-color-muted": "#4A3E33",
+                  "border-color-progressive": "#B8CBF1",
+                  "border-color-progressive--focus": "#B8CBF1",
+                  "border-color-subtle": "#6B5D4E",
+                  "box-shadow-color-progressive--focus": "#B8CBF1",
+                  "color-base": "#F7F1E8",
+                  "color-destructive": "#FD9282",
+                  "color-emphasized": "#FFFFFF",
+                  "color-error": "#FD9282",
+                  "color-inverted": "#17120E",
+                  "color-neutral": "#E8DFD2",
+                  "color-placeholder": "#C9BCA9",
+                  "color-progressive": "#B8CBF1",
+                  "color-progressive--active": "#E0E8FA",
+                  "color-progressive--focus": "#B8CBF1",
+                  "color-progressive--hover": "#CDDAF6",
+                  "color-subtle": "#D6CBBB",
+                  "color-success": "#30C59F",
+                  "color-visited": "#D5C8F2",
+                  "color-visited--active": "#EEE8FB",
+                  "color-visited--hover": "#E2D9F7",
+                  "color-warning": "#F8CC8E",
+                  "outline-color-progressive--focus": "#B8CBF1"
+                },
+                "label": "Parchment",
+                "light": {
+                  "background-color-base": "#FCFBF8",
+                  "background-color-interactive": "#EDEAE2",
+                  "background-color-interactive--active": "#D9D4C8",
+                  "background-color-interactive--hover": "#E4E0D6",
+                  "background-color-neutral": "#EDEAE2",
+                  "background-color-neutral-subtle": "#F4F2EC",
+                  "background-color-progressive": "#2B559E",
+                  "background-color-progressive--active": "#142C59",
+                  "background-color-progressive--focus": "#2B559E",
+                  "background-color-progressive--hover": "#1C3D78",
+                  "background-color-progressive-subtle": "#EEF2F8",
+                  "background-color-progressive-subtle--active": "#CCD8EC",
+                  "background-color-progressive-subtle--hover": "#E1E8F3",
+                  "background-color-warning-subtle": "#FBEFD9",
+                  "border-color-base": "#8C867A",
+                  "border-color-divider": "#D9D4C8",
+                  "border-color-emphasized": "#1D1C1A",
+                  "border-color-interactive": "#7A7468",
+                  "border-color-interactive--active": "#1D1C1A",
+                  "border-color-interactive--hover": "#3F3C36",
+                  "border-color-muted": "#E4E0D6",
+                  "border-color-progressive": "#2B559E",
+                  "border-color-progressive--active": "#142C59",
+                  "border-color-progressive--focus": "#2B559E",
+                  "border-color-progressive--hover": "#1C3D78",
+                  "border-color-subtle": "#D9D4C8",
+                  "box-shadow-color-progressive--focus": "#2B559E",
+                  "color-base": "#1D1C1A",
+                  "color-emphasized": "#0F0E0D",
+                  "color-neutral": "#3F3C36",
+                  "color-placeholder": "#6B665D",
+                  "color-progressive": "#2B559E",
+                  "color-progressive--active": "#142C59",
+                  "color-progressive--focus": "#2B559E",
+                  "color-progressive--hover": "#1C3D78",
+                  "color-subtle": "#5E5A52",
+                  "color-visited": "#5A4D91",
+                  "color-visited--active": "#2E2652",
+                  "color-visited--hover": "#463A78",
+                  "color-warning": "#7A3F05",
+                  "outline-color-progressive--focus": "#2B559E"
+                },
+                "light-more": {
+                  "background-color-base": "#FFFFFF",
+                  "background-color-destructive": "#9F3225",
+                  "background-color-destructive--active": "#7D271D",
+                  "background-color-destructive--hover": "#8D2C21",
+                  "background-color-neutral-subtle": "#F7F5F0",
+                  "background-color-progressive": "#1C3D78",
+                  "background-color-progressive--active": "#0E1F40",
+                  "background-color-progressive--focus": "#1C3D78",
+                  "background-color-progressive--hover": "#142C59",
+                  "border-color-base": "#5E5A52",
+                  "border-color-divider": "#8C867A",
+                  "border-color-interactive": "#4F4B44",
+                  "border-color-muted": "#B5AFA3",
+                  "border-color-progressive": "#1C3D78",
+                  "border-color-progressive--focus": "#1C3D78",
+                  "border-color-subtle": "#8C867A",
+                  "box-shadow-color-progressive--focus": "#1C3D78",
+                  "color-base": "#141311",
+                  "color-destructive": "#8D2C21",
+                  "color-emphasized": "#000000",
+                  "color-error": "#8D2C21",
+                  "color-neutral": "#2B2925",
+                  "color-placeholder": "#4D4942",
+                  "color-progressive": "#1C3D78",
+                  "color-progressive--active": "#0E1F40",
+                  "color-progressive--focus": "#1C3D78",
+                  "color-progressive--hover": "#142C59",
+                  "color-subtle": "#45413A",
+                  "color-success": "#115847",
+                  "color-visited": "#463A78",
+                  "color-visited--active": "#221C3D",
+                  "color-visited--hover": "#2E2652",
+                  "color-warning": "#5C2F03",
+                  "outline-color-progressive--focus": "#1C3D78"
+                },
+                "name": "parchment"
+              }
+            ],
+            "typeset": "default26",
+            "typesets": [
+              {
+                "accessibility": false,
+                "font": [],
+                "font-family-base": "sans-serif",
+                "font-family-heading-main": "'Linux Libertine', 'Georgia', 'Times', 'Source Serif Pro', serif",
+                "font-family-monospace": "monospace, monospace",
+                "label": "Basic",
+                "name": "basic"
+              },
+              {
+                "accessibility": false,
+                "fallback": "noto",
+                "font": [
+                  {
+                    "family": "Source Serif 4",
+                    "licence": "OFL-1.1",
+                    "weights": [
+                      400,
+                      500
+                    ]
+                  },
+                  {
+                    "family": "Source Sans 3",
+                    "licence": "OFL-1.1",
+                    "weights": [
+                      400,
+                      500,
+                      600
+                    ]
+                  },
+                  {
+                    "family": "Lilex",
+                    "licence": "OFL-1.1",
+                    "weights": [
+                      400,
+                      500
+                    ]
+                  }
+                ],
+                "font-family-base": "'Source Sans 3', system-ui, sans-serif",
+                "font-family-heading-main": "'Source Serif 4', Georgia, 'Times New Roman', serif",
+                "font-family-monospace": "'Lilex', Menlo, Consolas, monospace",
+                "label": "Source",
+                "name": "default26"
+              },
+              {
+                "accessibility": true,
+                "fallback": "noto",
+                "font": [
+                  {
+                    "family": "Atkinson Hyperlegible",
+                    "licence": "OFL-1.1",
+                    "weights": [
+                      400,
+                      700
+                    ]
+                  },
+                  {
+                    "family": "IBM Plex Mono",
+                    "licence": "OFL-1.1",
+                    "weights": [
+                      400,
+                      500
+                    ]
+                  }
+                ],
+                "font-family-base": "'Atkinson Hyperlegible', system-ui, sans-serif",
+                "font-family-heading-main": "'Atkinson Hyperlegible', system-ui, sans-serif",
+                "font-family-monospace": "'IBM Plex Mono', Menlo, Consolas, monospace",
+                "label": "Hyperlegible",
+                "name": "hyperlegible"
+              },
+              {
+                "accessibility": true,
+                "fallback": "noto",
+                "font": [
+                  {
+                    "family": "OpenDyslexic",
+                    "licence": "OFL-1.1",
+                    "weights": [
+                      400,
+                      700
+                    ]
+                  },
+                  {
+                    "family": "OpenDyslexic Mono",
+                    "licence": "OFL-1.1",
+                    "weights": [
+                      400
+                    ]
+                  }
+                ],
+                "font-family-base": "'OpenDyslexic', system-ui, sans-serif",
+                "font-family-heading-main": "'OpenDyslexic', system-ui, sans-serif",
+                "font-family-monospace": "'OpenDyslexic Mono', 'IBM Plex Mono', Menlo, Consolas, monospace",
+                "label": "OpenDyslexic",
+                "name": "opendyslexic"
+              }
+            ]
+          },
+          "visibility": "private"
+        }
+      }
+    }
+  },
+  {
+    "method": "GET",
+    "path_and_query": "/w/api.php?action=wbgetentities&format=json&formatversion=2&ids=Item:Q6",
+    "status": 200,
+    "headers": {
+      "cache-control": "public, max-age=0, s-maxage=60, stale-while-revalidate=300",
+      "cache-tag": "entity:Q6",
+      "content-length": "66",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Sat, 31 Oct 2026 01:35:23 GMT",
+      "etag": "\"e0f7f310d96f6780ee72907f74589bda\"",
+      "vary": "Accept, Accept-Language"
+    },
+    "json": {
+      "entities": {
+        "Item:Q6": {
+          "id": "Item:Q6",
+          "missing": ""
+        }
+      },
+      "success": 1
+    }
+  },
+  {
+    "method": "GET",
+    "path_and_query": "/w/rest.php/triplespace/v0/entity/Item:Q6/provenance",
+    "status": 404,
+    "headers": {
+      "cache-control": "private, no-cache",
+      "content-length": "52",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Sat, 31 Oct 2026 01:35:23 GMT",
+      "vary": "Accept, Accept-Language"
+    },
+    "json": {
+      "code": "entity-not-found",
+      "message": "no entity Q6"
+    }
+  }
+]

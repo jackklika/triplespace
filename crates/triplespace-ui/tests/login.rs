@@ -2,6 +2,8 @@
 //! the real one does: a token bound to the session cookie, a new session on login, the
 //! cookie cleared on logout.
 
+mod common;
+
 use std::collections::BTreeMap;
 
 use axum::body::Body;
@@ -178,7 +180,7 @@ impl Answer {
 }
 
 async fn send(api: FakeApi, req: Request<Body>) -> Answer {
-    let r = triplespace_ui::router(Client::new(api))
+    let r = common::site_router(Client::new(api))
         .oneshot(req)
         .await
         .unwrap();

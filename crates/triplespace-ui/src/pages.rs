@@ -33,7 +33,7 @@ use crate::i18n::{self, Messages};
 use crate::routes::{self, Target};
 use crate::skin::Skin;
 use crate::theme::Theme;
-use crate::{MIN_API_VERSION, Renderer, Site, assets, parity};
+use crate::{MIN_API_VERSION, Renderer, Site, assets};
 use crate::{document, entity, home, moderation, special};
 
 /// The connection address, when the server was started with `ConnectInfo`.
@@ -145,6 +145,54 @@ impl Context {
         self.rights.iter().any(|r| r == right)
     }
 
+    /// Draws a part of a page with the skin (19 §5.10): the template named, one of the
+    /// contract's, over the model it takes and the page's `msg`. A template that fails
+    /// is an empty part and a line in the log, not a failed page.
+    #[must_use]
+    pub fn draw(&self, template: &str, model: impl serde::Serialize) -> String {
+        let Some(skin) = &self.skin else {
+            eprintln!("triplespace-ui: no skin is loaded");
+            return String::new();
+        };
+        skin.render(template, &self.m, model).unwrap_or_else(|e| {
+            eprintln!(
+                "triplespace-ui: the skin `{}` failed on {template}: {e:#}",
+                skin.name()
+            );
+            String::new()
+        })
+    }
+
+    /// Draws a part of a page of a group not yet switched (19 §5.10), with the renderer
+    /// the deployment runs: the built-in builder, the skin's template, or both under
+    /// `compare`, which serves the built-in result and logs `what` when they differ as a
+    /// browser reads them. A group switches by replacing its calls with [`Self::draw`]
+    /// and deleting the builder.
+    #[must_use]
+    pub fn draw_or(
+        &self,
+        template: &str,
+        model: impl serde::Serialize,
+        what: &str,
+        builtin: impl FnOnce() -> String,
+    ) -> String {
+        match self.renderer {
+            Renderer::Builtin => builtin(),
+            Renderer::Skin => self.draw(template, model),
+            Renderer::Compare => {
+                let b = builtin();
+                let s = self.draw(template, model);
+                if let Some(d) = crate::parity::compare(&b, &s, crate::parity::Kind::Fragment) {
+                    eprintln!(
+                        "triplespace-ui: compare: {template} differs for {what}: {}",
+                        d.to_string().replace('\n', " ")
+                    );
+                }
+                b
+            }
+        }
+    }
+
     /// What the frame needs of the site.
     #[must_use]
     pub fn chrome(&self) -> Chrome<'_> {
@@ -193,9 +241,10 @@ pub async fn context(
     } else {
         (client.siteinfo(incoming).await, None, None)
     };
-    let si = si.map_err(|e| unavailable(incoming, &e, failure_key(&e)))?;
+    let si = si.map_err(|e| unavailable(site, incoming, &e, failure_key(&e)))?;
     if si.value.api_version < MIN_API_VERSION {
         return Err(unavailable(
+            site,
             incoming,
             &ClientError::Unexpected(format!(
                 "the API's api_version is {}; this site needs {MIN_API_VERSION}",
@@ -211,7 +260,7 @@ pub async fn context(
     let mut groups = Vec::new();
     let user = match ui {
         Some(ui) => {
-            let ui = ui.map_err(|e| unavailable(incoming, &e, failure_key(&e)))?;
+            let ui = ui.map_err(|e| unavailable(site, incoming, &e, failure_key(&e)))?;
             inputs.push(ui.cache);
             if !ui.value.anon {
                 // A page drawn for a signed-in viewer is theirs alone, whatever its
@@ -287,7 +336,7 @@ fn failure_key(error: &ClientError) -> &'static str {
 /// The page when the frame's own calls fail, with the shipped theme and the reason: `503`
 /// with `Retry-After` when the API is away or too old, `502` when it answered something
 /// the site cannot read, which waiting will not mend.
-fn unavailable(incoming: &Incoming, error: &ClientError, key: &str) -> Response {
+fn unavailable(site: &Site, incoming: &Incoming, error: &ClientError, key: &str) -> Response {
     let unreadable = key == "ts-api-unexpected";
     if unreadable {
         eprintln!("triplespace-ui: the API's answer could not be read: {error}");
@@ -311,9 +360,19 @@ fn unavailable(incoming: &Incoming, error: &ClientError, key: &str) -> Response 
         account_requests: None,
         notifications: None,
     };
-    let html = match frame::render(&m, &chrome, &Theme::shipped(), None, &page) {
+    let Some(skin) = site.skins().choose(None, None, None, None) else {
+        eprintln!("triplespace-ui: no skin is loaded");
+        return (StatusCode::INTERNAL_SERVER_ERROR, "Internal error\n").into_response();
+    };
+    let html = match frame::render(skin, &m, &chrome, &Theme::shipped(), None, &page) {
         Ok(h) => h,
-        Err(e) => return render_failed(&e),
+        Err(e) => {
+            eprintln!(
+                "triplespace-ui: the skin `{}` failed to render: {e:#}",
+                skin.name()
+            );
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Internal error\n").into_response();
+        }
     };
     let mut r = (
         StatusCode::SERVICE_UNAVAILABLE,
@@ -358,11 +417,6 @@ pub fn api_failed(cx: &Context, headers: &HeaderMap, error: &ClientError) -> Res
         h.insert(header::RETRY_AFTER, HeaderValue::from_static(RETRY_AFTER));
     }
     r
-}
-
-fn render_failed(e: &askama::Error) -> Response {
-    eprintln!("triplespace-ui: a template failed to render: {e}");
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal error\n").into_response()
 }
 
 /// A Codex message, as HTML.
@@ -448,10 +502,7 @@ fn revalidated(
     headers: &HeaderMap,
     status: StatusCode,
 ) -> (Option<String>, Option<Response>) {
-    let skin_build = match cx.renderer {
-        Renderer::Skin => cx.skin.as_ref().map(|s| s.build()),
-        Renderer::Builtin | Renderer::Compare => None,
-    };
+    let skin_build = cx.skin.as_ref().map(|s| s.build());
     let etag = composed_etag(&cx.m, status, &cx.inputs, skin_build.as_deref());
     if status == StatusCode::OK
         && let Some(e) = &etag
@@ -492,64 +543,32 @@ pub fn respond(
     r
 }
 
-/// Draws a page in the frame with the renderer the deployment runs (19 §5.10): the
-/// built-in rendering, the skin, or both under `compare`, which serves the built-in
-/// result and logs the route when they differ. `Err` is the internal error to answer
-/// with.
+/// Draws a page in the frame: the skin's `frame.html` (19 §5.10; group 1 switched on
+/// 2026-10-30). The deployment's [`Renderer`] applies to the page bodies of the groups
+/// not yet switched, which the built-in rendering still draws; `compare` has nothing to
+/// compare until a group has templates. `Err` is the internal error to answer with.
 fn draw(cx: &Context, page: &Page) -> Result<String, Box<Response>> {
-    let model = frame::model(
+    let failed =
+        || Box::new((StatusCode::INTERNAL_SERVER_ERROR, "Internal error\n").into_response());
+    let Some(skin) = &cx.skin else {
+        eprintln!("triplespace-ui: no skin is loaded");
+        return Err(failed());
+    };
+    frame::render(
+        skin,
         &cx.m,
         &cx.chrome(),
         &cx.theme,
         cx.user.as_deref(),
         page,
-        cx.skin.as_deref(),
-    );
-    let failed =
-        || Box::new((StatusCode::INTERNAL_SERVER_ERROR, "Internal error\n").into_response());
-    let builtin = || {
-        frame::render_builtin(&cx.m, &model).map_err(|e| {
-            eprintln!("triplespace-ui: a template failed to render: {e}");
-            failed()
-        })
-    };
-    let skin = || {
-        let Some(s) = &cx.skin else {
-            eprintln!("triplespace-ui: no skin is loaded");
-            return Err(failed());
-        };
-        frame::render_skin(s, &cx.m, &model).map_err(|e| {
-            eprintln!(
-                "triplespace-ui: the skin `{}` failed to render: {e:#}",
-                s.name()
-            );
-            failed()
-        })
-    };
-    match cx.renderer {
-        Renderer::Builtin => builtin(),
-        Renderer::Skin => skin(),
-        Renderer::Compare => {
-            let b = builtin()?;
-            match skin() {
-                Ok(s) => {
-                    if let Some(d) = parity::compare(&b, &s, parity::Kind::Document) {
-                        eprintln!(
-                            "triplespace-ui: compare: {} differs for {}: {}",
-                            cx.skin.as_ref().map_or("?", |s| s.name()),
-                            page.title,
-                            d.to_string().replace('\n', " ")
-                        );
-                    }
-                }
-                Err(_) => eprintln!(
-                    "triplespace-ui: compare: the skin failed for {}",
-                    page.title
-                ),
-            }
-            Ok(b)
-        }
-    }
+    )
+    .map_err(|e| {
+        eprintln!(
+            "triplespace-ui: the skin `{}` failed to render: {e:#}",
+            skin.name()
+        );
+        failed()
+    })
 }
 
 /// A region for `action=render` (0057 §8): its HTML alone, with the caching of the page

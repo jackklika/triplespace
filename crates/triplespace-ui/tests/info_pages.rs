@@ -2,6 +2,8 @@
 //! `ListGroupRights`, `ListDatatypes`, `MyLanguageFallbackChain`, `ProtectedTitles`,
 //! `AllMessages` and `ComparePages`, what each asks the API and what it shows.
 
+mod common;
+
 use std::sync::{Arc, Mutex};
 
 use axum::body::Body;
@@ -155,7 +157,7 @@ fn api() -> FakeApi {
 
 async fn get_from(fake: &FakeApi, uri: &str) -> (StatusCode, String) {
     let req = Request::get(uri).header(header::HOST, "librarybase.org");
-    let r = triplespace_ui::router(Client::new(fake.clone()))
+    let r = common::site_router(Client::new(fake.clone()))
         .oneshot(req.body(Body::empty()).unwrap())
         .await
         .unwrap();

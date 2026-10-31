@@ -23,7 +23,7 @@ async fn get_from(api: FixtureApi, uri: &str) -> (StatusCode, HeaderMap, String)
         .header(header::HOST, "librarybase.org")
         .body(Body::empty())
         .unwrap();
-    let r = triplespace_ui::router(Client::new(api))
+    let r = common::site_router(Client::new(api))
         .oneshot(req)
         .await
         .unwrap();
@@ -45,7 +45,7 @@ fn main_of(html: &str) -> String {
 async fn a_local_item_reads_without_javascript() {
     let (status, h, html) = get("/wiki/Item:Q6").await;
     assert_eq!(status, StatusCode::OK);
-    assert!(html.contains("<title>Six &#38; more (Q6) – librarybase</title>"));
+    assert!(html.contains("<title>Six &amp; more (Q6) – librarybase</title>"));
     assert!(
         h[header::CACHE_CONTROL]
             .to_str()
@@ -136,7 +136,7 @@ async fn regions_are_the_pages_own_parts() {
         .header("x-triplespace-ui-build", "an-older-build")
         .body(Body::empty())
         .unwrap();
-    let r = triplespace_ui::router(Client::new(FixtureApi::new()))
+    let r = common::site_router(Client::new(FixtureApi::new()))
         .oneshot(req)
         .await
         .unwrap();
@@ -301,7 +301,7 @@ async fn preview() {
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(
         listener,
-        triplespace_ui::router(Client::new(FixtureApi::wikidata())),
+        common::site_router(Client::new(FixtureApi::wikidata())),
     )
     .await
     .unwrap();
@@ -410,7 +410,7 @@ async fn get_signed_in(uri: &str) -> (StatusCode, HeaderMap, String) {
         .header(header::COOKIE, "triplespace_session=alice")
         .body(Body::empty())
         .unwrap();
-    let r = triplespace_ui::router(Client::new(FixtureApi::new()))
+    let r = common::site_router(Client::new(FixtureApi::new()))
         .oneshot(req)
         .await
         .unwrap();
@@ -477,7 +477,7 @@ async fn the_history_tab_lists_the_entitys_rows() {
     // A local item: one source, so no switch; the adoption and the bot's edit.
     let (status, h, html) = get("/wiki/Item:Q6?action=history").await;
     assert_eq!(status, StatusCode::OK);
-    assert!(html.contains("<title>Six &#38; more (Q6) – librarybase</title>"));
+    assert!(html.contains("<title>Six &amp; more (Q6) – librarybase</title>"));
     assert!(h["cache-tag"].to_str().unwrap().contains("entity:Q6"));
     let main = main_of(&html);
     assert!(main.contains("aria-current=\"page\">History</a>"), "{main}");

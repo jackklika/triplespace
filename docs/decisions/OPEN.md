@@ -20,6 +20,8 @@ Log entries whose Source ends in *unconfirmed*: decisions made in code and logge
 | [0086 A9](0086-theming.md#a9-theming-loose-ends-from-building-it) | 2026-10-30 | Theming: loose ends from building it |
 | [0087 A6](0087-account-registration-and-challenges.md#a6-registration-loose-ends-from-building-the-challenge) | 2026-10-30 | Registration: loose ends from building the challenge |
 | [0097 A3](0097-versioning-and-skins.md#a3-fragments-are-compared-as-normalized-dom) | 2026-10-30 | Fragments are compared as normalized DOM |
+| [0097 A4](0097-versioning-and-skins.md#a4-drawings-are-svg-the-binary-makes) | 2026-10-30 | Drawings are SVG the binary makes |
+| [0097 A6](0097-versioning-and-skins.md#a6-a-part-of-a-later-group-is-carried-as-html-until-that-group-switches) | 2026-10-30 | A part of a later group is carried as HTML until that group switches |
 
 ## Open questions
 

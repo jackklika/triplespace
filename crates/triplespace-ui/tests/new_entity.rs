@@ -2,6 +2,8 @@
 //! keeps a CSRF token per session, knows three properties, and records each
 //! `wbeditentity` it is sent.
 
+mod common;
+
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
@@ -161,7 +163,7 @@ struct Answer {
 }
 
 async fn send(api: &FakeApi, req: Request<Body>) -> Answer {
-    let r = triplespace_ui::router(Client::new(api.clone()))
+    let r = common::site_router(Client::new(api.clone()))
         .oneshot(req)
         .await
         .unwrap();

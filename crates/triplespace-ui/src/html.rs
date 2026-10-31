@@ -5,7 +5,13 @@ use std::fmt::Write as _;
 /// Escapes text for an element's content or a quoted attribute.
 #[must_use]
 pub fn esc(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
+    if !text
+        .bytes()
+        .any(|b| matches!(b, b'&' | b'<' | b'>' | b'"' | b'\''))
+    {
+        return text.to_string();
+    }
+    let mut out = String::with_capacity(text.len() + 8);
     for c in text.chars() {
         match c {
             '&' => out.push_str("&amp;"),

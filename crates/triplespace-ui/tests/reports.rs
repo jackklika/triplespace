@@ -2,6 +2,8 @@
 //! siblings ask `list=querypage`, how their rows read, how they page, and where they are
 //! offered.
 
+mod common;
+
 use std::sync::{Arc, Mutex};
 
 use axum::body::Body;
@@ -147,7 +149,7 @@ fn api(capabilities: &[&'static str]) -> FakeApi {
 
 async fn get_from(fake: &FakeApi, uri: &str) -> (StatusCode, String) {
     let req = Request::get(uri).header(header::HOST, "librarybase.org");
-    let r = triplespace_ui::router(Client::new(fake.clone()))
+    let r = common::site_router(Client::new(fake.clone()))
         .oneshot(req.body(Body::empty()).unwrap())
         .await
         .unwrap();

@@ -1,6 +1,8 @@
 //! `Special:BlankPage` and MediaWiki's redirecting special pages (21 §6.1) against a fake
 //! API: where each sends a reader, a signed-in viewer and a bad request.
 
+mod common;
+
 use axum::body::Body;
 use axum::http::{HeaderMap, Request, StatusCode, header};
 use http_body_util::BodyExt as _;
@@ -100,7 +102,7 @@ async fn get_with(fake: &FakeApi, uri: &str, signed_in: bool) -> (StatusCode, St
     if signed_in {
         req = req.header(header::COOKIE, "triplespace_session=alice");
     }
-    let r = triplespace_ui::router(Client::new(fake.clone()))
+    let r = common::site_router(Client::new(fake.clone()))
         .oneshot(req.body(Body::empty()).unwrap())
         .await
         .unwrap();

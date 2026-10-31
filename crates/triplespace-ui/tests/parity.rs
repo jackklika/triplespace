@@ -4,8 +4,10 @@
 //! measured.
 //!
 //! The built-in renderer against itself was the baseline (2026-10-30, 56 of 56 equal):
-//! a page rendered twice is equal, so every difference reported is a real one. Now the
-//! skin renderer (`Renderer::Skin`, Worksheet) is compared against the built-in one.
+//! a page rendered twice is equal, so every difference reported is a real one. The skin
+//! renderer (`Renderer::Skin`, Worksheet) is compared against the built-in one; since
+//! group 1 switched the frame is the skin's under both, and the comparison is of the
+//! page bodies as each group gets its templates.
 //!
 //! `cargo xtask skin-parity` runs this with a report (`SKIN_PARITY_REPORT`, a TSV path)
 //! and timing rounds (`SKIN_PARITY_ROUNDS`, default 1; the renderers alternate within a
@@ -68,9 +70,19 @@ const MIGRATED: &[u8] = &[];
 
 use triplespace_ui::{Renderer, Site};
 
+/// The corpus: `cases.json`, written by hand, and `cases.recorded.json`, which
+/// `tools/skin_corpus.sh` writes from a seeded instance.
 fn corpus() -> Corpus {
-    let path = format!("{}/tests/corpus/cases.json", env!("CARGO_MANIFEST_DIR"));
-    serde_json::from_str(&std::fs::read_to_string(&path).expect("cases.json")).expect("cases parse")
+    let mut cases = Vec::new();
+    for file in ["cases.json", "cases.recorded.json"] {
+        let path = format!("{}/tests/corpus/{file}", env!("CARGO_MANIFEST_DIR"));
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let c: Corpus = serde_json::from_str(&text).unwrap_or_else(|e| panic!("{file}: {e}"));
+        cases.extend(c.cases);
+    }
+    Corpus { cases }
 }
 
 /// The API a set's cases are rendered against.
@@ -299,12 +311,10 @@ async fn every_case_is_answered() {
     }
 }
 
-/// The skin renderer draws the page through the skin: Plain links no site stylesheet,
-/// Worksheet links it, and the built-in result is Worksheet's page byte for byte but
-/// for entity spelling (0097 A3: `askama` writes `&#38;` where `html::esc` writes
-/// `&amp;`).
+/// The frame is the skin's since group 1 switched: Plain links no site stylesheet,
+/// Worksheet links it, and the theme's stylesheets are linked by both.
 #[tokio::test(flavor = "multi_thread")]
-async fn the_skin_renderer_draws_through_the_skin() {
+async fn the_frame_is_the_skins() {
     let client = client("fixture");
     let case = |path: &str| Case {
         name: "x".into(),
@@ -315,35 +325,183 @@ async fn the_skin_renderer_draws_through_the_skin() {
         group: 1,
         status: 200,
     };
-    let worksheet = render(&client, &case("/wiki/Item:Q6"), Renderer::Skin).await;
+    let worksheet = render(&client, &case("/wiki/Item:Q6"), Renderer::Builtin).await;
     let plain = render(
         &client,
         &case("/wiki/Item:Q6?useskin=plain"),
-        Renderer::Skin,
+        Renderer::Builtin,
     )
     .await;
-    let builtin = render(&client, &case("/wiki/Item:Q6"), Renderer::Builtin).await;
     assert!(worksheet.body.starts_with("<!DOCTYPE html>\n<html "));
     assert!(plain.body.starts_with("<!DOCTYPE html>\n<html "));
-    // The fixture build has no `ui/dist`, so neither links a site stylesheet; the
-    // theme's are linked by both.
     assert!(worksheet.body.contains("id=\"ts-palette\""));
     assert!(plain.body.contains("id=\"ts-palette\""));
-    assert_eq!(
-        compare(&worksheet.body, &builtin.body, Kind::Document),
-        None
+    // Plain links no site stylesheet; Worksheet links it where the build has one
+    // (`ui/dist`), and is Plain's page otherwise, by construction (19 §5.10).
+    assert!(!plain.body.contains("/ui/assets/site"));
+    let site_css = regex_free_stylesheet_links(&worksheet.body);
+    let without: String = site_css
+        .iter()
+        .fold(worksheet.body.clone(), |b, l| b.replace(l, ""));
+    assert_eq!(compare(&without, &plain.body, Kind::Document), None);
+}
+
+/// The `<link rel="stylesheet" href="/ui/assets/…">` lines of a page, each with its
+/// leading newline.
+fn regex_free_stylesheet_links(html: &str) -> Vec<String> {
+    html.split('\n')
+        .filter(|l| l.starts_with("<link rel=\"stylesheet\" href=\"/ui/assets/"))
+        .map(|l| format!("\n{l}"))
+        .collect()
+}
+
+/// The entity parts go through the skin's templates, not the built-in builders: checked
+/// by rendering with a skin whose `entity/statements.html` draws a marker instead.
+#[tokio::test(flavor = "multi_thread")]
+async fn entity_parts_are_drawn_by_the_skin() {
+    let dir = std::env::temp_dir().join(format!("ts-skin-{}", std::process::id()));
+    let broken = dir.join("brokenplain");
+    std::fs::create_dir_all(broken.join("templates/entity")).unwrap();
+    std::fs::write(
+        broken.join("skin.toml"),
+        "name = \"brokenplain\"\nversion = \"0.1.0\"\n[requires]\ntemplate_contract = \"0.1\"\ncodex_tokens = 2\n",
+    )
+    .unwrap();
+    // Plain's templates, with the Statements tab drawing a marker instead.
+    for f in ["frame.html", "codex.html", "watch.html", "entity.html"] {
+        std::fs::copy(
+            format!(
+                "{}/../../skins/plain/templates/{f}",
+                env!("CARGO_MANIFEST_DIR")
+            ),
+            broken.join("templates").join(f),
+        )
+        .unwrap();
+    }
+    for f in [
+        "group.html",
+        "identifiers.html",
+        "terms.html",
+        "sitelinks.html",
+        "labels.html",
+        "identity.html",
+    ] {
+        std::fs::copy(
+            format!(
+                "{}/../../skins/plain/templates/entity/{f}",
+                env!("CARGO_MANIFEST_DIR")
+            ),
+            broken.join("templates/entity").join(f),
+        )
+        .unwrap();
+    }
+    std::fs::write(
+        broken.join("templates/entity/statements.html"),
+        "<!--MARKER-->",
+    )
+    .unwrap();
+    let client = client("fixture");
+    let site = Site::new(client)
+        .with_skins_dir(Some(&dir))
+        .with_renderer(Renderer::Skin);
+    let req = Request::get("/wiki/Item:Q6?useskin=brokenplain")
+        .header(header::HOST, "librarybase.org")
+        .body(Body::empty())
+        .unwrap();
+    let r = triplespace_ui::router_for(site).oneshot(req).await.unwrap();
+    let body = r.into_body().collect().await.unwrap().to_bytes();
+    let html = String::from_utf8_lossy(&body);
+    assert!(
+        html.contains("<!--MARKER-->"),
+        "the tab is the skin's: {html}"
     );
-    let spelled = builtin
-        .body
-        .replace("&#38;", "&amp;")
-        .replace("&#60;", "&lt;")
-        .replace("&#62;", "&gt;")
-        .replace("&#34;", "&quot;");
-    assert_eq!(
-        worksheet.body, spelled,
-        "Worksheet is the built-in frame, byte for byte"
-    );
-    // `compare` serves the built-in result.
-    let compared = render(&client, &case("/wiki/Item:Q6"), Renderer::Compare).await;
-    assert_eq!(compared.body, builtin.body);
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+/// Where the skin's time goes on the largest page: the model, its conversion to a
+/// template value, and the render, timed apart. Run with `--nocapture --ignored`.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "a profile, run by hand with --ignored --nocapture"]
+async fn profile_entity_rendering() {
+    use scatter_wikibase_model::entity::Entity;
+    use triplespace_ui::entity::{Endnotes, Lookup, Render, site_roles};
+    use triplespace_ui::skin::Skins;
+    let skins = Skins::load(None);
+    let plain = skins.get("plain").unwrap();
+    let api = FixtureApi::wikidata();
+    let client = Client::new(api.clone());
+    let case = Case {
+        name: "x".into(),
+        set: "wikidata".into(),
+        path: "/wiki/Item:WDQ65".into(),
+        viewer: anonymous(),
+        headers: BTreeMap::new(),
+        group: 3,
+        status: 200,
+    };
+    for renderer in [Renderer::Builtin, Renderer::Skin] {
+        let mut us = Vec::new();
+        for _ in 0..30 {
+            let t = Instant::now();
+            render(&client, &case, renderer).await;
+            us.push(t.elapsed().as_micros());
+        }
+        eprintln!("{renderer:?}: whole page median {} us", stats(us).0);
+    }
+    let entity = Entity::from_value(api.entities["WDQ65"].clone())
+        .unwrap()
+        .entity;
+    let m = triplespace_ui::i18n::Messages::for_language("en");
+    let site = triplespace_client::SiteInfo {
+        providers: vec![triplespace_client::ProviderInfo {
+            code: "WD".into(),
+            slug: "wikidata".into(),
+            name: "Wikidata".into(),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let lookup = Lookup::from_entities(&api.entities, &m.term_chain());
+    let roles = site_roles(&site);
+    let r = Render {
+        m: &m,
+        site: &site,
+        lookup: &lookup,
+        entity: &entity,
+        provenance: None,
+        roles: &roles,
+        editable: false,
+        notes: Endnotes::default(),
+    };
+    triplespace_ui::entity::profile(&r, plain, 30);
+}
+
+/// `Context::draw_or`, the mechanism a group not yet switched renders through: the
+/// built-in builder, the skin, or both with the built-in result served.
+#[tokio::test(flavor = "multi_thread")]
+async fn draw_or_follows_the_renderer() {
+    use triplespace_ui::pages;
+    for renderer in [Renderer::Builtin, Renderer::Skin, Renderer::Compare] {
+        let site = Site::new(client("fixture")).with_renderer(renderer);
+        let headers = HeaderMap::new();
+        let incoming = pages::incoming(&headers, None);
+        let Ok(cx) = pages::context(&site, &incoming, &BTreeMap::new()).await else {
+            panic!("a context");
+        };
+        let drawn = cx.draw_or("x", serde_json::json!({}), "the test", || {
+            "<p>builtin</p>".to_string()
+        });
+        // An unknown template is an empty part through the skin, and the built-in result
+        // under `compare`; a known one draws.
+        match renderer {
+            Renderer::Builtin | Renderer::Compare => assert_eq!(drawn, "<p>builtin</p>"),
+            Renderer::Skin => assert_eq!(drawn, ""),
+        }
+        let drawn = cx.draw(
+            "entity/terms.html",
+            serde_json::json!({"terms": {
+            "description": null, "no_description": "none", "aliases": null, "edit": null}}),
+        );
+        assert!(drawn.contains("ts-terms__description--none"), "{drawn}");
+    }
 }

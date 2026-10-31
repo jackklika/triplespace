@@ -12,6 +12,10 @@
 //! styled from tokens in the frame (`ts-tabs`), since Codex's Tabs are in-page panels.
 //! The chips of 0010 §2 are the site's own (`ts-chip`), built from Codex tokens; a
 //! provider's colours come from the theme stylesheet ([`crate::theme`]).
+//!
+//! Each builder's `model()` is the same component as the skin's macro draws it
+//! (`skins/plain/templates/codex.html`; 19 §5.2): the fields with every class computed.
+//! Until parity both exist, and `tests/codex_macros.rs` holds each macro to its builder.
 
 use askama::Template;
 
@@ -53,7 +57,28 @@ pub struct Button<'a> {
     pub weight: Weight,
 }
 
+/// A button as the skin's macro draws it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ButtonModel {
+    /// The label.
+    pub label: String,
+    /// `submit` or `button`.
+    pub kind: String,
+    /// The `class` attribute.
+    pub classes: String,
+}
+
 impl<'a> Button<'a> {
+    /// The component as the skin's macro draws it.
+    #[must_use]
+    pub fn model(&self) -> ButtonModel {
+        ButtonModel {
+            label: self.label.to_string(),
+            kind: self.kind.to_string(),
+            classes: self.classes(),
+        }
+    }
+
     /// A neutral submit button.
     #[must_use]
     pub fn submit(label: &'a str) -> Self {
@@ -80,6 +105,51 @@ impl<'a> Button<'a> {
             Weight::Quiet => c.push_str(" cdx-button--weight-quiet"),
         }
         c
+    }
+}
+
+/// A search input as the skin's macro draws it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct SearchModel {
+    /// The field's name.
+    pub name: String,
+    /// What is already in it.
+    pub value: String,
+    /// The placeholder.
+    pub placeholder: String,
+    /// The field's accessible name.
+    pub label: String,
+    /// The button's label.
+    pub button: String,
+}
+
+impl SearchInput<'_> {
+    /// The component as the skin's macro draws it.
+    #[must_use]
+    pub fn model(&self) -> SearchModel {
+        SearchModel {
+            name: self.name.to_string(),
+            value: self.value.to_string(),
+            placeholder: self.placeholder.to_string(),
+            label: self.label.to_string(),
+            button: self.button.to_string(),
+        }
+    }
+}
+
+impl SearchModel {
+    /// The built-in rendering of the model.
+    #[must_use]
+    pub fn render_builtin(&self) -> String {
+        SearchInput {
+            name: &self.name,
+            value: &self.value,
+            placeholder: &self.placeholder,
+            label: &self.label,
+            button: &self.button,
+        }
+        .render()
+        .unwrap_or_default()
     }
 }
 
@@ -125,7 +195,28 @@ pub struct Message<'a> {
     pub text: &'a str,
 }
 
+/// A message as the skin's macro draws it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct MessageModel {
+    /// The `class` attribute.
+    pub classes: String,
+    /// The live-region attribute, HTML.
+    pub live: String,
+    /// The text.
+    pub text: String,
+}
+
 impl<'a> Message<'a> {
+    /// The component as the skin's macro draws it.
+    #[must_use]
+    pub fn model(&self) -> MessageModel {
+        MessageModel {
+            classes: self.classes(),
+            live: self.live().to_string(),
+            text: self.text.to_string(),
+        }
+    }
+
     /// A block message.
     #[must_use]
     pub fn block(kind: MessageKind, text: &'a str) -> Self {
@@ -198,7 +289,28 @@ pub struct Chip<'a> {
     pub title: Option<&'a str>,
 }
 
+/// A chip as the skin's macro draws it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ChipModel {
+    /// The `class` attribute.
+    pub classes: String,
+    /// The text.
+    pub text: String,
+    /// The tooltip.
+    pub title: Option<String>,
+}
+
 impl<'a> Chip<'a> {
+    /// The component as the skin's macro draws it.
+    #[must_use]
+    pub fn model(&self) -> ChipModel {
+        ChipModel {
+            classes: self.classes(),
+            text: self.text.to_string(),
+            title: self.title.map(str::to_string),
+        }
+    }
+
     /// A chip of a kind.
     #[must_use]
     pub fn new(kind: ChipKind, text: &'a str) -> Self {
@@ -308,6 +420,190 @@ pub struct Table {
     pub rows: Vec<Vec<Cell>>,
     /// What an empty table says.
     pub empty: String,
+}
+
+/// A table as the skin's macro draws it: each column and cell with its alignment class.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct TableModel {
+    /// The header caption, above the table.
+    pub header: Option<String>,
+    /// The caption.
+    pub caption: String,
+    /// The columns.
+    pub columns: Vec<ColumnModel>,
+    /// The rows.
+    pub rows: Vec<Vec<CellModel>>,
+    /// What an empty table says.
+    pub empty: String,
+}
+
+/// A column of [`TableModel`].
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ColumnModel {
+    /// The heading.
+    pub label: String,
+    /// The alignment class.
+    pub align_class: Option<String>,
+}
+
+/// A cell of [`TableModel`].
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct CellModel {
+    /// The cell, HTML.
+    pub html: String,
+    /// The alignment class.
+    pub align_class: Option<String>,
+    /// Whether it is a row heading.
+    pub header: bool,
+    /// Its language, where it differs from the page's.
+    pub lang: Option<String>,
+}
+
+impl Table {
+    /// The component as the skin's macro draws it.
+    #[must_use]
+    pub fn model(&self) -> TableModel {
+        TableModel {
+            header: self.header.clone(),
+            caption: self.caption.clone(),
+            columns: self
+                .columns
+                .iter()
+                .map(|c| ColumnModel {
+                    label: c.label.clone(),
+                    align_class: c.align.class().map(str::to_string),
+                })
+                .collect(),
+            rows: self
+                .rows
+                .iter()
+                .map(|r| {
+                    r.iter()
+                        .map(|c| CellModel {
+                            html: c.html.clone(),
+                            align_class: c.align.class().map(str::to_string),
+                            header: c.header,
+                            lang: c.lang.clone(),
+                        })
+                        .collect()
+                })
+                .collect(),
+            empty: self.empty.clone(),
+        }
+    }
+}
+
+/// An accordion as the skin's macro draws it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct AccordionModel {
+    /// The title.
+    pub title: String,
+    /// The description.
+    pub description: Option<String>,
+    /// The content, HTML.
+    pub content_html: String,
+    /// Whether it starts open.
+    pub open: bool,
+}
+
+impl Accordion<'_> {
+    /// The component as the skin's macro draws it.
+    #[must_use]
+    pub fn model(&self) -> AccordionModel {
+        AccordionModel {
+            title: self.title.to_string(),
+            description: self.description.map(str::to_string),
+            content_html: self.content.to_string(),
+            open: self.open,
+        }
+    }
+}
+
+/// A card as the skin's macro draws it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct CardModel {
+    /// The title.
+    pub title: String,
+    /// The description.
+    pub description: Option<String>,
+    /// The supporting text.
+    pub supporting: Option<String>,
+    /// Where it links.
+    pub href: Option<String>,
+}
+
+impl Card<'_> {
+    /// The component as the skin's macro draws it.
+    #[must_use]
+    pub fn model(&self) -> CardModel {
+        CardModel {
+            title: self.title.to_string(),
+            description: self.description.map(str::to_string),
+            supporting: self.supporting.map(str::to_string),
+            href: self.href.map(str::to_string),
+        }
+    }
+}
+
+/// A field as the skin's macro draws it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct FieldModel {
+    /// The input's `id`.
+    pub id: String,
+    /// The input's name.
+    pub name: String,
+    /// The input's type.
+    pub kind: String,
+    /// The value.
+    pub value: String,
+    /// The label.
+    pub label: String,
+    /// The description.
+    pub description: Option<String>,
+    /// The help text.
+    pub help: Option<String>,
+    /// Whether it is required.
+    pub required: bool,
+    /// The `autocomplete` hint.
+    pub autocomplete: Option<String>,
+}
+
+impl Field<'_> {
+    /// The component as the skin's macro draws it.
+    #[must_use]
+    pub fn model(&self) -> FieldModel {
+        FieldModel {
+            id: self.id.to_string(),
+            name: self.name.to_string(),
+            kind: self.kind.to_string(),
+            value: self.value.to_string(),
+            label: self.label.to_string(),
+            description: self.description.map(str::to_string),
+            help: self.help.map(str::to_string),
+            required: self.required,
+            autocomplete: self.autocomplete.map(str::to_string),
+        }
+    }
+}
+
+/// A progress bar as the skin's macro draws it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ProgressModel {
+    /// The accessible name.
+    pub label: String,
+    /// Whether it is inline.
+    pub inline: bool,
+}
+
+impl ProgressBar<'_> {
+    /// The component as the skin's macro draws it.
+    #[must_use]
+    pub fn model(&self) -> ProgressModel {
+        ProgressModel {
+            label: self.label.to_string(),
+            inline: self.inline,
+        }
+    }
 }
 
 /// A Codex accordion: a `<details>` that opens without JavaScript.

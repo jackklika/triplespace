@@ -9,7 +9,8 @@
     "triplespace-server, recorded as ui/e2e/run.sh brings them up, anonymous.",
     "`group` is the migration group of the plan (1 frame … 12 the rest).",
     "`viewer` is `anonymous` or `user` (a session cookie); `headers` are sent as given;",
-    "`status` is what the site answers, 200 unless given."
+    "`status` is what the site answers, 200 unless given. The recorded sets lb, lb-bob and",
+    "lb-alice and their cases in cases.recorded.json come from tools/skin_corpus.sh."
   ],
   "cases": [
     {"name": "item", "set": "fixture", "path": "/wiki/Item:Q6", "group": 3},

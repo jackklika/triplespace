@@ -1,0 +1,5 @@
+{#- An old revision of an entity (19 §3.8): the banner saying so, links to the current
+    page and the history, and the statements tab as it then was. -#}
+{%- import "codex.html" as codex -%}
+{{ codex.message(banner) }}<p class="ts-oldid__links"><a href="{{ current.href }}">{{ current.label }}</a> · <a href="{{ history.href }}">{{ history.label }}</a></p>
+{%- include "entity/statements.html" -%}

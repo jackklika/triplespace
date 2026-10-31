@@ -5,6 +5,8 @@
 //! Update the snapshots with `INSTA_UPDATE=always cargo test -p triplespace-ui --test changes`
 //! and review the diff.
 
+mod common;
+
 use std::sync::{Arc, Mutex};
 
 use axum::body::Body;
@@ -118,7 +120,7 @@ async fn get(fake: &FakeApi, uri: &str) -> (StatusCode, HeaderMap, String) {
         .header(header::HOST, "librarybase.org")
         .body(Body::empty())
         .unwrap();
-    let r = triplespace_ui::router(Client::new(fake.clone()))
+    let r = common::site_router(Client::new(fake.clone()))
         .oneshot(req)
         .await
         .unwrap();

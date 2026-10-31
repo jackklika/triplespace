@@ -8,11 +8,10 @@
 //! than their last look; and while a `talk` notification is unread, the **orange bar**
 //! above the page's title says that they have a new message, until they read it.
 //!
-//! The frame is drawn by the built-in `askama` template or by the skin's `frame.html`
-//! over the same view model, [`Model`] (19 §5.10); which one, the deployment's
-//! [`crate::Renderer`] says.
+//! The frame is drawn by the skin's `frame.html` over the view model [`Model`]
+//! (19 §5.10): group 1 of the skin migration switched on 2026-10-30, and the built-in
+//! `askama` frame was removed.
 
-use askama::Template;
 use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
 
 use crate::assets;
@@ -165,8 +164,9 @@ pub struct Model {
     pub actions: Vec<(String, String)>,
     /// The body, HTML.
     pub body: String,
-    /// The search box, HTML, where the site offers search.
-    pub search: Option<String>,
+    /// The search box, where the site offers search: the skin draws it with its
+    /// `codex.search` macro.
+    pub search: Option<crate::codex::SearchModel>,
     /// The signed-in viewer's account menu.
     pub account: Option<Account>,
     /// The main page's URL.
@@ -203,58 +203,59 @@ pub struct Model {
     pub bell: Option<Bell>,
     /// The orange bar, HTML.
     pub orange_bar: Option<String>,
-    /// The watch control, HTML; empty for none.
-    pub watch: String,
+    /// The watch control, for a signed-in viewer where the site offers watching.
+    pub watch: Option<WatchModel>,
 }
 
-/// The frame, as the built-in rendering draws it over the model.
-#[derive(Debug, Template)]
-#[template(path = "frame.html")]
-struct Frame<'a> {
-    m: &'a Messages,
-    sitename: &'a str,
-    title: &'a str,
-    title_lang: Option<&'a str>,
-    doc_title: &'a str,
-    identity: Option<&'a str>,
-    subtitle: Option<&'a str>,
-    tabs: &'a [Tab],
-    actions: &'a [(String, String)],
-    body: &'a str,
-    search: Option<&'a str>,
-    account: Option<&'a Account>,
-    mainpage_href: &'a str,
-    login: bool,
-    nav: &'a [(String, String)],
-    new_menu: &'a [(String, String)],
-    returnto: &'a str,
-    css: Option<&'a str>,
-    js: Option<&'a str>,
-    head_js: Option<&'a str>,
-    palette_href: Option<&'a str>,
-    typeset_href: Option<&'a str>,
-    theme_data: &'a str,
-    html_class: &'a str,
-    html_attrs: &'a str,
-    appearance: &'a str,
-    appearance_data: &'a str,
-    bell: Option<&'a Bell>,
-    orange_bar: Option<&'a str>,
-    watch: &'a str,
+/// The watch control as the skin draws it (`watch.html`): every label and URL computed.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct WatchModel {
+    /// Whether the viewer watches the page.
+    pub watched: bool,
+    /// The button's label: **Watch** or **Watching**.
+    pub label: String,
+    /// The star's path: outlined, or filled for a watched page.
+    pub icon_path: String,
+    /// Until when the watch lasts, as a sentence, for a watched page that lapses.
+    pub until: Option<String>,
+    /// Where the watch form posts.
+    pub watch_action: String,
+    /// Where the unwatch form posts.
+    pub unwatch_action: String,
+    /// The `watch` token.
+    pub token: String,
+    /// The legend over the spans.
+    pub legend: String,
+    /// The spans offered: value, label and which is chosen.
+    pub spans: Vec<WatchSpan>,
+    /// Notify me.
+    pub notify: bool,
+    /// The notify checkbox's label.
+    pub notify_label: String,
+    /// **Watch** or **Save**.
+    pub submit: String,
+    /// **Unwatch**.
+    pub unwatch_label: String,
+}
+
+/// One span of [`WatchModel`].
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct WatchSpan {
+    /// The radio's value, `infinite` or a duration.
+    pub value: String,
+    /// The label.
+    pub label: String,
+    /// Whether it is chosen.
+    pub checked: bool,
 }
 
 /// The watch control (19 §6.2): one menu, as forms that work without JavaScript. Its
 /// button is the star with **Watch**, or a filled star with **Watching**; it opens how
 /// long to watch and *Notify me*, with **Watch** (or **Save** for a watched page) and,
 /// for a watched page, **Unwatch**.
-fn watch_html(m: &Messages, w: &WatchControl) -> String {
-    use crate::html::esc;
-    use std::fmt::Write as _;
-    let action = |a: &str| format!("/w/index.php?title={}&amp;action={a}", title_url(&w.title));
-    let token = format!(
-        "<input type=\"hidden\" name=\"wpEditToken\" value=\"{}\">",
-        esc(&w.token)
-    );
+#[must_use]
+pub fn watch_model(m: &Messages, w: &WatchControl) -> WatchModel {
+    let action = |a: &str| format!("/w/index.php?title={}&action={a}", title_url(&w.title));
     let (label, submit, path) = if w.watched {
         (
             m.get("ts-watching"),
@@ -274,50 +275,29 @@ fn watch_html(m: &Messages, w: &WatchControl) -> String {
         .as_ref()
         .filter(|_| w.watched)
         .map(|e| m.with("ts-watch-until", &[&crate::special::changes::date(m, e)]));
-    let mut out = format!(
-        "<div class=\"ts-watch\"><details class=\"ts-menu ts-watch__menu\"><summary class=\"cdx-button cdx-button--fake-button cdx-button--fake-button--enabled cdx-button--weight-quiet{}\"{}><svg class=\"ts-watch__icon\" xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" aria-hidden=\"true\" focusable=\"false\"><path d=\"{path}\"/></svg>{}</summary><div class=\"ts-menu__items ts-watch__panel\"><form class=\"ts-watch__form\" method=\"post\" action=\"{}\">{token}<input type=\"hidden\" name=\"notifyfield\" value=\"1\"><fieldset class=\"cdx-field\"><legend class=\"cdx-label\"><span class=\"cdx-label__label__text\">{}</span></legend>",
-        if w.watched { " ts-watch--on" } else { "" },
-        until
-            .as_ref()
-            .map(|u| format!(" title=\"{}\"", esc(u)))
-            .unwrap_or_default(),
-        esc(&label),
-        action("watch"),
-        esc(&m.get("ts-watch-legend")),
-    );
-    for (i, (span, key)) in crate::watch::SPANS.iter().enumerate() {
-        let checked = if i == 0 {
-            w.expires.is_none() || !w.watched
-        } else {
-            false
-        };
-        let _ = write!(
-            out,
-            "<span class=\"cdx-radio\"><span class=\"cdx-radio__wrapper\"><input class=\"cdx-radio__input\" type=\"radio\" id=\"ts-watch-span-{i}\" name=\"expiry\" value=\"{span}\"{}><span class=\"cdx-radio__icon\"></span><span class=\"cdx-radio__label cdx-label\"><label class=\"cdx-label__label\" for=\"ts-watch-span-{i}\"><span class=\"cdx-label__label__text\">{}</span></label></span></span></span>",
-            if checked { " checked" } else { "" },
-            esc(&m.get(key)),
-        );
+    WatchModel {
+        watched: w.watched,
+        label,
+        icon_path: path.to_string(),
+        until,
+        watch_action: action("watch"),
+        unwatch_action: action("unwatch"),
+        token: w.token.clone(),
+        legend: m.get("ts-watch-legend"),
+        spans: crate::watch::SPANS
+            .iter()
+            .enumerate()
+            .map(|(i, (span, key))| WatchSpan {
+                value: (*span).to_string(),
+                label: m.get(key),
+                checked: i == 0 && (w.expires.is_none() || !w.watched),
+            })
+            .collect(),
+        notify: w.notify,
+        notify_label: m.get("ts-watch-notify"),
+        submit,
+        unwatch_label: m.get("ts-unwatch"),
     }
-    let _ = write!(
-        out,
-        "</fieldset><span class=\"cdx-checkbox\"><span class=\"cdx-checkbox__wrapper\"><input class=\"cdx-checkbox__input\" type=\"checkbox\" id=\"ts-watch-notify\" name=\"notify\" value=\"1\"{}><span class=\"cdx-checkbox__icon\"></span><span class=\"cdx-checkbox__label cdx-label\"><label class=\"cdx-label__label\" for=\"ts-watch-notify\"><span class=\"cdx-label__label__text\">{}</span></label></span></span></span><button class=\"cdx-button cdx-button--action-progressive cdx-button--weight-primary\" type=\"submit\">{}</button></form>",
-        if w.notify { " checked" } else { "" },
-        esc(&m.get("ts-watch-notify")),
-        esc(&submit),
-    );
-    if let Some(u) = &until {
-        let _ = write!(out, "<p class=\"ts-watch__until\">{}</p>", esc(u));
-    }
-    if w.watched {
-        let _ = write!(
-            out,
-            "<form class=\"ts-watch__stop\" method=\"post\" action=\"{}\">{token}<button class=\"cdx-button cdx-button--action-destructive cdx-button--weight-quiet\" type=\"submit\">{}</button></form>",
-            action("unwatch"),
-            esc(&m.get("ts-unwatch")),
-        );
-    }
-    out.push_str("</div></details></div>");
-    out
 }
 
 /// The bell and the orange bar for a viewer's counts.
@@ -358,8 +338,7 @@ fn notices(
     (Some(bell), bar)
 }
 
-/// The frame's view model for a page, with the stylesheets of a skin where one draws it
-/// (the built-in rendering links the site's).
+/// The frame's view model for a page, with the stylesheets of the skin that draws it.
 #[allow(clippy::too_many_lines)]
 #[must_use]
 pub fn model(
@@ -368,24 +347,19 @@ pub fn model(
     theme: &Theme,
     user: Option<&str>,
     page: &Page,
-    skin: Option<&Skin>,
+    skin: &Skin,
 ) -> Model {
     let f = chrome.features;
-    let search = if f.has(Feature::Search) {
-        Some(
-            SearchInput {
-                name: "search",
-                value: &page.search,
-                placeholder: &m.get("ts-search-placeholder"),
-                label: &m.get("ts-search-label"),
-                button: &m.get("ts-search-button"),
-            }
-            .render()
-            .unwrap_or_default(),
-        )
-    } else {
-        None
-    };
+    let search = f.has(Feature::Search).then(|| {
+        SearchInput {
+            name: "search",
+            value: &page.search,
+            placeholder: &m.get("ts-search-placeholder"),
+            label: &m.get("ts-search-label"),
+            button: &m.get("ts-search-button"),
+        }
+        .model()
+    });
     let returnto = page
         .returnto
         .as_deref()
@@ -482,25 +456,23 @@ pub fn model(
         entries.css.as_deref()
     };
     // The stylesheets, in the skin chain's order: `@site` is the built site stylesheet;
-    // a file is served from the skin. Without a skin, the site's, as the built-in
-    // rendering has always linked it.
-    let stylesheets = match skin {
-        Some(s) => s
-            .stylesheets()
-            .iter()
-            .filter_map(|(owner, entry)| {
-                if entry == "@site" {
-                    site_css.map(str::to_string)
-                } else {
-                    s.asset_url(entry).or_else(|| {
-                        eprintln!("triplespace-ui: the skin `{owner}` names a stylesheet it lacks: {entry}");
-                        None
-                    })
-                }
-            })
-            .collect(),
-        None => site_css.map(str::to_string).into_iter().collect(),
-    };
+    // a file is served from the skin.
+    let stylesheets = skin
+        .stylesheets()
+        .iter()
+        .filter_map(|(owner, entry)| {
+            if entry == "@site" {
+                site_css.map(str::to_string)
+            } else {
+                skin.asset_url(entry).or_else(|| {
+                    eprintln!(
+                        "triplespace-ui: the skin `{owner}` names a stylesheet it lacks: {entry}"
+                    );
+                    None
+                })
+            }
+        })
+        .collect();
     Model {
         lang: m.lang().to_string(),
         dir: m.dir().to_string(),
@@ -536,73 +508,36 @@ pub fn model(
             .watch
             .as_ref()
             .filter(|_| user.is_some())
-            .map_or_else(String::new, |w| watch_html(m, w)),
+            .map(|w| watch_model(m, w)),
     }
 }
 
-/// Renders a page in the frame with the built-in rendering.
+/// Renders a page in the frame: the skin's `frame.html` over the page's model and `msg`.
 ///
 /// # Errors
 ///
-/// If the template fails to render, which it does only on a write error.
+/// When the skin's template fails.
 pub fn render(
+    skin: &Skin,
     m: &Messages,
     chrome: &Chrome,
     theme: &Theme,
     user: Option<&str>,
     page: &Page,
-) -> askama::Result<String> {
-    render_builtin(m, &model(m, chrome, theme, user, page, None))
+) -> Result<String, minijinja::Error> {
+    skin.render("frame.html", m, model(m, chrome, theme, user, page, skin))
 }
 
-/// The built-in rendering of a model.
-///
-/// # Errors
-///
-/// If the template fails to render, which it does only on a write error.
-pub fn render_builtin(m: &Messages, model: &Model) -> askama::Result<String> {
-    Frame {
-        m,
-        sitename: &model.sitename,
-        title: &model.title,
-        title_lang: model.title_lang.as_deref(),
-        doc_title: &model.doc_title,
-        identity: model.identity.as_deref(),
-        subtitle: model.subtitle.as_deref(),
-        tabs: &model.tabs,
-        actions: &model.actions,
-        body: &model.body,
-        search: model.search.as_deref(),
-        account: model.account.as_ref(),
-        mainpage_href: &model.mainpage_href,
-        login: model.login,
-        nav: &model.nav,
-        new_menu: &model.new_menu,
-        returnto: &model.returnto,
-        css: model.stylesheets.first().map(String::as_str),
-        js: model.js.as_deref(),
-        head_js: model.head_js.as_deref(),
-        palette_href: model.palette_href.as_deref(),
-        typeset_href: model.typeset_href.as_deref(),
-        theme_data: &model.theme_data,
-        html_class: &model.html_class,
-        html_attrs: &model.html_attrs,
-        appearance: &model.appearance,
-        appearance_data: &model.appearance_data,
-        bell: model.bell.as_ref(),
-        orange_bar: model.orange_bar.as_deref(),
-        watch: &model.watch,
+/// The **Restricted** pill's tooltip: the groups a reader must be in, and the sets the
+/// target is in.
+#[must_use]
+pub fn restricted_tip(m: &Messages, groups: &[String], sets: &[String]) -> String {
+    let mut tip = m.with("ts-restricted-groups", &[&groups.join(", ")]);
+    if !sets.is_empty() {
+        tip.push(' ');
+        tip.push_str(&m.with("ts-restricted-sets", &[&sets.join(", ")]));
     }
-    .render()
-}
-
-/// The skin's rendering of a model: its `frame.html` over the model and `msg`.
-///
-/// # Errors
-///
-/// When the skin's template fails.
-pub fn render_skin(skin: &Skin, m: &Messages, model: &Model) -> Result<String, minijinja::Error> {
-    skin.render("frame.html", m, model)
+    tip
 }
 
 /// The **Restricted** pill of 19 §1.3: a lock, the groups a reader must be in (named
@@ -611,11 +546,7 @@ pub fn render_skin(skin: &Skin, m: &Messages, model: &Model) -> Result<String, m
 #[must_use]
 pub fn restricted_pill(m: &Messages, groups: &[String], sets: &[String]) -> String {
     use crate::html::esc;
-    let mut tip = m.with("ts-restricted-groups", &[&groups.join(", ")]);
-    if !sets.is_empty() {
-        tip.push(' ');
-        tip.push_str(&m.with("ts-restricted-sets", &[&sets.join(", ")]));
-    }
+    let tip = restricted_tip(m, groups, sets);
     format!(
         " <span aria-hidden=\"true\">·</span> <span class=\"ts-chip ts-chip--restricted\" title=\"{}\"><span class=\"ts-chip__lock\" aria-hidden=\"true\">🔒</span> {}<span class=\"ts-visually-hidden\">: {}</span></span>",
         esc(&tip),
@@ -657,11 +588,26 @@ mod tests {
         Features::all_built()
     }
 
+    fn worksheet() -> std::sync::Arc<Skin> {
+        crate::skin::Skins::load(None)
+            .get("worksheet")
+            .expect("worksheet")
+            .clone()
+    }
+
     #[test]
     fn anonymous_frame() {
         let m = Messages::for_language("en");
         let f = all();
-        let html = render(&m, &chrome(&f), &Theme::shipped(), None, &page()).unwrap();
+        let html = render(
+            &worksheet(),
+            &m,
+            &chrome(&f),
+            &Theme::shipped(),
+            None,
+            &page(),
+        )
+        .unwrap();
         assert!(html.starts_with(
             "<!DOCTYPE html>\n<html class=\"client-nojs skin-theme-clientpref-os\" lang=\"en\" dir=\"ltr\">"
         ));
@@ -680,8 +626,16 @@ mod tests {
     fn account_menu_escapes_the_name() {
         let m = Messages::for_language("en");
         let f = all();
-        let html = render(&m, &chrome(&f), &Theme::shipped(), Some("A <b> C"), &page()).unwrap();
-        assert!(html.contains("A &#60;b&#62; C"));
+        let html = render(
+            &worksheet(),
+            &m,
+            &chrome(&f),
+            &Theme::shipped(),
+            Some("A <b> C"),
+            &page(),
+        )
+        .unwrap();
+        assert!(html.contains("A &lt;b&gt; C"));
         assert!(!html.contains("Special:UserLogin"));
     }
 
@@ -697,7 +651,15 @@ mod tests {
         };
         let mut c = chrome(&f);
         c.notifications = Some(&counts);
-        let html = render(&m, &c, &Theme::shipped(), Some("Alice"), &page()).unwrap();
+        let html = render(
+            &worksheet(),
+            &m,
+            &c,
+            &Theme::shipped(),
+            Some("Alice"),
+            &page(),
+        )
+        .unwrap();
         assert!(html.contains("ts-bell ts-bell--unseen"), "{html}");
         assert!(html.contains("aria-label=\"Notifications (3 unread)\""));
         assert!(html.contains("<span class=\"ts-bell__count\" aria-hidden=\"true\">3</span>"));
@@ -707,20 +669,36 @@ mod tests {
         // Not on the talk page itself, and gone once the message is read.
         let mut on_talk = page();
         on_talk.title = "User talk:Alice".into();
-        let html = render(&m, &c, &Theme::shipped(), Some("Alice"), &on_talk).unwrap();
+        let html = render(
+            &worksheet(),
+            &m,
+            &c,
+            &Theme::shipped(),
+            Some("Alice"),
+            &on_talk,
+        )
+        .unwrap();
         assert!(!html.contains("ts-orange-bar"));
         counts.messages = 0;
         counts.alerts = 0;
         counts.seen.clone_from(&counts.newest_unread);
         let mut c = chrome(&f);
         c.notifications = Some(&counts);
-        let html = render(&m, &c, &Theme::shipped(), Some("Alice"), &page()).unwrap();
+        let html = render(
+            &worksheet(),
+            &m,
+            &c,
+            &Theme::shipped(),
+            Some("Alice"),
+            &page(),
+        )
+        .unwrap();
         assert!(!html.contains("ts-orange-bar"));
         assert!(!html.contains("ts-bell--unseen"));
         assert!(!html.contains("ts-bell__count"));
         assert!(html.contains("aria-label=\"Notifications\""));
         // Nobody signed in: no bell.
-        let html = render(&m, &c, &Theme::shipped(), None, &page()).unwrap();
+        let html = render(&worksheet(), &m, &c, &Theme::shipped(), None, &page()).unwrap();
         assert!(!html.contains("ts-bell"));
     }
 
@@ -728,7 +706,15 @@ mod tests {
     fn features_not_offered_are_not_shown() {
         let m = Messages::for_language("en");
         let none = Features::default();
-        let html = render(&m, &chrome(&none), &Theme::shipped(), None, &page()).unwrap();
+        let html = render(
+            &worksheet(),
+            &m,
+            &chrome(&none),
+            &Theme::shipped(),
+            None,
+            &page(),
+        )
+        .unwrap();
         assert!(
             !html.contains("name=\"search\""),
             "no search box without search"
@@ -744,6 +730,7 @@ mod tests {
         }
         assert!(html.contains("Special:SpecialPages"));
         let signed_in = render(
+            &worksheet(),
             &m,
             &chrome(&none),
             &Theme::shipped(),

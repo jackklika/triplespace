@@ -3,6 +3,8 @@
     `triplespace_ui::frame::Model`; `msg(key)` is the page's message bundle. Until
     parity this is the built-in frame, `crates/triplespace-ui/templates/frame.html`, line
     for line. -#}
+{%- import "codex.html" as codex -%}
+{%- import "watch.html" as watchctl -%}
 <!DOCTYPE html>
 <html class="client-nojs {{ html_class }}" lang="{{ lang }}" dir="{{ dir }}"{{ html_attrs|safe }}>
 <head>
@@ -34,7 +36,7 @@
 		{%- if search %}
 		<form class="ts-header__search" role="search" action="/w/index.php" method="get">
 			<input type="hidden" name="title" value="Special:Search">
-			{{ search|safe }}
+			{{ codex.search(search) }}
 		</form>
 		{%- endif %}
 		<nav class="ts-header__nav" aria-label="{{ msg("ts-nav-label") }}">
@@ -99,7 +101,7 @@
 		<a class="ts-tabs__link" href="{{ tab.href }}"{% if tab.current %} aria-current="page"{% endif %}>{{ tab.label }}</a>
 		{%- endfor %}
 		{%- if watch %}
-		{{ watch|safe }}
+		{{ watchctl.control(watch) }}
 		{%- endif %}
 		{%- if actions %}
 		<details class="ts-menu ts-tabs__more">

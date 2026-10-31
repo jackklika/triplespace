@@ -534,7 +534,7 @@ async fn history(
                 true,
             ),
         },
-        body: crate::entity::history::body_here(m, &cx.site, &prefixed, &ask, id, &page),
+        body: crate::entity::history::body_here(&cx, &prefixed, &ask, id, &page),
         ..Page::default()
     })
 }

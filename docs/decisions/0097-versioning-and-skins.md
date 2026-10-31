@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-10-29
-- **Updated:** 2026-10-30 (A3)
+- **Updated:** 2026-10-30 (A6)
 - **Author:** James Hare / Claude Opus
 - **Changes:** [0005](0005-crate-organization.md), [0015](0015-record-format-and-partition-registry.md), [0034](0034-frontend-stack.md), [0057](0057-web-tier.md), [0077](0077-special-version.md), [0086](0086-theming.md), [0095](0095-the-interface-namespace.md)
 - **Uses:** [0012](0012-api-requirements.md), [0028](0028-tenancy-policy.md), [0050](0050-adr-format.md), [0055](0055-templatestyles-templatedata-and-page-properties.md), [0058](0058-packed-record-storage.md), [0085](0085-settings-and-preferences.md)
@@ -68,7 +68,7 @@ James's direction, from the design discussion of 2026-10-29:
 
 ### 9. The template contract (extends 0034 §2)
 
-*Changed by A2.*
+*Changed by A2, A4, A6.*
 
 *Current text: [19](../architecture/19-site-ui.md) §5.10.*
 
@@ -100,7 +100,7 @@ James's direction, from the design discussion of 2026-10-29:
 
 ### 16. Reaching parity, then removing the built-in rendering
 
-*Changed by A2, A3.*
+*Changed by A2, A3, A5.*
 
 *Current text: [19](../architecture/19-site-ui.md) §5.10.*
 
@@ -192,3 +192,28 @@ Replaced text ([19](../architecture/19-site-ui.md) §5.6, as it stood):
 Replaced text ([19](../architecture/19-site-ui.md) §5.10, as it stood):
 
 > Results are compared as normalized DOM, fragments byte for byte, with `html::esc` as the skin's escaper, over every route for a fixture wiki as an anonymous reader, a user and an administrator, for each content model, right to left, in night mode, with each feature switch on and off, and on a private tenant.
+
+### A4. Drawings are SVG the binary makes
+
+- **Date:** 2026-10-30
+- **Source:** Direct: Claude, while building the entity page's view models, 2026-10-30; unconfirmed
+- **Change:** extends §9
+- **Summary:** A view model carries data for the skin to draw, with one exception: a drawing, which the binary makes as SVG and the view model carries as HTML (`*_html` fields). The Series chart and the Timeline axis of the entity page (0003 §3, §9) are the two: their geometry is computed from the values, no skin would lay it out differently, and drawing it in a template would put arithmetic where the contract wants placement. Everything else on the entity page, values and links included, is drawn by the skin from the model. The chapter text is 19 §5.10.
+
+### A5. The budget is judged in milliseconds where the ratio misleads
+
+- **Date:** 2026-10-30
+- **Source:** Direct: James, design discussion of 2026-10-30
+- **Change:** amends §16
+- **Summary:** The entity pages (group 3) reached parity on every gate but the timing: +9.4% at the median over the corpus, which is about 2.5 ms on the heaviest page (a 500-statement item), since a template engine costs about twice the string builders it replaces and the harness's in-memory API makes the render share, and so the ratio, a worst case. James: "The 9.4% above baseline is tolerable here. 'Pages with hundreds of statements' describes a scenario traditional Wikibase handles very poorly, and it appears we handle it with slight delay instead of catastrophically slowing down." A group over the 5% budget switches when the absolute cost is one no reader can perceive; the budget stays as the gate for a slowdown of another order. The chapter text is 19 §5.10.
+
+Replaced text ([19](../architecture/19-site-ui.md) §5.10, as it stood):
+
+> and its server render time, median and 95th percentile, is within 5% of the built-in renderer's.
+
+### A6. A part of a later group is carried as HTML until that group switches
+
+- **Date:** 2026-10-30
+- **Source:** Direct: Claude, while building the entity history and diff pages, 2026-10-30; unconfirmed
+- **Change:** extends §9 and A4
+- **Summary:** The History tab (group 4) lists its rows as `Special:RecentChanges` draws them (group 7), by the same code. Until group 7 switches, the tab's view model carries that table as HTML (`list_html`), the way a drawing is carried (A4), and the template places it; when group 7 switches, the field becomes the rows' model and the changes table a macro both draw. A field of this kind is transitional: it names the group it waits for, and the migration does not end with one in place. The chapter text is 19 §5.10.

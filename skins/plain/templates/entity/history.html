@@ -1,0 +1,9 @@
+{#- The History tab of an entity, a page or a discussion (19 §3.3–3.5; 16 §6.1): the source
+    switch, the latest-only note, the rows and the pager. `list_html` is the changes table
+    as the binary draws it until `Special:RecentChanges` switches (19 §5.10 group 7). -#}
+{%- import "entity.html" as entity -%}
+<div class="ts-history">
+{%- if switch %}{{ entity.switch(switch, "ts-history__switch") }}{% endif -%}
+{%- if note %}<aside class="ts-history__note"><p>{{ note }}</p></aside>{% endif -%}
+{%- if empty %}<p class="ts-empty">{{ empty }}</p>{% else %}{{ list_html|safe }}{% if pager %}{{ entity.pager(pager) }}{% endif %}{% endif -%}
+</div>

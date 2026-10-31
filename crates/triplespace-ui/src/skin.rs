@@ -198,6 +198,27 @@ impl Skin {
     }
 }
 
+impl Skin {
+    /// Renders template source given here against the skin's templates, which it may
+    /// import: for the tests that hold a macro to its builder, and for a region drawn
+    /// through one template of the contract.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::render`].
+    pub fn render_str(
+        &self,
+        source: &str,
+        m: &Messages,
+        model: impl serde::Serialize,
+    ) -> Result<String, minijinja::Error> {
+        let msg = Value::from_object(Msg(m.clone()));
+        let model = Value::from(minijinja::value::Serde(&model));
+        self.env
+            .render_str(source, minijinja::context! { msg, ..model })
+    }
+}
+
 /// `msg(key, …params)`: a message in the page's language, through the wiki's Interface
 /// overrides (0097 §10). A key the bundle lacks is an error, as it is in the built-in
 /// rendering's tests.
@@ -234,11 +255,21 @@ fn format(
     if value.is_safe() || !matches!(state.auto_escape(), AutoEscape::Html) {
         return write!(out, "{value}").map_err(minijinja::Error::from);
     }
-    let text = match value.as_str() {
-        Some(s) => crate::html::esc(s),
-        None => crate::html::esc(&value.to_string()),
-    };
-    out.write_str(&text).map_err(minijinja::Error::from)
+    match value.as_str() {
+        Some(s)
+            if !s
+                .bytes()
+                .any(|b| matches!(b, b'&' | b'<' | b'>' | b'"' | b'\'')) =>
+        {
+            out.write_str(s).map_err(minijinja::Error::from)
+        }
+        Some(s) => out
+            .write_str(&crate::html::esc(s))
+            .map_err(minijinja::Error::from),
+        None => out
+            .write_str(&crate::html::esc(&value.to_string()))
+            .map_err(minijinja::Error::from),
+    }
 }
 
 /// A skin that could not be loaded, and why: shown on `Special:Version`.

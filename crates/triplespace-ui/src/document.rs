@@ -789,7 +789,7 @@ async fn page_history(
         returnto: Some(info.title.clone()),
         tabs: tabs(m, &info.title, true, TabName::History),
         actions: actions(m, &info.title, true, cx.moderation_tabs()),
-        body: history::body(m, &cx.site, &info.title, &ask, None, &rows.value),
+        body: history::body(&cx, &info.title, &ask, None, &rows.value),
         ..Page::default()
     })
 }
