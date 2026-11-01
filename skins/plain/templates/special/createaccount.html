@@ -1,0 +1,23 @@
+{#- Special:CreateAccount (0087 §5, §6; 0088 §6; 19 §2.3): the notice, then the creation
+    form (name, password twice, the statement a reviewed wiki asks for, the honeypot, the
+    challenge), or a pending identity's form, or what happened next; the external issuers'
+    buttons are HTML until group 12 (0097 A6). Works without JavaScript. -#}
+{%- import "codex.html" as codex -%}
+{%- import "account.html" as account -%}
+{%- macro statement(st) -%}
+<div class="cdx-field"><div class="cdx-label"><label class="cdx-label__label" for="wpStatement"><span class="cdx-label__label__text">{{ st.label }}</span>{% if st.optional %}<span class="cdx-label__label__optional-flag"> {{ st.optional }}</span>{% endif %}</label><span class="cdx-label__description" id="wpStatement-description">{{ st.help }}</span></div><div class="cdx-field__control"><div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="wpStatement" name="tsstatement" rows="4" maxlength="1000" aria-describedby="wpStatement-description"{% if st.required %} required{% endif %}>{{ st.value }}</textarea></div></div></div>
+{%- endmacro -%}
+<div class="ts-account-form">{% if notice %}{{ codex.message(notice) }}{% endif -%}
+{%- for t in texts %}<p>{{ t }}</p>{% endfor -%}
+{%- if link %}<p><a href="{{ link.href }}">{{ link.label }}</a></p>{% endif -%}
+{%- if form %}<form class="ts-form ts-createaccount" method="post" action="/w/index.php?title=Special:CreateAccount"{% if form.challenge_bits is not none %} data-ts-challenge="{{ form.challenge_bits }}"{% endif %}><input type="hidden" name="createtoken" value="{{ form.token }}"><input type="hidden" name="returnto" value="{{ form.returnto }}">{{ codex.field(form.username) }}{{ codex.field(form.password) }}{{ codex.field(form.retype) }}
+{%- if form.statement %}<input type="hidden" name="tsstatementmode" value="{% if form.statement.required %}required{% else %}optional{% endif %}">{{ statement(form.statement) }}{% endif -%}
+<div class="ts-honeypot" aria-hidden="true"><label for="wpWebsite">{{ form.honeypot }}</label><input type="text" id="wpWebsite" name="wpWebsite" value="" tabindex="-1" autocomplete="off"></div>
+{%- if form.challenge %}{{ account.challenge(form.challenge) }}{% endif -%}
+<div class="ts-form__actions">{{ codex.button(form.submit) }}</div></form>{% endif -%}
+{%- if pending %}<form class="ts-form ts-createaccount" method="post" action="/w/index.php?title=Special:CreateAccount"><input type="hidden" name="createtoken" value="{{ pending.token }}"><input type="hidden" name="returnto" value="{{ pending.returnto }}"><input type="hidden" name="tspending" value="1">{{ codex.field(pending.username) }}
+{%- if pending.suggest %}<div class="ts-createaccount__suggest"><button class="cdx-button" type="submit" name="tssuggested" value="{{ pending.suggest.value }}" formnovalidate aria-describedby="ts-suggest-note">{{ pending.suggest.label }}</button><p class="ts-createaccount__suggest-note" id="ts-suggest-note">{{ pending.suggest.note }}</p></div>{% endif -%}
+{%- if pending.statement %}{{ statement(pending.statement) }}{% endif -%}
+<div class="ts-form__actions">{{ codex.button(pending.submit) }}</div></form>{% endif -%}
+{%- if issuers_html %}{{ issuers_html|safe }}{% endif -%}
+</div>

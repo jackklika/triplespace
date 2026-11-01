@@ -195,8 +195,8 @@ pub struct Model {
     pub html_class: String,
     /// The attributes on `<html>`, HTML.
     pub html_attrs: String,
-    /// The Appearance panel, HTML.
-    pub appearance: String,
+    /// The Appearance panel, which `appearance.html`'s `panel` draws (group 9).
+    pub appearance: crate::appearance::AppearancePanel,
     /// The Appearance data block, JSON.
     pub appearance_data: String,
     /// The bell.
@@ -434,7 +434,7 @@ pub fn model(
     let resolved = crate::appearance::resolve(chrome.prefs);
     let prefs = resolved.as_ref().or(chrome.prefs);
     let (html_class, html_attrs) = crate::appearance::html_attributes(prefs);
-    let appearance = crate::appearance::panel(m, theme, prefs, &returnto.replace('_', " "));
+    let appearance = crate::appearance::panel_model(m, theme, prefs, &returnto.replace('_', " "));
     let appearance_data = crate::appearance::data(theme, prefs, None);
     // A signed-in reader's palette and type set are the server's to choose; anyone
     // else is served the wiki's, which the head script swaps for their own (0086 §5).

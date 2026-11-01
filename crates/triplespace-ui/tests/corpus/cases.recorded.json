@@ -2,7 +2,9 @@
  "_": [
   "Written by tools/skin_corpus.py from a seeded test instance; do not edit by hand.",
   "The sets are recordings under exchanges/: lb (anonymous), lb-bob (a user reading in",
-  "German with dark mode), lb-alice (the owner)."
+  "German with dark mode), lb-alice (the owner), lb-alice-done (the owner after",
+  "approving the request the seed files for review), lb-private and lb-private-bob",
+  "(the tenant made private)."
  ],
  "cases": [
   {
@@ -121,9 +123,9 @@
    "group": 4
   },
   {
-   "name": "lb-domain-wikipedia-org-diff-837207328704563303-1",
+   "name": "lb-domain-wikipedia-org-diff-2515400840161542321-1",
    "set": "lb",
-   "path": "/wiki/Domain:wikipedia.org?diff=837207328704563303:1",
+   "path": "/wiki/Domain:wikipedia.org?diff=2515400840161542321:1",
    "group": 4
   },
   {
@@ -304,15 +306,15 @@
    "group": 6
   },
   {
-   "name": "lb-thread-2026-10-31-is-20five-20a-20city-3f",
+   "name": "lb-thread-2026-11-01-is-20five-20a-20city-3f",
    "set": "lb",
-   "path": "/wiki/Thread:2026-10-31/Is%20five%20a%20city%3F",
+   "path": "/wiki/Thread:2026-11-01/Is%20five%20a%20city%3F",
    "group": 6
   },
   {
-   "name": "lb-thread-2026-10-31-welcome-20text",
+   "name": "lb-thread-2026-11-01-welcome-20text",
    "set": "lb",
-   "path": "/wiki/Thread:2026-10-31/Welcome%20text",
+   "path": "/wiki/Thread:2026-11-01/Welcome%20text",
    "group": 6
   },
   {
@@ -340,15 +342,15 @@
    "group": 6
   },
   {
-   "name": "lb-thread-2026-10-31-is-20five-20a-20city-3f-replyto-248261",
+   "name": "lb-thread-2026-11-01-is-20five-20a-20city-3f-replyto-248261",
    "set": "lb",
-   "path": "/wiki/Thread:2026-10-31/Is%20five%20a%20city%3F?replyto=248261",
+   "path": "/wiki/Thread:2026-11-01/Is%20five%20a%20city%3F?replyto=248261",
    "group": 6
   },
   {
-   "name": "lb-thread-2026-10-31-is-20five-20a-20city-3f-action-history",
+   "name": "lb-thread-2026-11-01-is-20five-20a-20city-3f-action-history",
    "set": "lb",
-   "path": "/wiki/Thread:2026-10-31/Is%20five%20a%20city%3F?action=history",
+   "path": "/wiki/Thread:2026-11-01/Is%20five%20a%20city%3F?action=history",
    "group": 6
   },
   {
@@ -437,9 +439,9 @@
    "group": 7
   },
   {
-   "name": "lb-special-recentchanges-limit-3-continue-1793471249437646-7c8310412198080325060",
+   "name": "lb-special-recentchanges-limit-3-continue-1793555559462682-7c9485984804688742905",
    "set": "lb",
-   "path": "/wiki/Special:RecentChanges?limit=3&continue=1793471249437646%7C8310412198080325060%7C9",
+   "path": "/wiki/Special:RecentChanges?limit=3&continue=1793555559462682%7C9485984804688742905%7C7",
    "group": 7
   },
   {
@@ -941,6 +943,42 @@
    "group": 9
   },
   {
+   "name": "lb-special-userlogout",
+   "set": "lb",
+   "path": "/wiki/Special:UserLogout",
+   "group": 9
+  },
+  {
+   "name": "lb-special-userlogout-returnto-item-q6",
+   "set": "lb",
+   "path": "/wiki/Special:UserLogout?returnto=Item:Q6",
+   "group": 9
+  },
+  {
+   "name": "lb-special-confirmaccounts",
+   "set": "lb",
+   "path": "/wiki/Special:ConfirmAccounts",
+   "group": 9
+  },
+  {
+   "name": "lb-special-createaccount-returnto-item-q6",
+   "set": "lb",
+   "path": "/wiki/Special:CreateAccount?returnto=Item:Q6",
+   "group": 9
+  },
+  {
+   "name": "lb-project-home-useskin-plain",
+   "set": "lb",
+   "path": "/wiki/Project:Home?useskin=plain",
+   "group": 9
+  },
+  {
+   "name": "lb-special-preferences-useskin-plain",
+   "set": "lb",
+   "path": "/wiki/Special:Preferences?useskin=plain",
+   "group": 9
+  },
+  {
    "name": "lb-special-wikisettings",
    "set": "lb",
    "path": "/wiki/Special:WikiSettings",
@@ -1321,9 +1359,9 @@
    "viewer": "user"
   },
   {
-   "name": "lb-bob-domain-wikipedia-org-diff-837207328704563303-1",
+   "name": "lb-bob-domain-wikipedia-org-diff-2515400840161542321-1",
    "set": "lb-bob",
-   "path": "/wiki/Domain:wikipedia.org?diff=837207328704563303:1",
+   "path": "/wiki/Domain:wikipedia.org?diff=2515400840161542321:1",
    "group": 4,
    "viewer": "user"
   },
@@ -1534,16 +1572,16 @@
    "viewer": "user"
   },
   {
-   "name": "lb-bob-thread-2026-10-31-is-20five-20a-20city-3f",
+   "name": "lb-bob-thread-2026-11-01-is-20five-20a-20city-3f",
    "set": "lb-bob",
-   "path": "/wiki/Thread:2026-10-31/Is%20five%20a%20city%3F",
+   "path": "/wiki/Thread:2026-11-01/Is%20five%20a%20city%3F",
    "group": 6,
    "viewer": "user"
   },
   {
-   "name": "lb-bob-thread-2026-10-31-welcome-20text",
+   "name": "lb-bob-thread-2026-11-01-welcome-20text",
    "set": "lb-bob",
-   "path": "/wiki/Thread:2026-10-31/Welcome%20text",
+   "path": "/wiki/Thread:2026-11-01/Welcome%20text",
    "group": 6,
    "viewer": "user"
   },
@@ -1576,16 +1614,16 @@
    "viewer": "user"
   },
   {
-   "name": "lb-bob-thread-2026-10-31-is-20five-20a-20city-3f-replyto-248261",
+   "name": "lb-bob-thread-2026-11-01-is-20five-20a-20city-3f-replyto-248261",
    "set": "lb-bob",
-   "path": "/wiki/Thread:2026-10-31/Is%20five%20a%20city%3F?replyto=248261",
+   "path": "/wiki/Thread:2026-11-01/Is%20five%20a%20city%3F?replyto=248261",
    "group": 6,
    "viewer": "user"
   },
   {
-   "name": "lb-bob-thread-2026-10-31-is-20five-20a-20city-3f-action-history",
+   "name": "lb-bob-thread-2026-11-01-is-20five-20a-20city-3f-action-history",
    "set": "lb-bob",
-   "path": "/wiki/Thread:2026-10-31/Is%20five%20a%20city%3F?action=history",
+   "path": "/wiki/Thread:2026-11-01/Is%20five%20a%20city%3F?action=history",
    "group": 6,
    "viewer": "user"
   },
@@ -1689,9 +1727,9 @@
    "viewer": "user"
   },
   {
-   "name": "lb-bob-special-recentchanges-limit-3-continue-1793471249437646-7c831041219808032",
+   "name": "lb-bob-special-recentchanges-limit-3-continue-1793555559462682-7c948598480468874",
    "set": "lb-bob",
-   "path": "/wiki/Special:RecentChanges?limit=3&continue=1793471249437646%7C8310412198080325060%7C9",
+   "path": "/wiki/Special:RecentChanges?limit=3&continue=1793555559462682%7C9485984804688742905%7C7",
    "group": 7,
    "viewer": "user"
   },
@@ -2276,6 +2314,49 @@
    "viewer": "user"
   },
   {
+   "name": "lb-bob-special-userlogout",
+   "set": "lb-bob",
+   "path": "/wiki/Special:UserLogout",
+   "group": 9,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-userlogout-returnto-item-q6",
+   "set": "lb-bob",
+   "path": "/wiki/Special:UserLogout?returnto=Item:Q6",
+   "group": 9,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-confirmaccounts",
+   "set": "lb-bob",
+   "path": "/wiki/Special:ConfirmAccounts",
+   "group": 9,
+   "viewer": "user",
+   "status": 403
+  },
+  {
+   "name": "lb-bob-special-createaccount-returnto-item-q6",
+   "set": "lb-bob",
+   "path": "/wiki/Special:CreateAccount?returnto=Item:Q6",
+   "group": 9,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-project-home-useskin-plain",
+   "set": "lb-bob",
+   "path": "/wiki/Project:Home?useskin=plain",
+   "group": 9,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-preferences-useskin-plain",
+   "set": "lb-bob",
+   "path": "/wiki/Special:Preferences?useskin=plain",
+   "group": 9,
+   "viewer": "user"
+  },
+  {
    "name": "lb-bob-special-wikisettings",
    "set": "lb-bob",
    "path": "/wiki/Special:WikiSettings",
@@ -2751,9 +2832,9 @@
    "viewer": "user"
   },
   {
-   "name": "lb-alice-domain-wikipedia-org-diff-837207328704563303-1",
+   "name": "lb-alice-domain-wikipedia-org-diff-2515400840161542321-1",
    "set": "lb-alice",
-   "path": "/wiki/Domain:wikipedia.org?diff=837207328704563303:1",
+   "path": "/wiki/Domain:wikipedia.org?diff=2515400840161542321:1",
    "group": 4,
    "viewer": "user"
   },
@@ -2963,16 +3044,16 @@
    "viewer": "user"
   },
   {
-   "name": "lb-alice-thread-2026-10-31-is-20five-20a-20city-3f",
+   "name": "lb-alice-thread-2026-11-01-is-20five-20a-20city-3f",
    "set": "lb-alice",
-   "path": "/wiki/Thread:2026-10-31/Is%20five%20a%20city%3F",
+   "path": "/wiki/Thread:2026-11-01/Is%20five%20a%20city%3F",
    "group": 6,
    "viewer": "user"
   },
   {
-   "name": "lb-alice-thread-2026-10-31-welcome-20text",
+   "name": "lb-alice-thread-2026-11-01-welcome-20text",
    "set": "lb-alice",
-   "path": "/wiki/Thread:2026-10-31/Welcome%20text",
+   "path": "/wiki/Thread:2026-11-01/Welcome%20text",
    "group": 6,
    "viewer": "user"
   },
@@ -3005,16 +3086,16 @@
    "viewer": "user"
   },
   {
-   "name": "lb-alice-thread-2026-10-31-is-20five-20a-20city-3f-replyto-248261",
+   "name": "lb-alice-thread-2026-11-01-is-20five-20a-20city-3f-replyto-248261",
    "set": "lb-alice",
-   "path": "/wiki/Thread:2026-10-31/Is%20five%20a%20city%3F?replyto=248261",
+   "path": "/wiki/Thread:2026-11-01/Is%20five%20a%20city%3F?replyto=248261",
    "group": 6,
    "viewer": "user"
   },
   {
-   "name": "lb-alice-thread-2026-10-31-is-20five-20a-20city-3f-action-history",
+   "name": "lb-alice-thread-2026-11-01-is-20five-20a-20city-3f-action-history",
    "set": "lb-alice",
-   "path": "/wiki/Thread:2026-10-31/Is%20five%20a%20city%3F?action=history",
+   "path": "/wiki/Thread:2026-11-01/Is%20five%20a%20city%3F?action=history",
    "group": 6,
    "viewer": "user"
   },
@@ -3118,9 +3199,9 @@
    "viewer": "user"
   },
   {
-   "name": "lb-alice-special-recentchanges-limit-3-continue-1793471249437646-7c8310412198080",
+   "name": "lb-alice-special-recentchanges-limit-3-continue-1793555559462682-7c9485984804688",
    "set": "lb-alice",
-   "path": "/wiki/Special:RecentChanges?limit=3&continue=1793471249437646%7C8310412198080325060%7C9",
+   "path": "/wiki/Special:RecentChanges?limit=3&continue=1793555559462682%7C9485984804688742905%7C7",
    "group": 7,
    "viewer": "user"
   },
@@ -3705,6 +3786,48 @@
    "viewer": "user"
   },
   {
+   "name": "lb-alice-special-userlogout",
+   "set": "lb-alice",
+   "path": "/wiki/Special:UserLogout",
+   "group": 9,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-userlogout-returnto-item-q6",
+   "set": "lb-alice",
+   "path": "/wiki/Special:UserLogout?returnto=Item:Q6",
+   "group": 9,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-confirmaccounts",
+   "set": "lb-alice",
+   "path": "/wiki/Special:ConfirmAccounts",
+   "group": 9,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-createaccount-returnto-item-q6",
+   "set": "lb-alice",
+   "path": "/wiki/Special:CreateAccount?returnto=Item:Q6",
+   "group": 9,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-project-home-useskin-plain",
+   "set": "lb-alice",
+   "path": "/wiki/Project:Home?useskin=plain",
+   "group": 9,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-preferences-useskin-plain",
+   "set": "lb-alice",
+   "path": "/wiki/Special:Preferences?useskin=plain",
+   "group": 9,
+   "viewer": "user"
+  },
+  {
    "name": "lb-alice-special-wikisettings",
    "set": "lb-alice",
    "path": "/wiki/Special:WikiSettings",
@@ -4057,6 +4180,20 @@
    "set": "lb-alice",
    "path": "/wiki/Special:InstanceSettings?tab=tenancy",
    "group": 10,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-done-special-confirmaccounts",
+   "set": "lb-alice-done",
+   "path": "/wiki/Special:ConfirmAccounts",
+   "group": 9,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-done-special-confirmaccounts-done-approved",
+   "set": "lb-alice-done",
+   "path": "/wiki/Special:ConfirmAccounts?done=approved",
+   "group": 9,
    "viewer": "user"
   },
   {

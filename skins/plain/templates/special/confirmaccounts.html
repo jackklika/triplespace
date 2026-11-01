@@ -1,0 +1,11 @@
+{#- Special:ConfirmAccounts (0087 §6): the open requests, oldest first, each with its
+    statement, its age, its address for holders of `ts-viewip`, and the forms that approve
+    it or reject it with a reason. -#}
+{%- import "codex.html" as codex -%}
+<div class="ts-confirmaccounts">{% if notice %}{{ codex.message(notice) }}{% endif -%}
+{%- if empty %}<p>{{ empty }}</p>{% endif -%}
+{%- for r in requests %}<section class="ts-request" aria-labelledby="req-{{ r.id }}"><h2 id="req-{{ r.id }}">{{ r.name }}</h2><p class="ts-request__meta">{{ r.age }}{% if r.address %} · <span class="ts-request__address">{{ r.address }}</span>{% endif %}</p>
+{%- if r.statement %}<blockquote class="ts-request__statement">{{ r.statement }}</blockquote>{% else %}<p class="ts-request__statement--none">{{ r.no_statement }}</p>{% endif -%}
+<form class="ts-request__approve" method="post" action="/w/index.php?title=Special:ConfirmAccounts"><input type="hidden" name="token" value="{{ r.token }}"><input type="hidden" name="id" value="{{ r.id }}"><input type="hidden" name="decision" value="approve">{{ codex.button(r.approve) }}</form><form class="ts-request__reject" method="post" action="/w/index.php?title=Special:ConfirmAccounts"><input type="hidden" name="token" value="{{ r.token }}"><input type="hidden" name="id" value="{{ r.id }}"><input type="hidden" name="decision" value="reject">{{ codex.field(r.reason) }}{{ codex.button(r.reject) }}</form></section>{% endfor -%}
+{%- if link %}<p><a href="{{ link.href }}">{{ link.label }}</a></p>{% endif -%}
+</div>

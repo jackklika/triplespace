@@ -30,21 +30,22 @@
 //! Every page holding a token is the viewer's alone.
 
 use std::collections::BTreeMap;
-use std::fmt::Write as _;
 
-use askama::Template as _;
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::Response;
+use serde::Serialize;
 use triplespace_client::settings::Saved;
 use triplespace_client::{
     CacheInfo, ChallengeInfo, CreateFields, CreateResult, Incoming, LoginResult, Pending,
 };
 
 use crate::Site;
-use crate::codex::{Action, Button, Field, MessageKind, Weight};
+use crate::codex::{
+    Action, Button, ButtonModel, Field, FieldModel, Message, MessageKind, MessageModel, Weight,
+};
+use crate::entity::history::Choice;
 use crate::features::Feature;
 use crate::frame::{Page, title_url};
-use crate::html::{esc, link};
 use crate::i18n::Messages;
 use crate::pages::{self, Context, Peer};
 
@@ -54,30 +55,47 @@ const REVIEW: &str = "Special:ConfirmAccounts";
 /// The honeypot's field name: a word a form-filler fills.
 pub const HONEYPOT: &str = "wpWebsite";
 
-/// The challenge's part of a form: the challenge, the solution field, the live region
-/// the script reports in, and the `<noscript>` explanation. `solution` is kept where the
-/// form comes back for a reason that did not spend it.
+/// The challenge's part of a form as Plain's `account.html` draws it (19 §5.10): what the
+/// site's script reads (`tschallengeid`, `data-ts-challenge-bits`, the status region's
+/// `data-` messages) and the `<noscript>` explanation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ChallengeModel {
+    /// The challenge string.
+    pub id: String,
+    /// Its difficulty in bits.
+    pub bits: u64,
+    /// The solution, kept where the form comes back for a reason that did not spend it.
+    pub solution: String,
+    /// The status while the browser works.
+    pub working: String,
+    /// The status while it waits for the person.
+    pub waiting: String,
+    /// The status once solved.
+    pub done: String,
+    /// The status when solving failed.
+    pub failed: String,
+    /// What the `<noscript>` block says.
+    pub nojs: String,
+}
+
+/// The challenge's part of a form, as a model.
 #[must_use]
-pub fn challenge_fields(
+pub fn challenge_model(
     m: &Messages,
     challenge: Option<&ChallengeInfo>,
     solution: &str,
     nojs_key: &str,
-) -> String {
-    let Some(c) = challenge else {
-        return String::new();
-    };
-    format!(
-        "<input type=\"hidden\" name=\"tschallengeid\" value=\"{}\" data-ts-challenge-bits=\"{}\"><input type=\"hidden\" name=\"tschallengesolution\" value=\"{}\"><p class=\"ts-challenge__status\" role=\"status\" aria-live=\"polite\" data-ts-challenge-status data-working=\"{}\" data-waiting=\"{}\" data-done=\"{}\" data-failed=\"{}\"></p><noscript><div class=\"cdx-message cdx-message--block cdx-message--notice\"><span class=\"cdx-message__icon\"></span><div class=\"cdx-message__content\">{}</div></div></noscript>",
-        esc(&c.id),
-        c.bits,
-        esc(solution),
-        esc(&m.get("ts-challenge-working")),
-        esc(&m.get("ts-challenge-waiting")),
-        esc(&m.get("ts-challenge-done")),
-        esc(&m.get("ts-challenge-failed")),
-        esc(&m.get(nojs_key))
-    )
+) -> Option<ChallengeModel> {
+    challenge.map(|c| ChallengeModel {
+        id: c.id.clone(),
+        bits: c.bits,
+        solution: solution.to_string(),
+        working: m.get("ts-challenge-working"),
+        waiting: m.get("ts-challenge-waiting"),
+        done: m.get("ts-challenge-done"),
+        failed: m.get("ts-challenge-failed"),
+        nojs: m.get(nojs_key),
+    })
 }
 
 /// The challenge a form came back with, and its solution.
@@ -100,18 +118,176 @@ fn challenge_of(id: &str) -> Option<ChallengeInfo> {
 }
 
 /// What a form is drawn from.
-struct FormState<'a> {
-    token: &'a str,
-    back: &'a str,
-    username: &'a str,
-    statement: Option<(&'a str, &'a str)>,
+struct FormState {
+    token: String,
+    back: String,
+    username: String,
+    /// The statement's mode (`required` or `optional`) and what was typed.
+    statement: Option<(String, String)>,
     challenge: Option<ChallengeInfo>,
-    solution: &'a str,
+    solution: String,
     approval: bool,
     for_another: bool,
 }
 
-fn text_field(
+// ---------------------------------------------------------------------------------------
+// The view models (19 §5.10): what `special/createaccount.html` and
+// `special/confirmaccounts.html` draw.
+// ---------------------------------------------------------------------------------------
+
+/// The statement a reviewed wiki asks for.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct StatementModel {
+    /// Whether it is required.
+    pub required: bool,
+    /// What was typed.
+    pub value: String,
+    /// The label.
+    pub label: String,
+    /// What it is for.
+    pub help: String,
+    /// The "optional" flag after the label, where the form shows one.
+    pub optional: Option<String>,
+}
+
+/// The account creation form.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CreateForm {
+    /// The challenge's difficulty, where one is asked for: the form's `data-ts-challenge`.
+    pub challenge_bits: Option<u64>,
+    /// The create token.
+    pub token: String,
+    /// The page to return to.
+    pub returnto: String,
+    /// The name.
+    pub username: FieldModel,
+    /// The password.
+    pub password: FieldModel,
+    /// The password again.
+    pub retype: FieldModel,
+    /// The statement, where the wiki asks for one.
+    pub statement: Option<StatementModel>,
+    /// The honeypot's label, which no person sees.
+    pub honeypot: String,
+    /// The challenge's part of the form.
+    pub challenge: Option<ChallengeModel>,
+    /// **Create your account**, or the request's or another's.
+    pub submit: ButtonModel,
+}
+
+/// The provider's username offered as a button (0088 §6).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SuggestModel {
+    /// The name.
+    pub value: String,
+    /// "Use Alice from Wikimedia".
+    pub label: String,
+    /// What using it means.
+    pub note: String,
+}
+
+/// The form for a pending identity (0088 §6).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PendingForm {
+    /// The create token.
+    pub token: String,
+    /// The page to return to.
+    pub returnto: String,
+    /// The name.
+    pub username: FieldModel,
+    /// The provider's username, where it has one.
+    pub suggest: Option<SuggestModel>,
+    /// The statement, where the wiki asks for one.
+    pub statement: Option<StatementModel>,
+    /// **Create account**.
+    pub submit: ButtonModel,
+}
+
+/// `Special:CreateAccount`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CreateAccountPage {
+    /// A notice: a refusal, the outcome.
+    pub notice: Option<MessageModel>,
+    /// Paragraphs of text, before the rest.
+    pub texts: Vec<String>,
+    /// A link, in a paragraph of its own.
+    pub link: Option<Choice>,
+    /// The creation form.
+    pub form: Option<CreateForm>,
+    /// The pending identity's form.
+    pub pending: Option<PendingForm>,
+    /// The external issuers' buttons, as `external.rs` draws them until group 12 switches
+    /// (0097 A6).
+    pub issuers_html: Option<String>,
+}
+
+/// One open request on `Special:ConfirmAccounts`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RequestCard {
+    /// The request's ID.
+    pub id: String,
+    /// The name asked for.
+    pub name: String,
+    /// How long ago it was filed.
+    pub age: String,
+    /// The address, for holders of `ts-viewip`.
+    pub address: Option<String>,
+    /// The statement.
+    pub statement: Option<String>,
+    /// What the card says when there is none.
+    pub no_statement: String,
+    /// The CSRF token.
+    pub token: String,
+    /// **Approve**.
+    pub approve: ButtonModel,
+    /// The reason a rejection needs.
+    pub reason: FieldModel,
+    /// **Reject**.
+    pub reject: ButtonModel,
+}
+
+/// `Special:ConfirmAccounts`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ConfirmAccountsPage {
+    /// A notice: the outcome, a refusal, that the page needs a login.
+    pub notice: Option<MessageModel>,
+    /// What the page says when no request is open.
+    pub empty: Option<String>,
+    /// The open requests, oldest first.
+    pub requests: Vec<RequestCard>,
+    /// A link, in a paragraph of its own: to log in, or back to the list.
+    pub link: Option<Choice>,
+}
+
+/// What a creation page shows beneath its notice.
+enum CreateBody {
+    /// Paragraphs, then a link.
+    Text(Vec<String>, Option<Choice>),
+    /// The creation form, with the issuers' buttons where they apply.
+    Create {
+        state: FormState,
+        issuers_html: Option<String>,
+    },
+    /// The pending identity's form.
+    Pending {
+        label: String,
+        pending: Pending,
+        token: String,
+        back: String,
+        username: String,
+        statement: Option<(String, String)>,
+    },
+}
+
+fn link_choice(href: String, label: String) -> Choice {
+    Choice {
+        href,
+        label,
+        current: false,
+    }
+}
+
+fn field_model(
     m: &Messages,
     id: &str,
     name: &str,
@@ -119,7 +295,7 @@ fn text_field(
     value: &str,
     key: &str,
     auto: &str,
-) -> String {
+) -> FieldModel {
     Field {
         id,
         name,
@@ -131,89 +307,37 @@ fn text_field(
         required: true,
         autocomplete: Some(auto),
     }
-    .render()
-    .unwrap_or_default()
+    .model()
 }
 
-fn create_form(m: &Messages, s: &FormState<'_>) -> String {
-    let mut out = String::new();
-    if s.approval {
-        let _ = write!(out, "<p>{}</p>", esc(&m.get("ts-createaccount-reviewed")));
+fn primary(label: &str) -> ButtonModel {
+    Button {
+        label,
+        kind: "submit",
+        action: Action::Progressive,
+        weight: Weight::Primary,
     }
-    let _ = write!(
-        out,
-        "<form class=\"ts-form ts-createaccount\" method=\"post\" action=\"/w/index.php?title={}\"{}><input type=\"hidden\" name=\"createtoken\" value=\"{}\"><input type=\"hidden\" name=\"returnto\" value=\"{}\">",
-        title_url(TITLE),
-        s.challenge
-            .as_ref()
-            .map(|c| format!(" data-ts-challenge=\"{}\"", c.bits))
-            .unwrap_or_default(),
-        esc(s.token),
-        esc(s.back)
-    );
-    out.push_str(&text_field(
-        m,
-        "wpName2",
-        "username",
-        "text",
-        s.username,
-        "ts-createaccount-username",
-        "username",
-    ));
-    out.push_str(&text_field(
-        m,
-        "wpPassword2",
-        "password",
-        "password",
-        "",
-        "ts-createaccount-password",
-        "new-password",
-    ));
-    out.push_str(&text_field(
-        m,
-        "wpRetype",
-        "retype",
-        "password",
-        "",
-        "ts-createaccount-retype",
-        "new-password",
-    ));
-    if let Some((mode, value)) = s.statement {
+    .model()
+}
+
+fn statement_model(
+    m: &Messages,
+    statement: Option<&(String, String)>,
+    flag: bool,
+) -> Option<StatementModel> {
+    statement.map(|(mode, value)| {
         let required = mode == "required";
-        let _ = write!(
-            out,
-            "<input type=\"hidden\" name=\"tsstatementmode\" value=\"{}\">",
-            if required { "required" } else { "optional" }
-        );
-        let _ = write!(
-            out,
-            "<div class=\"cdx-field\"><div class=\"cdx-label\"><label class=\"cdx-label__label\" for=\"wpStatement\"><span class=\"cdx-label__label__text\">{}</span>{}</label><span class=\"cdx-label__description\" id=\"wpStatement-description\">{}</span></div><div class=\"cdx-field__control\"><div class=\"cdx-text-area\"><textarea class=\"cdx-text-area__textarea\" id=\"wpStatement\" name=\"tsstatement\" rows=\"4\" maxlength=\"1000\" aria-describedby=\"wpStatement-description\"{}>{}</textarea></div></div></div>",
-            esc(&m.get("ts-createaccount-statement")),
-            if required {
-                String::new()
-            } else {
-                format!(
-                    "<span class=\"cdx-label__label__optional-flag\"> {}</span>",
-                    esc(&m.get("ts-createaccount-optional"))
-                )
-            },
-            esc(&m.get("ts-createaccount-statement-help")),
-            if required { " required" } else { "" },
-            esc(value)
-        );
-    }
-    // The honeypot: off-screen, out of the tab order and the accessibility tree.
-    let _ = write!(
-        out,
-        "<div class=\"ts-honeypot\" aria-hidden=\"true\"><label for=\"{HONEYPOT}\">{}</label><input type=\"text\" id=\"{HONEYPOT}\" name=\"{HONEYPOT}\" value=\"\" tabindex=\"-1\" autocomplete=\"off\"></div>",
-        esc(&m.get("ts-createaccount-honeypot"))
-    );
-    out.push_str(&challenge_fields(
-        m,
-        s.challenge.as_ref(),
-        s.solution,
-        "ts-challenge-nojs",
-    ));
+        StatementModel {
+            required,
+            value: value.clone(),
+            label: m.get("ts-createaccount-statement"),
+            help: m.get("ts-createaccount-statement-help"),
+            optional: (flag && !required).then(|| m.get("ts-createaccount-optional")),
+        }
+    })
+}
+
+fn create_form_model(m: &Messages, s: &FormState) -> CreateForm {
     let label = if s.approval {
         m.get("ts-createaccount-request-submit")
     } else if s.for_another {
@@ -221,19 +345,111 @@ fn create_form(m: &Messages, s: &FormState<'_>) -> String {
     } else {
         m.get("ts-createaccount-submit")
     };
-    let _ = write!(
-        out,
-        "<div class=\"ts-form__actions\">{}</div></form>",
-        Button {
-            label: &label,
-            kind: "submit",
-            action: Action::Progressive,
-            weight: Weight::Primary,
+    CreateForm {
+        challenge_bits: s.challenge.as_ref().map(|c| c.bits),
+        token: s.token.clone(),
+        returnto: s.back.clone(),
+        username: field_model(
+            m,
+            "wpName2",
+            "username",
+            "text",
+            &s.username,
+            "ts-createaccount-username",
+            "username",
+        ),
+        password: field_model(
+            m,
+            "wpPassword2",
+            "password",
+            "password",
+            "",
+            "ts-createaccount-password",
+            "new-password",
+        ),
+        retype: field_model(
+            m,
+            "wpRetype",
+            "retype",
+            "password",
+            "",
+            "ts-createaccount-retype",
+            "new-password",
+        ),
+        statement: statement_model(m, s.statement.as_ref(), true),
+        honeypot: m.get("ts-createaccount-honeypot"),
+        challenge: challenge_model(m, s.challenge.as_ref(), &s.solution, "ts-challenge-nojs"),
+        submit: primary(&label),
+    }
+}
+
+/// The creation page's model.
+fn create_model(
+    m: &Messages,
+    notice: Option<(MessageKind, String)>,
+    body: &CreateBody,
+) -> CreateAccountPage {
+    let mut page = CreateAccountPage {
+        notice: notice.map(|(k, t)| Message::block(k, &t).model()),
+        texts: Vec::new(),
+        link: None,
+        form: None,
+        pending: None,
+        issuers_html: None,
+    };
+    match body {
+        CreateBody::Text(texts, link) => {
+            page.texts.clone_from(texts);
+            page.link.clone_from(link);
         }
-        .render()
-        .unwrap_or_default()
-    );
-    out
+        CreateBody::Create {
+            state,
+            issuers_html,
+        } => {
+            if state.approval {
+                page.texts.push(m.get("ts-createaccount-reviewed"));
+            }
+            page.form = Some(create_form_model(m, state));
+            page.issuers_html.clone_from(issuers_html);
+        }
+        CreateBody::Pending {
+            label,
+            pending,
+            token,
+            back,
+            username,
+            statement,
+        } => {
+            page.texts.push(m.with(
+                "ts-createaccount-pending-intro",
+                &[label, &pending.username],
+            ));
+            page.pending = Some(PendingForm {
+                token: token.clone(),
+                returnto: back.clone(),
+                username: field_model(
+                    m,
+                    "wpName2",
+                    "username",
+                    "text",
+                    username,
+                    "ts-createaccount-username",
+                    "username",
+                ),
+                suggest: (!pending.username.is_empty()).then(|| SuggestModel {
+                    value: pending.username.clone(),
+                    label: m.with(
+                        "ts-createaccount-pending-suggest",
+                        &[label, &pending.username],
+                    ),
+                    note: m.get("ts-createaccount-pending-suggest-note"),
+                }),
+                statement: statement_model(m, statement.as_ref(), false),
+                submit: primary(&m.get("ts-createaccount-pending-submit")),
+            });
+        }
+    }
+    page
 }
 
 fn page(
@@ -241,21 +457,20 @@ fn page(
     headers: &HeaderMap,
     status: StatusCode,
     notice: Option<(MessageKind, String)>,
-    body: &str,
+    body: &CreateBody,
     back: &str,
 ) -> Response {
-    let mut html = String::new();
-    if let Some((kind, text)) = notice {
-        html.push_str(&pages::message(kind, &text));
-    }
-    html.push_str(body);
+    let html = cx.draw(
+        "special/createaccount.html",
+        create_model(&cx.m, notice, body),
+    );
     let back = back.to_string();
     crate::special::external::allow_issuer_forms(
         cx,
         pages::respond(cx, headers, status, |m| Page {
             title: m.get("ts-createaccount-title"),
             returnto: Some(back),
-            body: format!("<div class=\"ts-account-form\">{html}</div>"),
+            body: html,
             ..Page::default()
         }),
     )
@@ -314,13 +529,13 @@ async fn fresh(
     cookies.extend(f.set_cookies);
     let f = f.value;
     if !f.can_create {
-        let body = format!(
-            "<p>{}</p>",
-            esc(&cx.m.get(if cx.user.is_some() {
+        let body = CreateBody::Text(
+            vec![cx.m.get(if cx.user.is_some() {
                 "ts-createaccount-not-allowed-user"
             } else {
                 "ts-createaccount-not-allowed"
-            }))
+            })],
+            None,
         );
         return pages::with_cookies(
             page(cx, headers, StatusCode::FORBIDDEN, None, &body, back),
@@ -329,30 +544,39 @@ async fn fresh(
     }
     let approval = cx.site.account_approval && !holds_confirm(cx);
     let state = FormState {
-        token: &f.token,
-        back,
-        username,
-        statement: f.statement.as_deref().map(|mode| (mode, statement)),
+        token: f.token.clone(),
+        back: back.to_string(),
+        username: username.to_string(),
+        statement: f
+            .statement
+            .as_deref()
+            .map(|mode| (mode.to_string(), statement.to_string())),
         challenge: f.challenge,
-        solution: "",
+        solution: String::new(),
         approval,
         for_another: cx.user.is_some(),
     };
-    let mut body = create_form(&cx.m, &state);
     // The issuers' buttons carry the login token of the session the form's token is
     // bound to: a second session would replace the first in the browser.
-    if cx.user.is_none() && !cx.site.login_issuers.is_empty() && !f.login_token.is_empty() {
-        body.push_str(&crate::special::external::buttons(
-            &cx.m,
-            &cx.site.login_issuers,
-            "logintoken",
-            &f.login_token,
-            "login",
-            back,
-            "ts-createaccount-external-heading",
-            "ts-createaccount-external-button",
-        ));
-    }
+    let issuers_html =
+        (cx.user.is_none() && !cx.site.login_issuers.is_empty() && !f.login_token.is_empty())
+            .then(|| {
+                crate::special::external::buttons(
+                    &cx.m,
+                    &cx.site.login_issuers,
+                    "logintoken",
+                    &f.login_token,
+                    "login",
+                    back,
+                    "ts-createaccount-external-heading",
+                    "ts-createaccount-external-button",
+                )
+            })
+            .filter(|h| !h.is_empty());
+    let body = CreateBody::Create {
+        state,
+        issuers_html,
+    };
     pages::with_cookies(page(cx, headers, status, notice, &body, back), &cookies)
 }
 
@@ -363,68 +587,6 @@ fn issuer_label(cx: &Context, p: &Pending) -> String {
         .iter()
         .find(|i| i.issuer == p.issuer)
         .map_or_else(|| p.issuer_name.clone(), |i| i.label.clone())
-}
-
-/// The form for a pending identity (0088 §6): a name, the provider's username offered
-/// as a button, and where the wiki reviews accounts a statement.
-fn pending_form(
-    m: &Messages,
-    label: &str,
-    p: &Pending,
-    token: &str,
-    back: &str,
-    username: &str,
-    statement: Option<(&str, &str)>,
-) -> String {
-    let mut out = format!(
-        "<p>{}</p><form class=\"ts-form ts-createaccount\" method=\"post\" action=\"/w/index.php?title={}\"><input type=\"hidden\" name=\"createtoken\" value=\"{}\"><input type=\"hidden\" name=\"returnto\" value=\"{}\"><input type=\"hidden\" name=\"tspending\" value=\"1\">",
-        esc(&m.with("ts-createaccount-pending-intro", &[label, &p.username])),
-        title_url(TITLE),
-        esc(token),
-        esc(back)
-    );
-    out.push_str(&text_field(
-        m,
-        "wpName2",
-        "username",
-        "text",
-        username,
-        "ts-createaccount-username",
-        "username",
-    ));
-    if !p.username.is_empty() {
-        let _ = write!(
-            out,
-            "<div class=\"ts-createaccount__suggest\"><button class=\"cdx-button\" type=\"submit\" name=\"tssuggested\" value=\"{}\" formnovalidate aria-describedby=\"ts-suggest-note\">{}</button><p class=\"ts-createaccount__suggest-note\" id=\"ts-suggest-note\">{}</p></div>",
-            esc(&p.username),
-            esc(&m.with("ts-createaccount-pending-suggest", &[label, &p.username])),
-            esc(&m.get("ts-createaccount-pending-suggest-note"))
-        );
-    }
-    if let Some((mode, value)) = statement {
-        let required = mode == "required";
-        let _ = write!(
-            out,
-            "<div class=\"cdx-field\"><div class=\"cdx-label\"><label class=\"cdx-label__label\" for=\"wpStatement\"><span class=\"cdx-label__label__text\">{}</span></label><span class=\"cdx-label__description\" id=\"wpStatement-description\">{}</span></div><div class=\"cdx-field__control\"><div class=\"cdx-text-area\"><textarea class=\"cdx-text-area__textarea\" id=\"wpStatement\" name=\"tsstatement\" rows=\"4\" maxlength=\"1000\" aria-describedby=\"wpStatement-description\"{}>{}</textarea></div></div></div>",
-            esc(&m.get("ts-createaccount-statement")),
-            esc(&m.get("ts-createaccount-statement-help")),
-            if required { " required" } else { "" },
-            esc(value)
-        );
-    }
-    let _ = write!(
-        out,
-        "<div class=\"ts-form__actions\">{}</div></form>",
-        Button {
-            label: &m.get("ts-createaccount-pending-submit"),
-            kind: "submit",
-            action: Action::Progressive,
-            weight: Weight::Primary,
-        }
-        .render()
-        .unwrap_or_default()
-    );
-    out
 }
 
 /// The page for a pending identity, with a fresh token.
@@ -446,16 +608,18 @@ async fn pending_page(
         Err(e) => return pages::api_failed(cx, headers, &e),
     };
     cookies.extend(f.set_cookies);
-    let label = issuer_label(cx, p);
-    let body = pending_form(
-        &cx.m,
-        &label,
-        p,
-        &f.value.token,
-        back,
-        username,
-        f.value.statement.as_deref().map(|mode| (mode, statement)),
-    );
+    let body = CreateBody::Pending {
+        label: issuer_label(cx, p),
+        pending: p.clone(),
+        token: f.value.token.clone(),
+        back: back.to_string(),
+        username: username.to_string(),
+        statement: f
+            .value
+            .statement
+            .as_deref()
+            .map(|mode| (mode.to_string(), statement.to_string())),
+    };
     pages::with_cookies(
         page(cx, headers, StatusCode::OK, notice, &body, back),
         &cookies,
@@ -516,9 +680,9 @@ async fn post_pending(
             pages::see_other(&format!("/wiki/{}", title_url(back)), &r.set_cookies)
         }
         CreateResult::Requested => {
-            let body = format!(
-                "<p>{}</p>",
-                esc(&cx.m.get("ts-createaccount-requested-next-external"))
+            let body = CreateBody::Text(
+                vec![cx.m.get("ts-createaccount-requested-next-external")],
+                None,
             );
             let notice = Some((MessageKind::Success, cx.m.get("ts-createaccount-requested")));
             pages::with_cookies(
@@ -707,14 +871,14 @@ pub async fn post(
                  solution: &str,
                  notice: (MessageKind, String)| {
         let state = FormState {
-            token: field("createtoken"),
-            back: &back,
-            username: &username,
+            token: field("createtoken").to_string(),
+            back: back.clone(),
+            username: username.clone(),
             statement: form
                 .get("tsstatementmode")
-                .map(|mode| (mode.as_str(), statement.as_str())),
+                .map(|mode| (mode.clone(), statement.clone())),
             challenge,
-            solution,
+            solution: solution.to_string(),
             approval,
             for_another: cx.user.is_some(),
         };
@@ -723,20 +887,22 @@ pub async fn post(
             headers,
             StatusCode::OK,
             Some(notice),
-            &create_form(&cx.m, &state),
+            &CreateBody::Create {
+                state,
+                issuers_html: None,
+            },
             &back,
         )
     };
     match result.value {
         CreateResult::Pass { username: name } => {
             if cx.user.is_some() {
-                let body = format!(
-                    "<p>{}</p>",
-                    link(
-                        &format!("/wiki/User:{}", title_url(&name)),
-                        &esc(&cx.m.with("ts-createaccount-userpage", &[&name])),
-                        ""
-                    )
+                let body = CreateBody::Text(
+                    Vec::new(),
+                    Some(link_choice(
+                        format!("/wiki/User:{}", title_url(&name)),
+                        cx.m.with("ts-createaccount-userpage", &[&name]),
+                    )),
                 );
                 let notice = Some((
                     MessageKind::Success,
@@ -780,14 +946,12 @@ pub async fn post(
             }
         }
         CreateResult::Requested => {
-            let body = format!(
-                "<p>{}</p><p>{}</p>",
-                esc(&cx.m.get("ts-createaccount-requested-next")),
-                link(
-                    &format!("/wiki/{}", title_url(&back)),
-                    &esc(&cx.m.with("ts-login-continue", &[&back])),
-                    ""
-                )
+            let body = CreateBody::Text(
+                vec![cx.m.get("ts-createaccount-requested-next")],
+                Some(link_choice(
+                    format!("/wiki/{}", title_url(&back)),
+                    cx.m.with("ts-login-continue", &[&back]),
+                )),
             );
             let notice = Some((MessageKind::Success, cx.m.get("ts-createaccount-requested")));
             pages::with_cookies(
@@ -850,68 +1014,25 @@ fn age(m: &Messages, filed: i64) -> String {
     }
 }
 
-fn review_page(
-    cx: &Context,
-    headers: &HeaderMap,
-    notice: Option<(MessageKind, String)>,
-    body: &str,
-) -> Response {
-    let mut html = String::new();
-    if let Some((kind, text)) = notice {
-        html.push_str(&pages::message(kind, &text));
-    }
-    html.push_str(body);
-    pages::respond(cx, headers, StatusCode::OK, |m| Page {
-        title: m.get("ts-confirmaccounts-title"),
-        returnto: Some(REVIEW.to_string()),
-        body: format!("<div class=\"ts-confirmaccounts\">{html}</div>"),
-        ..Page::default()
-    })
+/// What the review page shows beneath its notice.
+enum ReviewBody<'a> {
+    /// A link: to log in, or back to the list.
+    Link(Choice),
+    /// The open requests, with the token their forms carry.
+    List(&'a [triplespace_client::AccountRequest], &'a str),
 }
 
-/// One open request: its name, age, address where shown, statement, and the forms that
-/// approve it or reject it with a reason.
-fn request_card(m: &Messages, r: &triplespace_client::AccountRequest, token: &str) -> String {
-    let mut body = String::new();
-    let _ = write!(
-        body,
-        "<section class=\"ts-request\" aria-labelledby=\"req-{id}\"><h2 id=\"req-{id}\">{}</h2><p class=\"ts-request__meta\">{}{}</p>",
-        esc(&r.name),
-        esc(&age(m, r.filed)),
-        r.address
-            .as_ref()
-            .map(|a| format!(" · <span class=\"ts-request__address\">{}</span>", esc(a)))
-            .unwrap_or_default(),
-        id = esc(&r.id),
-    );
-    match &r.statement {
-        Some(s) => {
-            let _ = write!(
-                body,
-                "<blockquote class=\"ts-request__statement\">{}</blockquote>",
-                esc(s)
-            );
-        }
-        None => {
-            let _ = write!(
-                body,
-                "<p class=\"ts-request__statement--none\">{}</p>",
-                esc(&m.get("ts-confirmaccounts-no-statement"))
-            );
-        }
-    }
-    let _ = write!(
-        body,
-        "<form class=\"ts-request__approve\" method=\"post\" action=\"/w/index.php?title={title}\"><input type=\"hidden\" name=\"token\" value=\"{token}\"><input type=\"hidden\" name=\"id\" value=\"{id}\"><input type=\"hidden\" name=\"decision\" value=\"approve\">{}</form><form class=\"ts-request__reject\" method=\"post\" action=\"/w/index.php?title={title}\"><input type=\"hidden\" name=\"token\" value=\"{token}\"><input type=\"hidden\" name=\"id\" value=\"{id}\"><input type=\"hidden\" name=\"decision\" value=\"reject\">{}{}</form></section>",
-        Button {
-            label: &m.with("ts-confirmaccounts-approve", &[&r.name]),
-            kind: "submit",
-            action: Action::Progressive,
-            weight: Weight::Primary,
-        }
-        .render()
-        .unwrap_or_default(),
-        Field {
+fn request_model(m: &Messages, r: &triplespace_client::AccountRequest, token: &str) -> RequestCard {
+    RequestCard {
+        id: r.id.clone(),
+        name: r.name.clone(),
+        age: age(m, r.filed),
+        address: r.address.clone(),
+        statement: r.statement.clone(),
+        no_statement: m.get("ts-confirmaccounts-no-statement"),
+        token: token.to_string(),
+        approve: primary(&m.with("ts-confirmaccounts-approve", &[&r.name])),
+        reason: Field {
             id: &format!("reason-{}", r.id),
             name: "reason",
             kind: "text",
@@ -922,21 +1043,56 @@ fn request_card(m: &Messages, r: &triplespace_client::AccountRequest, token: &st
             required: true,
             autocomplete: Some("off"),
         }
-        .render()
-        .unwrap_or_default(),
-        Button {
+        .model(),
+        reject: Button {
             label: &m.with("ts-confirmaccounts-reject", &[&r.name]),
             kind: "submit",
             action: Action::Destructive,
             weight: Weight::Normal,
         }
-        .render()
-        .unwrap_or_default(),
-        title = title_url(REVIEW),
-        token = esc(token),
-        id = esc(&r.id),
+        .model(),
+    }
+}
+
+/// The review page's model.
+fn review_model(
+    m: &Messages,
+    notice: Option<(MessageKind, String)>,
+    body: &ReviewBody<'_>,
+) -> ConfirmAccountsPage {
+    let notice = notice.map(|(k, t)| Message::block(k, &t).model());
+    match body {
+        ReviewBody::Link(l) => ConfirmAccountsPage {
+            notice,
+            empty: None,
+            requests: Vec::new(),
+            link: Some(l.clone()),
+        },
+        ReviewBody::List(list, token) => ConfirmAccountsPage {
+            notice,
+            empty: list.is_empty().then(|| m.get("ts-confirmaccounts-none")),
+            requests: list.iter().map(|r| request_model(m, r, token)).collect(),
+            link: None,
+        },
+    }
+}
+
+fn review_page(
+    cx: &Context,
+    headers: &HeaderMap,
+    notice: Option<(MessageKind, String)>,
+    body: &ReviewBody<'_>,
+) -> Response {
+    let html = cx.draw(
+        "special/confirmaccounts.html",
+        review_model(&cx.m, notice, body),
     );
-    body
+    pages::respond(cx, headers, StatusCode::OK, |m| Page {
+        title: m.get("ts-confirmaccounts-title"),
+        returnto: Some(REVIEW.to_string()),
+        body: html,
+        ..Page::default()
+    })
 }
 
 /// `GET Special:ConfirmAccounts`.
@@ -952,14 +1108,10 @@ pub async fn review(
         Err(r) => return r,
     };
     if cx.user.is_none() {
-        let body = format!(
-            "<p>{}</p>",
-            link(
-                &format!("/wiki/Special:UserLogin?returnto={}", title_url(REVIEW)),
-                &esc(&cx.m.get("ts-login")),
-                ""
-            )
-        );
+        let body = ReviewBody::Link(link_choice(
+            format!("/wiki/Special:UserLogin?returnto={}", title_url(REVIEW)),
+            cx.m.get("ts-login"),
+        ));
         let notice = Some((MessageKind::Notice, cx.m.get("ts-confirmaccounts-login")));
         return review_page(&cx, headers, notice, &body);
     }
@@ -977,14 +1129,12 @@ pub async fn review(
         Some("rejected") => Some((MessageKind::Success, m.get("ts-confirmaccounts-rejected"))),
         _ => None,
     };
-    let mut body = String::new();
-    if list.is_empty() {
-        let _ = write!(body, "<p>{}</p>", esc(&m.get("ts-confirmaccounts-none")));
-    }
-    for r in &list {
-        body.push_str(&request_card(m, r, &token.value.value));
-    }
-    let r = review_page(&cx, headers, notice, &body);
+    let r = review_page(
+        &cx,
+        headers,
+        notice,
+        &ReviewBody::List(&list, &token.value.value),
+    );
     pages::with_cookies(r, &token.set_cookies)
 }
 
@@ -1034,14 +1184,10 @@ pub async fn post_review(
                 &cx,
                 headers,
                 Some((MessageKind::Error, text)),
-                &format!(
-                    "<p>{}</p>",
-                    link(
-                        &format!("/wiki/{}", title_url(REVIEW)),
-                        &esc(&cx.m.get("ts-confirmaccounts-back")),
-                        ""
-                    )
-                ),
+                &ReviewBody::Link(link_choice(
+                    format!("/wiki/{}", title_url(REVIEW)),
+                    cx.m.get("ts-confirmaccounts-back"),
+                )),
             )
         }
         Err(e) => pages::api_failed(&cx, headers, &e),
@@ -1052,6 +1198,130 @@ pub async fn post_review(
 mod tests {
     use super::*;
 
+    fn state(approval: bool, statement: Option<(&str, &str)>) -> FormState {
+        FormState {
+            token: "t".into(),
+            back: "Main Page".into(),
+            username: "Bob".into(),
+            statement: statement.map(|(a, b)| (a.to_string(), b.to_string())),
+            challenge: None,
+            solution: String::new(),
+            approval,
+            for_another: false,
+        }
+    }
+
+    /// The creation page's model (19 §5.10): a reviewed wiki's intro and request button,
+    /// the statement's optional flag on the creation form but not the pending form, the
+    /// pending identity's suggestion, and text pages.
+    #[test]
+    fn creation_is_a_model() {
+        let m = Messages::for_language("en");
+        let p = create_model(
+            &m,
+            None,
+            &CreateBody::Create {
+                state: state(true, Some(("optional", "Hi"))),
+                issuers_html: None,
+            },
+        );
+        assert_eq!(p.texts, vec![m.get("ts-createaccount-reviewed")]);
+        let f = p.form.unwrap();
+        assert_eq!(f.submit.label, m.get("ts-createaccount-request-submit"));
+        let st = f.statement.unwrap();
+        assert!(!st.required && st.optional.is_some() && st.value == "Hi");
+        let p = create_model(
+            &m,
+            None,
+            &CreateBody::Create {
+                state: state(false, Some(("required", ""))),
+                issuers_html: None,
+            },
+        );
+        assert!(p.texts.is_empty());
+        assert!(p.form.unwrap().statement.unwrap().required);
+
+        let pending = Pending {
+            issuer: "wikimedia".into(),
+            issuer_name: "Wikimedia".into(),
+            username: "Harej".into(),
+        };
+        let p = create_model(
+            &m,
+            Some((MessageKind::Error, "Taken".into())),
+            &CreateBody::Pending {
+                label: "Wikimedia".into(),
+                pending,
+                token: "t".into(),
+                back: "Main Page".into(),
+                username: String::new(),
+                statement: Some(("optional".into(), String::new())),
+            },
+        );
+        assert!(p.notice.unwrap().classes.contains("cdx-message--error"));
+        let pf = p.pending.unwrap();
+        assert_eq!(pf.suggest.unwrap().value, "Harej");
+        assert!(
+            pf.statement.unwrap().optional.is_none(),
+            "the pending form shows no flag"
+        );
+
+        let text = create_model(
+            &m,
+            None,
+            &CreateBody::Text(
+                vec!["Filed.".into()],
+                Some(link_choice("/wiki/X".into(), "On".into())),
+            ),
+        );
+        assert!(text.form.is_none() && text.pending.is_none());
+        assert_eq!(
+            (text.texts.len(), text.link.unwrap().href.as_str()),
+            (1, "/wiki/X")
+        );
+    }
+
+    /// The review page's model: a card per request, or the empty notice; a link otherwise.
+    #[test]
+    fn review_is_a_model() {
+        let m = Messages::for_language("en");
+        let r = triplespace_client::AccountRequest {
+            id: "r1".into(),
+            name: "Dave".into(),
+            statement: None,
+            filed: 0,
+            expires: 0,
+            address: Some("192.0.2.1".into()),
+        };
+        let p = review_model(&m, None, &ReviewBody::List(&[r], "csrf"));
+        assert!(p.empty.is_none());
+        let card = &p.requests[0];
+        assert_eq!((card.id.as_str(), card.token.as_str()), ("r1", "csrf"));
+        assert_eq!(card.reason.id, "reason-r1");
+        assert!(card.statement.is_none() && card.address.is_some());
+        let p = review_model(&m, None, &ReviewBody::List(&[], "csrf"));
+        assert_eq!(p.empty, Some(m.get("ts-confirmaccounts-none")));
+        let p = review_model(
+            &m,
+            None,
+            &ReviewBody::Link(link_choice(
+                "/wiki/Special:UserLogin".into(),
+                "Log in".into(),
+            )),
+        );
+        assert!(p.requests.is_empty() && p.link.is_some() && p.empty.is_none());
+    }
+
+    /// Plain's drawing of a model, as the site serves it.
+    fn plain(template: &str, model: impl serde::Serialize) -> String {
+        let skins = crate::skin::Skins::load(None);
+        let plain = skins.get("plain").expect("plain");
+        plain
+            .render(template, &Messages::for_language("en"), model)
+            .unwrap()
+    }
+
+    /// The challenge's part of a form: what the site's script reads, escaped (0087 §5).
     #[test]
     fn the_challenge_part_of_a_form() {
         let m = Messages::for_language("en");
@@ -1059,36 +1329,49 @@ mod tests {
             id: "1.w.createaccount.12.9.s\"x.m".into(),
             bits: 12,
         };
-        let html = challenge_fields(&m, Some(&c), "", "ts-challenge-nojs");
+        let model = challenge_model(&m, Some(&c), "", "ts-challenge-nojs");
+        let skins = crate::skin::Skins::load(None);
+        let html = skins
+            .get("plain")
+            .unwrap()
+            .render_str(
+                "{% import \"account.html\" as account %}{{ account.challenge(c) }}",
+                &m,
+                serde_json::json!({ "c": model }),
+            )
+            .unwrap();
         assert!(
             html.contains("name=\"tschallengeid\" value=\"1.w.createaccount.12.9.s&quot;x.m\"")
         );
         assert!(html.contains("data-ts-challenge-bits=\"12\""));
         assert!(html.contains("role=\"status\" aria-live=\"polite\""));
         assert!(html.contains("<noscript>"));
-        assert!(challenge_fields(&m, None, "", "ts-challenge-nojs").is_empty());
+        assert!(challenge_model(&m, None, "", "ts-challenge-nojs").is_none());
         assert_eq!(
             challenge_of("1.w.badlogin.9.1.s.m").map(|c| c.bits),
             Some(9)
         );
     }
 
+    /// The honeypot is the field the handler checks, out of the tab order and the
+    /// accessibility tree; a required statement is required; no challenge, no marker.
     #[test]
     fn the_form_has_its_honeypot() {
         let m = Messages::for_language("en");
-        let html = create_form(
-            &m,
-            &FormState {
-                token: "t+\\",
-                back: "Main Page",
-                username: "Bob",
-                statement: Some(("required", "Hi")),
+        let body = CreateBody::Create {
+            state: FormState {
+                token: "t+\\".into(),
+                back: "Main Page".into(),
+                username: "Bob".into(),
+                statement: Some(("required".into(), "Hi".into())),
                 challenge: None,
-                solution: "",
+                solution: String::new(),
                 approval: true,
                 for_another: false,
             },
-        );
+            issuers_html: None,
+        };
+        let html = plain("special/createaccount.html", create_model(&m, None, &body));
         assert!(html.contains(&format!("name=\"{HONEYPOT}\"")));
         assert!(html.contains("tabindex=\"-1\" autocomplete=\"off\""));
         assert!(html.contains("aria-hidden=\"true\""));

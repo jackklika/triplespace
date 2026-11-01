@@ -1,0 +1,7 @@
+{#- What the account forms share (0087 §5; 19 §5.10): the proof-of-work challenge's part of
+    a form. Its names, `data-` attributes and the status region are what the site's script
+    reads (`ui/src/challenge`): they are a contract, kept exactly. -#}
+
+{%- macro challenge(c) -%}
+<input type="hidden" name="tschallengeid" value="{{ c.id }}" data-ts-challenge-bits="{{ c.bits }}"><input type="hidden" name="tschallengesolution" value="{{ c.solution }}"><p class="ts-challenge__status" role="status" aria-live="polite" data-ts-challenge-status data-working="{{ c.working }}" data-waiting="{{ c.waiting }}" data-done="{{ c.done }}" data-failed="{{ c.failed }}"></p><noscript><div class="cdx-message cdx-message--block cdx-message--notice"><span class="cdx-message__icon"></span><div class="cdx-message__content">{{ c.nojs }}</div></div></noscript>
+{%- endmacro -%}

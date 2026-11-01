@@ -67,7 +67,7 @@ struct Corpus {
 /// The migration groups that have switched to the skin (19 §5.10): a case in one of
 /// them must be equal. A group joins when it switches; the cases of the groups still to
 /// come are reported, not failed, while their templates are written.
-const MIGRATED: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8];
+const MIGRATED: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 use triplespace_ui::{Renderer, Site};
 
@@ -369,7 +369,13 @@ async fn entity_parts_are_drawn_by_the_skin() {
     )
     .unwrap();
     // Plain's templates, with the Statements tab drawing a marker instead.
-    for f in ["frame.html", "codex.html", "watch.html", "entity.html"] {
+    for f in [
+        "frame.html",
+        "codex.html",
+        "watch.html",
+        "appearance.html",
+        "entity.html",
+    ] {
         std::fs::copy(
             format!(
                 "{}/../../skins/plain/templates/{f}",

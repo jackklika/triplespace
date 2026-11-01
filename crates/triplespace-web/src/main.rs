@@ -70,6 +70,11 @@ enum Command {
         /// A file holding the forwarder key, as `--forwarder-key-file`.
         #[arg(long)]
         forwarder_key_file: Option<PathBuf>,
+        /// The renderer the pages are drawn with, as `--renderer`: under `compare`, every
+        /// route whose two renderings differ is logged, so a recording is also a crawl of
+        /// the instance for the skin migration's soak (19 §5.10).
+        #[arg(long, env = "TRIPLESPACE_WEB_RENDERER", default_value = "builtin")]
+        renderer: String,
         /// The paths to render, `/wiki/Item:Q6`, `/w/index.php?title=…`.
         #[arg(required = true)]
         paths: Vec<String>,
@@ -149,14 +154,19 @@ async fn run() -> Result<()> {
             out,
             cookie,
             forwarder_key_file,
+            renderer,
             paths,
         }) => {
+            let Some(renderer) = triplespace_ui::Renderer::parse(&renderer) else {
+                bail!("--renderer is builtin, skin or compare, not `{renderer}`");
+            };
             record(
                 &api,
                 &host,
                 &out,
                 cookie.as_deref(),
                 forwarder_key_file.as_deref(),
+                renderer,
                 &paths,
             )
             .await
@@ -190,6 +200,7 @@ async fn record(
     out: &std::path::Path,
     cookie: Option<&str>,
     key_file: Option<&std::path::Path>,
+    renderer: triplespace_ui::Renderer,
     paths: &[String],
 ) -> Result<()> {
     use axum::body::Body;
@@ -206,7 +217,10 @@ async fn record(
         if let Some(c) = cookie {
             req = req.header(header::COOKIE, c);
         }
-        let r = triplespace_ui::router_with_build(client.clone(), VERSION_JSON)
+        let site = triplespace_ui::Site::new(client.clone())
+            .with_build(VERSION_JSON)
+            .with_renderer(renderer);
+        let r = triplespace_ui::router_for(site)
             .oneshot(req.body(Body::empty()).context("request")?)
             .await
             .map_err(|e| anyhow::anyhow!("{e}"))?;

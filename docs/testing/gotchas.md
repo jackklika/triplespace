@@ -39,6 +39,11 @@ strike what stops being true. Implementation status is not kept here (24 §15: `
   (`tests/common/fixture_api.rs`): without it seven entity tests panic on a missing file under
   every renderer. Stage it separately (`tar czf target/snapshots.tgz docs/api/snapshots` on the
   mount) when running those.
+- Moving `target/` into a fresh copy of the tree (to reuse a build) leaves binaries that
+  bake `env!("CARGO_MANIFEST_DIR")` pointing at the old copy, and Cargo does not rebuild
+  them: `triplespace-ui`'s tests then panic on missing fixtures, and `cargo xtask skin-parity`
+  writes its report under the old path. `cargo clean -p` the crates that use it (`grep -rl
+  'env!("CARGO_MANIFEST_DIR")' crates xtask`) and `xtask`, or build in place.
 - `tools/client_compat.sh` runs `target/debug` binaries: build `-p triplespace-cli -p
   triplespace-server` first, or it runs stale ones.
 

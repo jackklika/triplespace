@@ -6,9 +6,14 @@
 //! text area with one item a line; maps and JSON a text area holding JSON. A field left
 //! empty means "no change" for every type but a list, where it is the empty list: the
 //! row's **Reset** is how a value returns to inheriting.
+//!
+//! The drawing is Plain's `forms.html` (`control`, over [`Control::model`]); [`render`]
+//! draws the same markup for the pages not yet switched, and a test holds the two equal
+//! (19 §5.10). Parsing stays here.
 
 use std::fmt::Write as _;
 
+use serde::Serialize;
 use serde_json::Value;
 
 use crate::html::esc;
@@ -126,6 +131,192 @@ pub struct Control<'a> {
     pub described_by: Option<&'a str>,
     /// A label for a choice value, where the page has messages for them.
     pub choice_label: Option<&'a dyn Fn(&str) -> String>,
+}
+
+/// One option of a select.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct OptionModel {
+    /// The value posted.
+    pub value: String,
+    /// The text shown.
+    pub label: String,
+    /// Whether it is the current value.
+    pub selected: bool,
+}
+
+/// A control as Plain's `forms.html` draws it (19 §5.10): tagged by how it is drawn, with
+/// the fields each needs. The label, the help and any error are the page's.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum ControlModel {
+    /// An inline checkbox.
+    Checkbox {
+        /// The element ID.
+        id: String,
+        /// The field's name.
+        name: String,
+        /// Whether it is on.
+        checked: bool,
+        /// The element describing it.
+        described_by: Option<String>,
+    },
+    /// A select.
+    Select {
+        /// The element ID.
+        id: String,
+        /// The field's name.
+        name: String,
+        /// The options, "no value" first where the value may be absent.
+        options: Vec<OptionModel>,
+        /// The element describing it.
+        described_by: Option<String>,
+    },
+    /// A one-line input: `number` or `text`.
+    Input {
+        /// The element ID.
+        id: String,
+        /// The field's name.
+        name: String,
+        /// `number` or `text`.
+        input_type: String,
+        /// The value as text.
+        value: String,
+        /// The element describing it.
+        described_by: Option<String>,
+    },
+    /// A text area.
+    TextArea {
+        /// The element ID.
+        id: String,
+        /// The field's name.
+        name: String,
+        /// The value as text.
+        value: String,
+        /// Its height: the value's lines, from 2 to 12.
+        rows: usize,
+        /// Whether spellchecking is off (JSON).
+        no_spellcheck: bool,
+        /// The element describing it.
+        described_by: Option<String>,
+    },
+    /// A value shown, not edited.
+    ReadOnly {
+        /// The element ID.
+        id: String,
+        /// The value as text.
+        value: String,
+    },
+}
+
+impl Control<'_> {
+    /// The control as Plain's `forms.html` draws it.
+    #[must_use]
+    pub fn model(&self) -> ControlModel {
+        let id = self.id.to_string();
+        let name = self.name.to_string();
+        let described_by = self.described_by.map(str::to_string);
+        let text = self
+            .value
+            .map(|v| as_text(self.kind, v))
+            .unwrap_or_default();
+        match self.kind {
+            Kind::Boolean => ControlModel::Checkbox {
+                id,
+                name,
+                checked: self.value == Some(&Value::Bool(true)),
+                described_by,
+            },
+            Kind::Choice => {
+                let current = self.value.and_then(Value::as_str);
+                let mut options = Vec::new();
+                if let Some(empty) = self.empty_choice {
+                    options.push(OptionModel {
+                        value: String::new(),
+                        label: empty.to_string(),
+                        selected: current.is_none(),
+                    });
+                }
+                for choice in self.choices {
+                    options.push(OptionModel {
+                        value: choice.clone(),
+                        label: self
+                            .choice_label
+                            .map_or_else(|| choice.clone(), |f| f(choice)),
+                        selected: current == Some(choice.as_str()),
+                    });
+                }
+                ControlModel::Select {
+                    id,
+                    name,
+                    options,
+                    described_by,
+                }
+            }
+            Kind::Integer | Kind::Line => ControlModel::Input {
+                id,
+                name,
+                input_type: if self.kind == Kind::Integer {
+                    "number"
+                } else {
+                    "text"
+                }
+                .into(),
+                value: text,
+                described_by,
+            },
+            Kind::Text | Kind::Lines | Kind::IntegerLines | Kind::Namespaces | Kind::Json => {
+                ControlModel::TextArea {
+                    id,
+                    name,
+                    rows: text.lines().count().clamp(2, 12),
+                    value: text,
+                    no_spellcheck: self.kind == Kind::Json,
+                    described_by,
+                }
+            }
+            Kind::ReadOnly => ControlModel::ReadOnly { id, value: text },
+        }
+    }
+}
+
+/// A **Reset** button: submits its form asking to reset one key only.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ResetModel {
+    /// The key it resets.
+    pub value: String,
+    /// Its accessible name: "Reset Interface language".
+    pub aria_label: String,
+    /// **Reset**.
+    pub label: String,
+}
+
+/// One row of a settings or preferences form as Plain's `forms.html` draws it (`setting`):
+/// the label and key, the help, the row's errors, the control or the value shown, a
+/// **Reset** where the value is the reader's own, and a note.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SettingRow {
+    /// The row's element ID: `pref-ui.mode`.
+    pub row_id: String,
+    /// The key.
+    pub key: String,
+    /// The label.
+    pub label: String,
+    /// The control the label is for; `None` draws the label as text.
+    pub label_for: Option<String>,
+    /// The help's element ID.
+    pub help_id: String,
+    /// The help.
+    pub help: Option<String>,
+    /// What the form refused about this row.
+    pub errors: Vec<crate::codex::MessageModel>,
+    /// The control.
+    pub control: Option<ControlModel>,
+    /// The value shown, where it is not edited here.
+    pub shown: Option<String>,
+    /// **Reset**.
+    pub reset: Option<ResetModel>,
+    /// A note under the value.
+    pub note: Option<String>,
 }
 
 /// The control's markup; the label is the caller's, pointing at `id`.

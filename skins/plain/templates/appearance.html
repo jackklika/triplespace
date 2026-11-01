@@ -1,0 +1,22 @@
+{#- The Appearance menu's panel (0085 §6; 0086 §4; 0094 §1; 19 §2.7): colour mode, contrast
+    and text size as groups of icon buttons (radio buttons, so the form works without
+    JavaScript), the colour-vision alternate, and the palettes and type sets the wiki lets
+    readers choose. It posts to the web tier for a signed-in reader and is worked by the
+    site's script for anyone else. The icons are SVG the binary draws (0097 A4); the
+    `data-key` attributes are what the script reads. The frame draws it:
+    {% import "appearance.html" as appearance_menu %} … {{ appearance_menu.panel(appearance) }} -#}
+
+{%- macro panel(p) -%}
+<form class="ts-appearance__form ts-appearance__form--{% if p.signed_in %}account{% else %}browser{% endif %}" method="post" action="/w/index.php?title=Special:Preferences&amp;appearance=1"><input type="hidden" name="returnto" value="{{ p.returnto }}">
+{%- if p.nojs %}<p class="ts-appearance__nojs">{{ p.nojs }}</p>{% endif -%}
+<div class="ts-appearance__controls">
+{%- for c in p.controls -%}
+{%- if c.kind == "icons" -%}
+<fieldset class="ts-choice-group" id="{{ c.id }}"><legend class="ts-choice-group__legend">{{ c.legend }}</legend><div class="ts-choice-group__options">{% for o in c.options %}<label class="ts-choice-group__option" title="{{ o.label }}"><input class="ts-choice-group__input" type="radio" name="{{ c.key }}" value="{{ o.value }}" data-key="{{ c.key }}"{% if o.checked %} checked{% endif %}><span class="ts-choice-group__icon">{{ o.icon_html|safe }}</span><span class="ts-visually-hidden">{{ o.label }}</span></label>{% endfor %}</div></fieldset>
+{%- else -%}
+<div class="cdx-field"><div class="cdx-label"><label class="cdx-label__label" for="{{ c.id }}"><span class="cdx-label__label__text">{{ c.label }}</span></label></div><div class="cdx-field__control"><select class="cdx-select" id="{{ c.id }}" name="{{ c.key }}" data-key="{{ c.key }}">{% for o in c.options %}<option value="{{ o.value }}"{% if o.selected %} selected{% endif %}>{{ o.label }}</option>{% endfor %}</select></div></div>
+{%- endif -%}
+{%- endfor -%}
+{%- if p.apply %}<button class="cdx-button cdx-button--action-progressive cdx-button--weight-primary ts-appearance__apply" type="submit">{{ p.apply }}</button>{% endif -%}
+</div></form>
+{%- endmacro -%}

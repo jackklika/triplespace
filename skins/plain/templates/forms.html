@@ -1,0 +1,33 @@
+{#- The form controls drawn from a value's type (0085 §4, §5; 19 §5.10), shared by the
+    preferences, settings and moderation forms: one macro over `special::controls`'
+    `ControlModel`. The label, the help and any error are the page's; `described_by`
+    points at the help.
+
+    {% import "forms.html" as forms %} … {{ forms.control(c) }} -#}
+
+{%- import "codex.html" as codex -%}
+
+{%- macro described(c) %}{% if c.described_by %} aria-describedby="{{ c.described_by }}"{% endif %}{% endmacro -%}
+
+{%- macro control(c) -%}
+{%- if c.kind == "checkbox" -%}
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="{{ c.id }}" name="{{ c.name }}" value="1"{% if c.checked %} checked{% endif %}{{ described(c) }}><span class="cdx-checkbox__icon"></span></span>
+{%- elif c.kind == "select" -%}
+<select class="cdx-select" id="{{ c.id }}" name="{{ c.name }}"{{ described(c) }}>{% for o in c.options %}<option value="{{ o.value }}"{% if o.selected %} selected{% endif %}>{{ o.label }}</option>{% endfor %}</select>
+{%- elif c.kind == "input" -%}
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="{{ c.input_type }}"{% if c.input_type == "number" %} step="1"{% endif %} id="{{ c.id }}" name="{{ c.name }}" value="{{ c.value }}"{{ described(c) }}></div>
+{%- elif c.kind == "text-area" -%}
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="{{ c.id }}" name="{{ c.name }}" rows="{{ c.rows }}"{% if c.no_spellcheck %} spellcheck="false"{% endif %}{{ described(c) }}>{{ c.value }}</textarea></div>
+{%- else -%}
+<span id="{{ c.id }}">{{ c.value }}</span>
+{%- endif -%}
+{%- endmacro -%}
+
+{#- One row of a settings or preferences form (`SettingRow`): the label and key, the help,
+    the row's errors, then the control or the value shown, **Reset**, and a note. -#}
+{%- macro setting(r) -%}
+<div class="ts-setting" id="{{ r.row_id }}"><div class="ts-setting__head">{% if r.label_for %}<label class="ts-setting__label" for="{{ r.label_for }}">{{ r.label }}</label>{% else %}<span class="ts-setting__label">{{ r.label }}</span>{% endif %} <code class="ts-setting__key">{{ r.key }}</code></div>
+{%- if r.help %}<p class="ts-setting__help" id="{{ r.help_id }}">{{ r.help }}</p>{% endif -%}
+{%- for e in r.errors %}{{ codex.message(e) }}{% endfor -%}
+<div class="ts-setting__value">{% if r.control %}{{ control(r.control) }}{% endif %}{% if r.shown is not none %}<span class="ts-setting__shown">{{ r.shown }}</span>{% endif %}{% if r.reset %}<button class="cdx-button cdx-button--weight-quiet ts-setting__reset" type="submit" name="reset" value="{{ r.reset.value }}" aria-label="{{ r.reset.aria_label }}">{{ r.reset.label }}</button>{% endif %}{% if r.note %}<p class="ts-setting__note">{{ r.note }}</p>{% endif %}</div></div>
+{%- endmacro -%}

@@ -13,26 +13,87 @@
 //! `Sec-Fetch-Site`), and then asks the API for the reader's token itself.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::fmt::Write as _;
 
-use askama::Template as _;
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
+use serde::Serialize;
 use serde_json::{Map, Value, json};
 use triplespace_client::settings::{Pref, Preferences, Saved};
 use triplespace_client::{CacheInfo, ClientError, Incoming};
 
 use crate::Site;
-use crate::codex::{Action, Button, MessageKind, Weight};
+use crate::codex::{Action, Button, ButtonModel, Message, MessageKind, MessageModel, Weight};
+use crate::entity::history::Choice;
 use crate::features::Feature;
 use crate::frame::{Page, Tab, title_url};
-use crate::html::{esc, link};
 use crate::i18n::Messages;
 use crate::pages::{self, Context, Params, Peer};
-use crate::special::controls::{self, Control, Kind};
+use crate::special::controls::{self, Control, Kind, ResetModel, SettingRow};
 use crate::theme::Theme;
 
 const TITLE: &str = "Special:Preferences";
+
+// ---------------------------------------------------------------------------------------
+// The view model (19 §5.10): what `special/preferences.html` draws.
+// ---------------------------------------------------------------------------------------
+
+/// One section's form: a group of `preferences.toml`, saved together.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PrefSection {
+    /// The group's ID, the section's anchor.
+    pub id: String,
+    /// Its heading.
+    pub title: String,
+    /// That it was saved.
+    pub saved: Option<MessageModel>,
+    /// The Appearance section's note.
+    pub note: Option<String>,
+    /// What the form refused about the section as a whole.
+    pub errors: Vec<MessageModel>,
+    /// The CSRF token.
+    pub token: String,
+    /// The keys it holds, space-separated.
+    pub keys: String,
+    /// The rows.
+    pub rows: Vec<SettingRow>,
+    /// **Save**.
+    pub save: ButtonModel,
+}
+
+/// **Restore all defaults**.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RestoreForm {
+    /// The CSRF token.
+    pub token: String,
+    /// What it does.
+    pub intro: String,
+    /// The button.
+    pub button: ButtonModel,
+}
+
+/// The page for a reader who is not logged in.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AnonymousPrefs {
+    /// That preferences need an account.
+    pub notice: MessageModel,
+    /// **Log in**, where the wiki offers it.
+    pub login: Option<Choice>,
+    /// That the Appearance menu keeps choices in the browser.
+    pub appearance: String,
+}
+
+/// `Special:Preferences`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PreferencesPage {
+    /// The page for a reader who is not logged in, in place of the rest.
+    pub anonymous: Option<AnonymousPrefs>,
+    /// That every default was restored.
+    pub restored: Option<MessageModel>,
+    /// The sections.
+    pub sections: Vec<PrefSection>,
+    /// **Restore all defaults**.
+    pub restore: Option<RestoreForm>,
+}
 
 /// The palette and type set are chosen from what the wiki lets readers choose (0086 §4),
 /// as the Appearance menu offers them: a select whose empty choice is the wiki's own.
@@ -87,23 +148,8 @@ struct Returned<'a> {
     errors: BTreeMap<String, Vec<String>>,
 }
 
-fn errors_html(e: Option<&Vec<String>>) -> String {
-    e.map_or_else(String::new, |e| {
-        e.iter()
-            .map(|t| pages::message(MessageKind::Error, t))
-            .collect()
-    })
-}
-
-fn hidden(name: &str, value: &str) -> String {
-    format!(
-        "<input type=\"hidden\" name=\"{}\" value=\"{}\">",
-        esc(name),
-        esc(value)
-    )
-}
-
-fn row(m: &Messages, theme: &Theme, key: &str, p: &Pref, back: &Returned<'_>) -> String {
+/// One preference's row, as a model.
+fn row_model(m: &Messages, theme: &Theme, key: &str, p: &Pref, back: &Returned<'_>) -> SettingRow {
     let sheet = sheet_pref(m, theme, key, p);
     let p = sheet.as_ref().map_or(p, |(p, _)| p);
     let kind = kind_of(&p.ty);
@@ -112,24 +158,7 @@ fn row(m: &Messages, theme: &Theme, key: &str, p: &Pref, back: &Returned<'_>) ->
     let help_id = format!("{id}-help");
     let name = format!("v.{key}");
     let label_text = label(m, key, p);
-    let mut s = format!(
-        "<div class=\"ts-setting\" id=\"pref-{}\"><div class=\"ts-setting__head\"><label class=\"ts-setting__label\" for=\"{}\">{}</label> <code class=\"ts-setting__key\">{}</code></div>",
-        esc(key),
-        esc(&id),
-        esc(&label_text),
-        esc(key)
-    );
     let has_help = m.has(&help_key);
-    if has_help {
-        let _ = write!(
-            s,
-            "<p class=\"ts-setting__help\" id=\"{}\">{}</p>",
-            esc(&help_id),
-            esc(&m.get(&help_key))
-        );
-    }
-    s.push_str(&errors_html(back.errors.get(key)));
-    s.push_str("<div class=\"ts-setting__value\">");
     let typed;
     let value = match (back.section == p.group, back.form) {
         (true, Some(f)) => match (kind, f.map.get(&name)) {
@@ -156,7 +185,7 @@ fn row(m: &Messages, theme: &Theme, key: &str, p: &Pref, back: &Returned<'_>) ->
         if m.has(&k) { m.get(&k) } else { c.to_string() }
     };
     let empty = sheet.as_ref().map(|(_, options)| options[0].1.clone());
-    s.push_str(&controls::render(&Control {
+    let control = Control {
         id: &id,
         name: &name,
         kind,
@@ -167,30 +196,53 @@ fn row(m: &Messages, theme: &Theme, key: &str, p: &Pref, back: &Returned<'_>) ->
             .or_else(|| p.value.is_none().then_some("—")),
         described_by: has_help.then_some(help_id.as_str()),
         choice_label: Some(&choice_label),
-    }));
-    if p.own {
-        let _ = write!(
-            s,
-            "<button class=\"cdx-button cdx-button--weight-quiet ts-setting__reset\" type=\"submit\" name=\"reset\" value=\"{}\" aria-label=\"{}\">{}</button>",
-            esc(key),
-            esc(&m.with("ts-settings-reset-label", &[&label_text])),
-            esc(&m.get("ts-settings-reset"))
-        );
     }
-    s.push_str("</div></div>");
-    s
+    .model();
+    SettingRow {
+        row_id: format!("pref-{key}"),
+        key: key.to_string(),
+        label: label_text.clone(),
+        label_for: Some(id.clone()),
+        help_id: help_id.clone(),
+        help: has_help.then(|| m.get(&help_key)),
+        errors: back
+            .errors
+            .get(key)
+            .map(|e| {
+                e.iter()
+                    .map(|t| Message::block(MessageKind::Error, t).model())
+                    .collect()
+            })
+            .unwrap_or_default(),
+        control: Some(control),
+        shown: None,
+        reset: p.own.then(|| ResetModel {
+            value: key.to_string(),
+            aria_label: m.with("ts-settings-reset-label", &[&label_text]),
+            label: m.get("ts-settings-reset"),
+        }),
+        note: None,
+    }
 }
 
-fn body(
+/// The page's model, signed in.
+fn body_model(
     m: &Messages,
     theme: &Theme,
     prefs: &Preferences,
     token: &str,
     back: &Returned<'_>,
     saved: Option<&String>,
-) -> (String, Vec<Tab>) {
-    let mut tabs = Vec::new();
-    let mut out = String::new();
+) -> PreferencesPage {
+    let errors = |e: Option<&Vec<String>>| -> Vec<MessageModel> {
+        e.map(|e| {
+            e.iter()
+                .map(|t| Message::block(MessageKind::Error, t).model())
+                .collect()
+        })
+        .unwrap_or_default()
+    };
+    let mut sections = Vec::new();
     for g in &prefs.groups {
         let keys: Vec<(&String, &Pref)> = prefs
             .preferences
@@ -200,110 +252,82 @@ fn body(
         if keys.is_empty() {
             continue;
         }
-        let title = if m.has(&g.label) {
-            m.get(&g.label)
-        } else {
-            g.id.clone()
-        };
-        tabs.push(Tab {
-            label: title.clone(),
-            href: format!("#{}", g.id),
-            current: false,
-        });
-        let _ = write!(
-            out,
-            "<section class=\"ts-settings__section\" id=\"{id}\" aria-labelledby=\"{id}-title\"><h2 id=\"{id}-title\">{}</h2>",
-            esc(&title),
-            id = esc(&g.id)
-        );
-        if saved.is_some_and(|s| *s == g.id) {
-            out.push_str(&pages::message(
-                MessageKind::Success,
-                &m.get("ts-preferences-saved"),
-            ));
-        }
-        if g.id == "appearance" {
-            let _ = write!(
-                out,
-                "<p>{}</p>",
-                esc(&m.get("ts-preferences-appearance-note"))
-            );
-        }
-        if back.section == g.id {
-            out.push_str(&errors_html(back.errors.get("")));
-        }
         let names: Vec<&str> = keys.iter().map(|(k, _)| k.as_str()).collect();
-        let _ = write!(
-            out,
-            "<form class=\"ts-settings__form\" method=\"post\" action=\"/w/index.php?title={}\">{}{}{}",
-            title_url(TITLE),
-            hidden("section", &g.id),
-            hidden("token", token),
-            hidden("keys", &names.join(" "))
-        );
-        for (k, p) in keys {
-            out.push_str(&row(m, theme, k, p, back));
-        }
-        let _ = write!(
-            out,
-            "<div class=\"ts-settings__save\">{}</div></form></section>",
-            Button {
+        sections.push(PrefSection {
+            id: g.id.clone(),
+            title: if m.has(&g.label) {
+                m.get(&g.label)
+            } else {
+                g.id.clone()
+            },
+            saved: saved.is_some_and(|s| *s == g.id).then(|| {
+                Message::block(MessageKind::Success, &m.get("ts-preferences-saved")).model()
+            }),
+            note: (g.id == "appearance").then(|| m.get("ts-preferences-appearance-note")),
+            errors: if back.section == g.id {
+                errors(back.errors.get(""))
+            } else {
+                Vec::new()
+            },
+            token: token.to_string(),
+            keys: names.join(" "),
+            rows: keys
+                .iter()
+                .map(|(k, p)| row_model(m, theme, k, p, back))
+                .collect(),
+            save: Button {
                 label: &m.get("ts-preferences-save"),
                 kind: "submit",
                 action: Action::Progressive,
                 weight: Weight::Primary,
             }
-            .render()
-            .unwrap_or_default()
-        );
+            .model(),
+        });
     }
-    let _ = write!(
-        out,
-        "<section class=\"ts-settings__section\" id=\"restore\"><form class=\"ts-settings__form\" method=\"post\" action=\"/w/index.php?title={}\">{}{}{}<p>{}</p>{}</form></section>",
-        title_url(TITLE),
-        hidden("section", "restore"),
-        hidden("token", token),
-        hidden("reset_all", "1"),
-        esc(&m.get("ts-preferences-restore-intro")),
-        Button {
-            label: &m.get("ts-preferences-restore"),
-            kind: "submit",
-            action: Action::Destructive,
-            weight: Weight::Normal,
-        }
-        .render()
-        .unwrap_or_default()
-    );
-    if saved.is_some_and(|s| s == "restore") {
-        out.insert_str(
-            0,
-            &pages::message(MessageKind::Success, &m.get("ts-preferences-restored")),
-        );
+    PreferencesPage {
+        anonymous: None,
+        restored: saved.is_some_and(|s| s == "restore").then(|| {
+            Message::block(MessageKind::Success, &m.get("ts-preferences-restored")).model()
+        }),
+        sections,
+        restore: Some(RestoreForm {
+            token: token.to_string(),
+            intro: m.get("ts-preferences-restore-intro"),
+            button: Button {
+                label: &m.get("ts-preferences-restore"),
+                kind: "submit",
+                action: Action::Destructive,
+                weight: Weight::Normal,
+            }
+            .model(),
+        }),
     }
-    (
-        format!("<div class=\"ts-settings ts-preferences\">{out}</div>"),
-        tabs,
-    )
 }
 
 /// The page for a reader who is not logged in.
 fn anonymous(cx: &Context, headers: &HeaderMap) -> Response {
-    let login = cx.features.has(Feature::Login).then(|| {
-        link(
-            &format!("/wiki/Special:UserLogin?returnto={}", title_url(TITLE)),
-            &esc(&cx.m.get("ts-login")),
-            "",
-        )
-    });
+    let m = &cx.m;
+    let login_href = format!("/wiki/Special:UserLogin?returnto={}", title_url(TITLE));
+    let offered = cx.features.has(Feature::Login);
+    let model = PreferencesPage {
+        anonymous: Some(AnonymousPrefs {
+            notice: Message::block(MessageKind::Notice, &m.get("ts-preferences-anon")).model(),
+            login: offered.then(|| Choice {
+                href: login_href.clone(),
+                label: m.get("ts-login"),
+                current: false,
+            }),
+            appearance: m.get("ts-preferences-anon-appearance"),
+        }),
+        restored: None,
+        sections: Vec::new(),
+        restore: None,
+    };
+    let body = cx.draw("special/preferences.html", model);
     pages::respond(cx, headers, StatusCode::OK, |m| Page {
         title: m.get("ts-preferences-title"),
         returnto: Some(TITLE.to_string()),
-        body: format!(
-            "{}{}<p>{}</p>",
-            pages::message(MessageKind::Notice, &m.get("ts-preferences-anon")),
-            login.map(|l| format!("<p>{l}</p>")).unwrap_or_default(),
-            esc(&m.get("ts-preferences-anon-appearance"))
-        ),
+        body,
         ..Page::default()
     })
 }
@@ -340,7 +364,7 @@ async fn render(
         }
         (Err(e), _) | (_, Err(e)) => return pages::api_failed(cx, headers, &e),
     };
-    let (html, tabs) = body(
+    let model = body_model(
         &cx.m,
         &cx.theme,
         &prefs.value,
@@ -348,6 +372,17 @@ async fn render(
         back,
         saved,
     );
+    // The page's tabs are the frame's: one per section.
+    let tabs = model
+        .sections
+        .iter()
+        .map(|s| Tab {
+            label: s.title.clone(),
+            href: format!("#{}", s.id),
+            current: false,
+        })
+        .collect();
+    let html = cx.draw("special/preferences.html", model);
     let page = pages::respond(cx, headers, status, |m| Page {
         title: m.get("ts-preferences-title"),
         returnto: Some(TITLE.to_string()),
@@ -635,6 +670,55 @@ pub async fn post(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A preference's row (19 §5.10): its control from its type, help where the label has
+    /// some, **Reset** only for the reader's own value, and the reader's text back after a
+    /// refusal, with the row's errors.
+    #[test]
+    fn a_row_is_a_model() {
+        let m = Messages::for_language("en");
+        let theme = Theme::shipped();
+        let p = Pref {
+            value: Some(json!(50)),
+            own: false,
+            ty: "integer".into(),
+            group: "history".into(),
+            label: "ts-pref-rc-limit".into(),
+            ..Pref::default()
+        };
+        let r = row_model(&m, &theme, "rc.limit", &p, &Returned::default());
+        assert_eq!(
+            (r.row_id.as_str(), r.label_for.as_deref()),
+            ("pref-rc.limit", Some("ts-p-rc.limit"))
+        );
+        assert!(r.reset.is_none() && r.errors.is_empty());
+        assert!(
+            matches!(&r.control, Some(controls::ControlModel::Input { value, .. }) if value == "50")
+        );
+        let own = Pref {
+            own: true,
+            ..p.clone()
+        };
+        assert_eq!(
+            row_model(&m, &theme, "rc.limit", &own, &Returned::default())
+                .reset
+                .unwrap()
+                .value,
+            "rc.limit"
+        );
+        let mut sent = Params::default();
+        sent.map.insert("v.rc.limit".into(), "twenty".into());
+        let back = Returned {
+            section: "history".into(),
+            form: Some(&sent),
+            errors: BTreeMap::from([("rc.limit".to_string(), vec!["not a number".to_string()])]),
+        };
+        let r = row_model(&m, &theme, "rc.limit", &p, &back);
+        assert_eq!(r.errors.len(), 1);
+        assert!(
+            matches!(&r.control, Some(controls::ControlModel::Input { value, .. }) if value == "twenty")
+        );
+    }
 
     #[test]
     fn same_origin_checks() {

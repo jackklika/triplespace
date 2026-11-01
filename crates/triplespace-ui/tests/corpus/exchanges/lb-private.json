@@ -5,10 +5,10 @@
     "status": 200,
     "headers": {
       "cache-control": "public, max-age=60, s-maxage=60, stale-while-revalidate=300",
-      "content-length": "15805",
+      "content-length": "15804",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 18:28:52 GMT",
-      "etag": "\"eb7f8a269bac27b2190775db07ee7933\"",
+      "date": "Sun, 01 Nov 2026 17:53:58 GMT",
+      "etag": "\"04b98dc6eba3a6ee882d22a9f1e0e6ac\"",
       "vary": "Accept, Accept-Language"
     },
     "json": {
@@ -23,7 +23,7 @@
         },
         "triplespace": {
           "account": {
-            "approval": false,
+            "approval": true,
             "statement": "optional"
           },
           "api_version": 6,
@@ -574,7 +574,7 @@
       "cache-tag": "entity:Q6",
       "content-length": "66",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 18:28:52 GMT",
+      "date": "Sun, 01 Nov 2026 17:53:57 GMT",
       "etag": "\"e0f7f310d96f6780ee72907f74589bda\"",
       "vary": "Accept, Accept-Language"
     },
@@ -596,7 +596,7 @@
       "cache-control": "private, no-cache",
       "content-length": "52",
       "content-type": "application/json; charset=utf-8",
-      "date": "Sat, 31 Oct 2026 18:28:52 GMT",
+      "date": "Sun, 01 Nov 2026 17:53:57 GMT",
       "vary": "Accept, Accept-Language"
     },
     "json": {

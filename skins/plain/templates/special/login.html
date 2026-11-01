@@ -1,0 +1,11 @@
+{#- Special:UserLogin (0010 §10; 0057 §4; 0087 §2, §5): the notice, the form with its
+    challenge where one is asked for, the external issuers' buttons (HTML until group 12,
+    0097 A6), and the way to create an account. Works without JavaScript. -#}
+{%- import "codex.html" as codex -%}
+{%- import "account.html" as account -%}
+<div class="ts-account-form">{% if notice %}{{ codex.message(notice) }}{% endif -%}
+{%- if form %}<form class="ts-form" method="post" action="/w/index.php?title=Special:UserLogin"{% if form.challenge_bits is not none %} data-ts-challenge="{{ form.challenge_bits }}"{% endif %}><input type="hidden" name="logintoken" value="{{ form.token }}"><input type="hidden" name="returnto" value="{{ form.returnto }}">{{ codex.field(form.username) }}{{ codex.field(form.password) }}{% if form.challenge %}{{ account.challenge(form.challenge) }}{% endif %}<div class="ts-form__actions">{{ codex.button(form.submit) }}</div></form>{% endif -%}
+{%- if issuers_html %}{{ issuers_html|safe }}{% endif -%}
+{%- if continue_link %}<p><a href="{{ continue_link.href }}">{{ continue_link.label }}</a></p>{% endif -%}
+{%- if join %}<p class="ts-login__join"><a href="{{ join.href }}">{{ join.label }}</a></p>{% endif -%}
+</div>

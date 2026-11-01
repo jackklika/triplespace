@@ -16,10 +16,12 @@
 
 use std::fmt::Write as _;
 
+use serde::Serialize;
 use serde_json::{Map, Value, json};
 
 use crate::html::esc;
 use crate::i18n::Messages;
+use crate::special::controls::OptionModel;
 use crate::theme::{Sheet, Theme, retired_palette};
 
 /// The keys that choose a stylesheet, whose choices are the wiki's.
@@ -174,29 +176,6 @@ pub fn data(theme: &Theme, options: Option<&Map<String, Value>>, own: Option<&[S
     v.to_string().replace("</", "<\\/")
 }
 
-/// One select of the panel.
-fn select(s: &mut String, m: &Messages, key: &str, options: &[(String, String)], current: &str) {
-    let id = format!("ts-appearance-{}", key.replace('.', "-"));
-    let label_key = format!("ts-pref-{}", key.replace('.', "-"));
-    let _ = write!(
-        s,
-        "<div class=\"cdx-field\"><div class=\"cdx-label\"><label class=\"cdx-label__label\" for=\"{id}\"><span class=\"cdx-label__label__text\">{}</span></label></div><div class=\"cdx-field__control\"><select class=\"cdx-select\" id=\"{id}\" name=\"{}\" data-key=\"{}\">",
-        esc(&m.get(&label_key)),
-        esc(key),
-        esc(key)
-    );
-    for (value, label) in options {
-        let _ = write!(
-            s,
-            "<option value=\"{}\"{}>{}</option>",
-            esc(value),
-            if current == value { " selected" } else { "" },
-            esc(label)
-        );
-    }
-    s.push_str("</select></div></div>");
-}
-
 /// The icon of a choice of [`ICON_KEYS`], as an inline SVG drawn in `currentcolor`:
 /// Codex's icons where one fits (sun, moon, the letter A), a screen for following the
 /// device, and a half-filled circle for more contrast. Text sizes are the letter A at
@@ -220,31 +199,6 @@ fn icon(key: &str, choice: &str) -> String {
     format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{size}\" height=\"{size}\" viewBox=\"0 0 20 20\" aria-hidden=\"true\" focusable=\"false\"><path fill-rule=\"evenodd\" d=\"{path}\"/></svg>"
     )
-}
-
-/// One group of icon buttons of which one is chosen: radio buttons in a fieldset, each
-/// named by its label, which is also its tooltip.
-fn icon_group(s: &mut String, m: &Messages, key: &str, choices: &[&str], current: &str) {
-    let label_key = format!("ts-pref-{}", key.replace('.', "-"));
-    let id = format!("ts-appearance-{}", key.replace('.', "-"));
-    let _ = write!(
-        s,
-        "<fieldset class=\"ts-choice-group\" id=\"{id}\"><legend class=\"ts-choice-group__legend\">{}</legend><div class=\"ts-choice-group__options\">",
-        esc(&m.get(&label_key)),
-    );
-    for c in choices {
-        let label = m.get(&format!("{label_key}-{c}"));
-        let _ = write!(
-            s,
-            "<label class=\"ts-choice-group__option\" title=\"{label}\"><input class=\"ts-choice-group__input\" type=\"radio\" name=\"{key}\" value=\"{c}\" data-key=\"{key}\"{checked}><span class=\"ts-choice-group__icon\">{icon}</span><span class=\"ts-visually-hidden\">{label}</span></label>",
-            label = esc(&label),
-            key = esc(key),
-            c = esc(c),
-            checked = if current == *c { " checked" } else { "" },
-            icon = icon(key, c),
-        );
-    }
-    s.push_str("</div></fieldset>");
 }
 
 /// The options of a palette or type-set select: the wiki's own as "Parchment
@@ -272,67 +226,174 @@ pub fn sheet_options(m: &Messages, theme: &Theme, sheet: Sheet) -> Vec<(String, 
     out
 }
 
-/// The panel: a form of selects, which posts to the web tier for a signed-in reader and
-/// is worked by the site's script for one who is not.
+// ---------------------------------------------------------------------------------------
+// The view model (19 §5.10): what Plain's `appearance.html` draws.
+// ---------------------------------------------------------------------------------------
+
+/// One choice of an icon group.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct IconOption {
+    /// The value.
+    pub value: String,
+    /// Its name, which is also its tooltip.
+    pub label: String,
+    /// Whether it is the current one.
+    pub checked: bool,
+    /// Its icon: an SVG the binary draws (0097 A4).
+    pub icon_html: String,
+}
+
+/// One control of the panel.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum AppearanceControl {
+    /// A group of icon buttons of which one is chosen: radio buttons in a fieldset.
+    Icons {
+        /// The fieldset's ID.
+        id: String,
+        /// The preference key.
+        key: String,
+        /// The legend.
+        legend: String,
+        /// The choices.
+        options: Vec<IconOption>,
+    },
+    /// A labelled select.
+    Select {
+        /// The select's ID.
+        id: String,
+        /// The preference key.
+        key: String,
+        /// The label.
+        label: String,
+        /// The options.
+        options: Vec<OptionModel>,
+    },
+}
+
+/// The Appearance menu's panel.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AppearancePanel {
+    /// Whether the reader is signed in: the form posts to the web tier, and has **Apply**.
+    pub signed_in: bool,
+    /// The page to return to.
+    pub returnto: String,
+    /// What the panel says without JavaScript, to a reader not signed in.
+    pub nojs: Option<String>,
+    /// The controls.
+    pub controls: Vec<AppearanceControl>,
+    /// **Apply**, for a signed-in reader.
+    pub apply: Option<String>,
+}
+
+fn select_model(
+    m: &Messages,
+    key: &str,
+    options: &[(String, String)],
+    current: &str,
+) -> AppearanceControl {
+    AppearanceControl::Select {
+        id: format!("ts-appearance-{}", key.replace('.', "-")),
+        key: key.to_string(),
+        label: m.get(&format!("ts-pref-{}", key.replace('.', "-"))),
+        options: options
+            .iter()
+            .map(|(value, label)| OptionModel {
+                value: value.clone(),
+                label: label.clone(),
+                selected: current == value,
+            })
+            .collect(),
+    }
+}
+
+/// The panel's model.
 #[must_use]
-pub fn panel(
+pub fn panel_model(
     m: &Messages,
     theme: &Theme,
     options: Option<&Map<String, Value>>,
     returnto: &str,
-) -> String {
+) -> AppearancePanel {
     let signed_in = options.is_some();
-    let mut s = format!(
-        "<form class=\"ts-appearance__form ts-appearance__form--{}\" method=\"post\" action=\"/w/index.php?title=Special:Preferences&amp;appearance=1\"><input type=\"hidden\" name=\"returnto\" value=\"{}\">",
-        if signed_in { "account" } else { "browser" },
-        esc(returnto)
-    );
-    if !signed_in {
-        let _ = write!(
-            s,
-            "<p class=\"ts-appearance__nojs\">{}</p>",
-            esc(&m.get("ts-appearance-nojs"))
-        );
-    }
-    s.push_str("<div class=\"ts-appearance__controls\">");
+    let mut controls = Vec::new();
     for (key, choices, _) in KEYS {
+        let label_key = format!("ts-pref-{}", key.replace('.', "-"));
+        let current = value_of(options, key);
         if ICON_KEYS.contains(key) {
-            icon_group(&mut s, m, key, choices, value_of(options, key));
+            controls.push(AppearanceControl::Icons {
+                id: format!("ts-appearance-{}", key.replace('.', "-")),
+                key: (*key).to_string(),
+                legend: m.get(&label_key),
+                options: choices
+                    .iter()
+                    .map(|c| IconOption {
+                        value: (*c).to_string(),
+                        label: m.get(&format!("{label_key}-{c}")),
+                        checked: current == *c,
+                        icon_html: icon(key, c),
+                    })
+                    .collect(),
+            });
             continue;
         }
-        let label_key = format!("ts-pref-{}", key.replace('.', "-"));
         let opts: Vec<(String, String)> = choices
             .iter()
             .map(|c| ((*c).to_string(), m.get(&format!("{label_key}-{c}"))))
             .collect();
-        select(&mut s, m, key, &opts, value_of(options, key));
+        controls.push(select_model(m, key, &opts, current));
     }
     for (key, sheet) in SHEET_KEYS {
         let opts = sheet_options(m, theme, sheet);
         if opts.len() > 1 {
-            select(
-                &mut s,
+            controls.push(select_model(
                 m,
                 key,
                 &opts,
                 &sheet_value(theme, options, key, sheet),
-            );
+            ));
         }
     }
-    if signed_in {
-        let _ = write!(
-            s,
-            "<button class=\"cdx-button cdx-button--action-progressive cdx-button--weight-primary ts-appearance__apply\" type=\"submit\">{}</button>",
-            esc(&m.get("ts-appearance-apply"))
-        );
+    AppearancePanel {
+        signed_in,
+        returnto: returnto.to_string(),
+        nojs: (!signed_in).then(|| m.get("ts-appearance-nojs")),
+        controls,
+        apply: signed_in.then(|| m.get("ts-appearance-apply")),
     }
-    s.push_str("</div></form>");
-    s
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The panel's model (19 §5.10): three icon groups and the vision select for every
+    /// reader, the current choices checked, **Apply** and the account form when signed in,
+    /// the no-script note otherwise; icons are SVG (0097 A4).
+    #[test]
+    fn the_panel_is_a_model() {
+        let m = Messages::for_language("en");
+        let theme = Theme::shipped();
+        let anon = panel_model(&m, &theme, None, "Main Page");
+        assert!(!anon.signed_in && anon.apply.is_none() && anon.nojs.is_some());
+        let icons = anon
+            .controls
+            .iter()
+            .filter(|c| matches!(c, AppearanceControl::Icons { .. }))
+            .count();
+        assert_eq!(icons, 3);
+        let mut o = Map::new();
+        o.insert("ui.mode".into(), json!("dark"));
+        let signed = panel_model(&m, &theme, Some(&o), "Item:Q6");
+        assert!(signed.signed_in && signed.apply.is_some() && signed.nojs.is_none());
+        let AppearanceControl::Icons { key, options, .. } = &signed.controls[0] else {
+            panic!("the mode is an icon group");
+        };
+        assert_eq!(key, "ui.mode");
+        let dark = options.iter().find(|o| o.value == "dark").unwrap();
+        assert!(dark.checked && dark.icon_html.starts_with("<svg"));
+        assert_eq!(options.iter().filter(|o| o.checked).count(), 1);
+    }
 
     #[test]
     fn the_keys_match_the_registry() {
@@ -406,7 +467,16 @@ mod tests {
             json!({"ui.palette": "encyclopedia", "ui.typeset": "nope", "ui.mode": "dark"}),
         )
         .unwrap();
-        let html = panel(&m, &Theme::shipped(), Some(&o), "Main Page");
+        let skins = crate::skin::Skins::load(None);
+        let html = skins
+            .get("plain")
+            .unwrap()
+            .render_str(
+                "{% import \"appearance.html\" as a %}{{ a.panel(p) }}",
+                &m,
+                json!({ "p": panel_model(&m, &Theme::shipped(), Some(&o), "Main Page") }),
+            )
+            .unwrap();
         assert!(html.contains("<select class=\"cdx-select\" id=\"ts-appearance-ui-palette\" name=\"ui.palette\" data-key=\"ui.palette\"><option value=\"\">Parchment (default)</option>"));
         assert!(html.contains("<option value=\"\" selected>Source (default)</option>"));
         assert!(html.contains("<option value=\"encyclopedia\" selected>"));

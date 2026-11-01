@@ -1,0 +1,8 @@
+{#- Special:UserLogout (0010 §10): a GET asks, with a form; the POST carries the CSRF
+    token. A viewer not logged in is told so. -#}
+{%- import "codex.html" as codex -%}
+<div class="ts-account-form">{% if notice %}{{ codex.message(notice) }}{% endif -%}
+{%- if not_logged_in %}<p>{{ not_logged_in }}</p>{% endif -%}
+{%- if continue_link %}<p><a href="{{ continue_link.href }}">{{ continue_link.label }}</a></p>{% endif -%}
+{%- if form %}<form class="ts-form" method="post" action="/w/index.php?title=Special:UserLogout"><p>{{ form.question }}</p><input type="hidden" name="token" value="{{ form.token }}"><input type="hidden" name="returnto" value="{{ form.returnto }}"><div class="ts-form__actions">{{ codex.button(form.submit) }}</div></form>{% endif -%}
+</div>

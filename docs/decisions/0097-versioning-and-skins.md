@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-10-29
-- **Updated:** 2026-10-31 (A7)
+- **Updated:** 2026-11-01 (A8)
 - **Author:** James Hare / Claude Opus
 - **Changes:** [0005](0005-crate-organization.md), [0015](0015-record-format-and-partition-registry.md), [0034](0034-frontend-stack.md), [0057](0057-web-tier.md), [0077](0077-special-version.md), [0086](0086-theming.md), [0095](0095-the-interface-namespace.md)
 - **Uses:** [0012](0012-api-requirements.md), [0028](0028-tenancy-policy.md), [0050](0050-adr-format.md), [0055](0055-templatestyles-templatedata-and-page-properties.md), [0058](0058-packed-record-storage.md), [0085](0085-settings-and-preferences.md)
@@ -68,7 +68,7 @@ James's direction, from the design discussion of 2026-10-29:
 
 ### 9. The template contract (extends 0034 §2)
 
-*Changed by A2, A4, A6, A7.*
+*Changed by A2, A4, A6, A7, A8.*
 
 *Current text: [19](../architecture/19-site-ui.md) §5.10.*
 
@@ -224,3 +224,10 @@ Replaced text ([19](../architecture/19-site-ui.md) §5.10, as it stood):
 - **Source:** Direct: James, confirmed 2026-10-31; Claude's call while building group 8's view models (search, the special-page index, all pages, the reports and the redirecting pages), 2026-10-31
 - **Change:** extends §9
 - **Summary:** A form's controls are one vocabulary in Plain, not one per page: a labelled text field, an inline check box, a labelled menu and a fieldset of them, the model `FormItem` and the macro `item` in `changes.html`, which the changes filter form (group 7) introduced. `Special:AllPages`, `Special:PrefixIndex` and the redirecting pages' parameter form (group 8) draw their fields with it rather than with a `forms.html` of their own, since their markup is the same; the groups still to come (9–11) extend it where a control is missing rather than adding a parallel set. The chapter text is 19 §5.10.
+
+### A8. Typed controls and the settings row join the shared controls
+
+- **Date:** 2026-11-01
+- **Source:** Direct: Claude, while building group 9's view models (the form controls, login, registration, preferences and the Appearance menu), 2026-11-01; unconfirmed
+- **Change:** extends §9 and A7
+- **Summary:** The forms that edit a value of a registry type (preferences now, the wiki's and the instance's settings in group 10, the moderation forms in group 11) draw each control from its type: a checkbox, a select, a number or text input, a text area, or a value shown. Their markup has no label of its own, the row around it carries the label, the key, the help, the row's errors and **Reset**, and the same row serves preferences and settings. These are two more macros of the shared vocabulary in Plain's `forms.html`: `control`, over the model `ControlModel` that the typed control builds (`Control::model`), and `setting`, over `SettingRow`. `changes.html`'s `item` (A7) remains the labelled field of the filter forms that work by `GET`. The two are kept apart because their markup differs: a labelled `FormItem` is one element with its label, a typed control is the bare input a row labels; folding one into the other would change Plain's DOM. Group 10 extends `setting` with what the settings rows add (the value's origin) rather than drawing a row of its own. The chapter text is 19 §5.10.

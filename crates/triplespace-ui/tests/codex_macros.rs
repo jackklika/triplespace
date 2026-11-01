@@ -275,3 +275,79 @@ fn watch_control() {
     }
     insta::assert_snapshot!("watch_control", out);
 }
+
+/// Group 9a (19 §5.10): each form control as `forms.html`'s `control` draws the same
+/// markup as `special::controls::render`, in every kind, with and without help, with no
+/// value, with the reader's own text coming back after an error, and escaped.
+#[test]
+fn form_controls() {
+    use serde_json::{Value, json};
+    use triplespace_ui::special::controls::{Control, Kind as ControlKind, render};
+
+    let skins = Skins::load(None);
+    let plain = skins.get("plain").expect("plain");
+    let m = Messages::for_language("en");
+    let choices = vec!["light".to_string(), "dark & \"deep\"".to_string()];
+    let label = |c: &str| format!("Mode: {c}");
+    let values: [Option<Value>; 6] = [
+        None,
+        Some(json!(true)),
+        Some(json!("dark & \"deep\"")),
+        Some(json!(20)),
+        // The reader's text, back after the form refused it.
+        Some(json!("twenty <b>")),
+        Some(json!(["en", "de", "</textarea><script>"])),
+    ];
+    let kinds = [
+        ControlKind::Boolean,
+        ControlKind::Choice,
+        ControlKind::Integer,
+        ControlKind::Line,
+        ControlKind::Text,
+        ControlKind::Lines,
+        ControlKind::IntegerLines,
+        ControlKind::Namespaces,
+        ControlKind::Json,
+        ControlKind::ReadOnly,
+    ];
+    let mut checked = 0;
+    for kind in kinds {
+        for value in &values {
+            for described_by in [None, Some("x-help")] {
+                for empty_choice in [None, Some("(inherit)")] {
+                    for labelled in [false, true] {
+                        let c = Control {
+                            id: "x\"id",
+                            name: "v.a&b",
+                            kind,
+                            choices: &choices,
+                            value: value.as_ref(),
+                            empty_choice,
+                            described_by,
+                            choice_label: labelled.then_some(&label as &dyn Fn(&str) -> String),
+                        };
+                        let builtin = render(&c);
+                        let ours = plain
+                            .render_str(
+                                "{% import \"forms.html\" as forms %}{{ forms.control(x) }}",
+                                &m,
+                                json!({ "x": c.model() }),
+                            )
+                            .unwrap_or_else(|e| panic!("{kind:?}: {e:#}"));
+                        let what = format!(
+                            "{kind:?} {value:?} {described_by:?} {empty_choice:?} {labelled}"
+                        );
+                        assert_eq!(
+                            compare(&builtin, &ours, Kind::Fragment),
+                            None,
+                            "{what}:\n--- builtin\n{builtin}\n--- macro\n{ours}"
+                        );
+                        assert_eq!(ours, spelled(&builtin), "{what}: byte for byte");
+                        checked += 1;
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(checked, 10 * 6 * 2 * 2 * 2);
+}

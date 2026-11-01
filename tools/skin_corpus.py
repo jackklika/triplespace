@@ -78,21 +78,32 @@ class C:
         self.name = name
         return self
 
-    def register(self, name, pw):
+    def create(self, name, pw, **more):
+        """`createaccount`, solving the challenge where one is asked; the API's answer."""
         v = self.api(action="query", meta="authmanagerinfo", amirequestsfor="create",
                      amimergerequestfields=1)
-        extra = {}
+        extra = dict(more)
         fields = v["query"]["authmanagerinfo"].get("fields", {})
         if "tschallengeid" in fields:
             cid = fields["tschallengeid"]["value"]
             sol = cli("challenge", "solve", cid).strip()
-            extra = {"tschallengeid": cid, "tschallengesolution": sol}
+            extra.update({"tschallengeid": cid, "tschallengesolution": sol})
         t = self.token("createaccount")
-        r = self.post(action="createaccount", username=name, password=pw, retype=pw,
-                      createtoken=t, createreturnurl=f"{ARGS.api}/", **extra)
+        return self.post(action="createaccount", username=name, password=pw, retype=pw,
+                         createtoken=t, createreturnurl=f"{ARGS.api}/", **extra)
+
+    def register(self, name, pw):
+        r = self.create(name, pw)
         if r.get("createaccount", {}).get("status") != "PASS":
             raise RuntimeError(f"register {name}: {r}")
         return self.login(name, pw)
+
+    def request(self, name, pw, statement):
+        """Files an account request where the wiki reviews new accounts (0087 §6)."""
+        r = self.create(name, pw, tsstatement=statement)
+        if r.get("createaccount", {}).get("messagecode") != "ts-account-requested":
+            raise RuntimeError(f"request {name}: {r}")
+        return self
 
     def cookie(self):
         return "; ".join(f"{k}={v}" for k, v in self.s.cookies.items())
@@ -261,6 +272,11 @@ def seed():
     must("options", bob.post(action="options", change="language=de|ui.mode=dark|ui.contrast=more", token=bob.token()))
     # Alice looks at her notifications once, so the bell has seen some.
     must("seen", alice.post(action="echomarkseen", type="all", token=alice.token()))
+
+    # Registration reviewed (group 9): Dave's request waits on Alice, with a statement.
+    # Last, so that the accounts above were created at once.
+    cli("settings", "set", "--tenant", "librarybase", "account.approval", "true")
+    C().request("Dave", "dave-secret-1234", "I catalogue my library's sources.")
 
     st, r = alice.rest("GET", "/activity?limit=3&lang=en")
     facts["rc_next"] = must("activity", (st, r)).get("next")
@@ -443,6 +459,14 @@ def paths(facts, viewer):
         (9, "/wiki/Special:CreateAccount"),
         (9, "/wiki/Special:Preferences"),
         (9, "/wiki/Special:Account"),
+        # 9b–9d: logging out, the review page to a reader who cannot review, a creation
+        # form returning somewhere, and the Appearance menu without stylesheets.
+        (9, "/wiki/Special:UserLogout"),
+        (9, "/wiki/Special:UserLogout?returnto=Item:Q6"),
+        (9, "/wiki/Special:ConfirmAccounts"),
+        (9, "/wiki/Special:CreateAccount?returnto=Item:Q6"),
+        (9, "/wiki/Project:Home?useskin=plain"),
+        (9, "/wiki/Special:Preferences?useskin=plain"),
         # Group 10: settings.
         (10, "/wiki/Special:WikiSettings"),
         (10, "/wiki/Special:InstanceSettings"),
@@ -528,19 +552,33 @@ def private_paths():
 
 def record(clients, facts, out_dir):
     cases = []
+    differing = []
     public = [("anon", "lb", paths(facts, "anon")), ("bob", "lb-bob", paths(facts, "bob")),
               ("alice", "lb-alice", paths(facts, "alice"))]
     # Then the tenant private: an outsider sees the login page and the wiki's name, a
     # member everything.
     private = [("anon", "lb-private", private_paths()), ("bob", "lb-private-bob", private_paths())]
+    # Between them, Alice approves Dave's request: the review page with none open, and the
+    # notice it shows after a decision (group 9).
+    done = [("alice", "lb-alice-done", [(9, "/wiki/Special:ConfirmAccounts"),
+                                         (9, "/wiki/Special:ConfirmAccounts?done=approved")])]
+
+    def approve():
+        alice = clients["alice"]
+        reqs = must("requests", alice.rest("GET", "/account/requests"))["requests"]
+        dave = next(r for r in reqs if r["name"] == "Dave")
+        must("approve", alice.rest("POST", f"/account/requests/{dave['id']}/approve",
+                                   {"token": alice.token()}))
 
     def make_private():
         alice = clients["alice"]
         must("private", alice.rest("PUT", "/acl/tenant/librarybase",
                                    {"restrictions": {"read": {"group": "user"}}, "token": alice.token()}))
 
-    for i, (viewer, set_name, ps) in enumerate(public + private):
+    for i, (viewer, set_name, ps) in enumerate(public + done + private):
         if i == len(public):
+            approve()
+        if i == len(public) + len(done):
             make_private()
         c = clients[viewer]
         cmd = [ARGS.web, "record", "--api", ARGS.api, "--host", ARGS.host,
@@ -553,6 +591,11 @@ def record(clients, facts, out_dir):
         r = subprocess.run(cmd, capture_output=True, text=True, check=False)
         if r.returncode != 0:
             raise RuntimeError(f"record {set_name}: {r.stderr}")
+        # Under TRIPLESPACE_WEB_RENDERER=compare the recording is also the soak's crawl
+        # (19 §5.10): every route whose renderings differ is a line of the web tier's log.
+        for line in r.stderr.splitlines():
+            if "compare:" in line:
+                differing.append(f"{set_name}: {line}")
         statuses = {}
         for line in r.stderr.splitlines():
             m = re.match(r"(\d{3}) [A-Za-z ]+ (/\S+)$", line)
@@ -571,10 +614,16 @@ def record(clients, facts, out_dir):
     (out_dir / "cases.recorded.json").write_text(json.dumps({
         "_": ["Written by tools/skin_corpus.py from a seeded test instance; do not edit by hand.",
               "The sets are recordings under exchanges/: lb (anonymous), lb-bob (a user reading in",
-              "German with dark mode), lb-alice (the owner)."],
+              "German with dark mode), lb-alice (the owner), lb-alice-done (the owner after",
+              "approving the request the seed files for review), lb-private and lb-private-bob",
+              "(the tenant made private)."],
         "cases": cases,
     }, indent=1) + "\n")
     print(f"{len(cases)} cases written", file=sys.stderr)
+    if os.environ.get("TRIPLESPACE_WEB_RENDERER") == "compare":
+        for line in differing:
+            print(line, file=sys.stderr)
+        print(f"compare: {len(differing)} routes differ", file=sys.stderr)
 
 
 def main():

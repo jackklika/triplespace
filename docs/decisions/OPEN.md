@@ -22,6 +22,7 @@ Log entries whose Source ends in *unconfirmed*: decisions made in code and logge
 | [0097 A3](0097-versioning-and-skins.md#a3-fragments-are-compared-as-normalized-dom) | 2026-10-30 | Fragments are compared as normalized DOM |
 | [0097 A4](0097-versioning-and-skins.md#a4-drawings-are-svg-the-binary-makes) | 2026-10-30 | Drawings are SVG the binary makes |
 | [0097 A6](0097-versioning-and-skins.md#a6-a-part-of-a-later-group-is-carried-as-html-until-that-group-switches) | 2026-10-30 | A part of a later group is carried as HTML until that group switches |
+| [0097 A8](0097-versioning-and-skins.md#a8-typed-controls-and-the-settings-row-join-the-shared-controls) | 2026-11-01 | Typed controls and the settings row join the shared controls |
 
 ## Open questions
 

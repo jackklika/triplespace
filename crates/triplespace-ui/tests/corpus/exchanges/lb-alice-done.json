@@ -1,0 +1,1404 @@
+[
+  {
+    "method": "GET",
+    "path_and_query": "/w/api.php?action=query&meta=notifications&notprop=count%7CseenTime%7Clist&notfilter=!read&notlimit=1&notgroupbysection=1&format=json&formatversion=2",
+    "credentialed": true,
+    "status": 200,
+    "headers": {
+      "cache-control": "private, no-cache",
+      "content-length": "794",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Sun, 01 Nov 2026 17:53:57 GMT",
+      "etag": "\"091112ae2ad6944f99a4ff89caf179ba\"",
+      "vary": "Accept, Accept-Language"
+    },
+    "json": {
+      "batchcomplete": true,
+      "query": {
+        "notifications": {
+          "alert": {
+            "continue": "1793555558|9",
+            "count": "5",
+            "list": [
+              {
+                "agent": {
+                  "id": 25,
+                  "name": "Bob"
+                },
+                "category": "ts-reply",
+                "id": 9,
+                "revid": 248273,
+                "section": "alert",
+                "timestamp": {
+                  "mw": "20261101175238",
+                  "unix": "1793555558",
+                  "utciso8601": "2026-11-01T17:52:38Z",
+                  "utcmw": "20261101175238",
+                  "utcunix": "1793555558"
+                },
+                "title": {
+                  "full": "Thread:2026-11-01/Is five a city?",
+                  "namespace": "Thread",
+                  "namespace-key": 214,
+                  "text": "2026-11-01/Is five a city?"
+                },
+                "ts-params": null,
+                "ts-reason": "reply",
+                "ts-thread": {
+                  "subject": "Is five a city?",
+                  "talk": {
+                    "full": "Item talk:Q5",
+                    "namespace-key": 121
+                  }
+                },
+                "type": "ts-reply",
+                "wiki": "librarybase"
+              }
+            ],
+            "rawcount": 5,
+            "seenTime": "2026-11-01T17:53:56Z"
+          },
+          "count": "5",
+          "message": {
+            "count": "0",
+            "list": [],
+            "rawcount": 0,
+            "seenTime": "2026-11-01T17:53:56Z"
+          },
+          "rawcount": 5
+        }
+      }
+    }
+  },
+  {
+    "method": "GET",
+    "path_and_query": "/w/api.php?action=query&meta=siteinfo&siprop=general%7Ctriplespace%7Cproviders&format=json&formatversion=2",
+    "credentialed": true,
+    "status": 200,
+    "headers": {
+      "cache-control": "private, no-cache",
+      "content-length": "25124",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Sun, 01 Nov 2026 17:53:57 GMT",
+      "etag": "\"cd33d26be8e1faaa392bcdeb654c9056\"",
+      "vary": "Accept, Accept-Language"
+    },
+    "json": {
+      "batchcomplete": true,
+      "query": {
+        "general": {
+          "allcentralidlookupproviders": [
+            "local"
+          ],
+          "articlepath": "/wiki/$1",
+          "base": "https://librarybase.org/wiki/Project:Home",
+          "case": "first-letter",
+          "centralidlookupprovider": "local",
+          "dbtype": "postgres",
+          "dbversion": "16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)",
+          "fallback": [],
+          "generator": "MediaWiki 1.43.9 (Triplespace 0.0.1)",
+          "imagelimits": {
+            "0": {
+              "height": 240,
+              "width": 320
+            },
+            "1": {
+              "height": 480,
+              "width": 640
+            },
+            "2": {
+              "height": 600,
+              "width": 800
+            },
+            "3": {
+              "height": 768,
+              "width": 1024
+            },
+            "4": {
+              "height": 1024,
+              "width": 1280
+            }
+          },
+          "lang": "en",
+          "legaltitlechars": " %!\"$&'()*,\\-.\\/0-9:;=?@A-Z\\\\^_`a-z~\\x80-\\xFF+",
+          "linktrail": "/^([a-z]+)(.*)$/sD",
+          "magiclinks": {
+            "ISBN": false,
+            "PMID": false,
+            "RFC": false
+          },
+          "mainpage": "Project:Home",
+          "maxarticlesize": 2097152,
+          "misermode": false,
+          "phpversion": "0",
+          "readonly": false,
+          "script": "/w/index.php",
+          "scriptpath": "/w",
+          "server": "https://librarybase.org",
+          "servername": "librarybase.org",
+          "sitename": "librarybase",
+          "thumblimits": {
+            "0": 120,
+            "1": 150,
+            "2": 180,
+            "3": 200,
+            "4": 250,
+            "5": 300
+          },
+          "time": "2026-11-01T17:53:57Z",
+          "timeoffset": 0,
+          "timezone": "UTC",
+          "uploadsenabled": false,
+          "variantarticlepath": false,
+          "wikibase-conceptbaseuri": "https://librarybase.org/entity/",
+          "wikibase-propertytypes": {
+            "commonsMedia": {
+              "valuetype": "string"
+            },
+            "external-id": {
+              "valuetype": "string"
+            },
+            "geo-shape": {
+              "valuetype": "string"
+            },
+            "globe-coordinate": {
+              "valuetype": "globecoordinate"
+            },
+            "monolingualtext": {
+              "valuetype": "monolingualtext"
+            },
+            "quantity": {
+              "valuetype": "quantity"
+            },
+            "string": {
+              "valuetype": "string"
+            },
+            "tabular-data": {
+              "valuetype": "string"
+            },
+            "time": {
+              "valuetype": "time"
+            },
+            "url": {
+              "valuetype": "string"
+            },
+            "wikibase-domain": {
+              "valuetype": "wikibase-entityid"
+            },
+            "wikibase-item": {
+              "valuetype": "wikibase-entityid"
+            },
+            "wikibase-property": {
+              "valuetype": "wikibase-entityid"
+            }
+          },
+          "wikiid": "librarybase",
+          "writeapi": true
+        },
+        "providers": [
+          {
+            "chip": {
+              "background": "#E3EEE8",
+              "color": "#1F5139"
+            },
+            "code": "WD",
+            "name": "Wikidata",
+            "number": 1,
+            "revision_ids": true,
+            "slug": "wikidata",
+            "types": [
+              {
+                "code": "Q",
+                "entity_type": "item",
+                "iri": "http://www.wikidata.org/entity/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": "Q"
+              },
+              {
+                "code": "P",
+                "entity_type": "property",
+                "iri": "http://www.wikidata.org/entity/{upstream_id}",
+                "namespace": "Property",
+                "upstream_prefix": "P"
+              },
+              {
+                "code": "L",
+                "entity_type": "lexeme",
+                "iri": "http://www.wikidata.org/entity/{upstream_id}",
+                "namespace": "Lexeme",
+                "upstream_prefix": "L"
+              },
+              {
+                "code": "M",
+                "entity_type": "mediainfo",
+                "iri": "https://commons.wikimedia.org/entity/{upstream_id}",
+                "namespace": "File",
+                "upstream_prefix": "M"
+              },
+              {
+                "code": "E",
+                "entity_type": "entityschema",
+                "iri": "http://www.wikidata.org/entity/{upstream_id}",
+                "namespace": "EntitySchema",
+                "upstream_prefix": "E"
+              }
+            ]
+          },
+          {
+            "chip": {
+              "background": "#EFE6F5",
+              "color": "#5A2C7A"
+            },
+            "code": "LB",
+            "name": "Librarybase",
+            "number": 2,
+            "revision_ids": true,
+            "slug": "librarybase",
+            "types": [
+              {
+                "code": "Q",
+                "entity_type": "item",
+                "iri": "https://librarybase.org/entity/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": "Q"
+              },
+              {
+                "code": "P",
+                "entity_type": "property",
+                "iri": "https://librarybase.org/entity/{upstream_id}",
+                "namespace": "Property",
+                "upstream_prefix": "P"
+              }
+            ]
+          },
+          {
+            "chip": {
+              "background": "#F6E5E2",
+              "color": "#6B2A2A"
+            },
+            "code": "OA",
+            "name": "OpenAlex",
+            "number": 3,
+            "revision_ids": false,
+            "slug": "openalex",
+            "types": [
+              {
+                "code": "W",
+                "entity_type": "item",
+                "iri": "https://openalex.org/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": "W"
+              },
+              {
+                "code": "A",
+                "entity_type": "item",
+                "iri": "https://openalex.org/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": "A"
+              },
+              {
+                "code": "S",
+                "entity_type": "item",
+                "iri": "https://openalex.org/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": "S"
+              },
+              {
+                "code": "I",
+                "entity_type": "item",
+                "iri": "https://openalex.org/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": "I"
+              },
+              {
+                "code": "T",
+                "entity_type": "item",
+                "iri": "https://openalex.org/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": "T"
+              },
+              {
+                "code": "K",
+                "entity_type": "keyword",
+                "iri": "https://openalex.org/keywords/{upstream_id}",
+                "namespace": null,
+                "upstream_prefix": "keywords/"
+              },
+              {
+                "code": "P",
+                "entity_type": "item",
+                "iri": "https://openalex.org/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": "P"
+              },
+              {
+                "code": "F",
+                "entity_type": "item",
+                "iri": "https://openalex.org/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": "F"
+              },
+              {
+                "code": "G",
+                "entity_type": "item",
+                "iri": "https://openalex.org/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": "G"
+              }
+            ]
+          },
+          {
+            "chip": {
+              "background": "#F5E3EE",
+              "color": "#6A2150"
+            },
+            "code": "MB",
+            "name": "MusicBrainz",
+            "number": 4,
+            "revision_ids": false,
+            "slug": "musicbrainz",
+            "types": [
+              {
+                "code": "A",
+                "entity_type": "item",
+                "iri": "https://musicbrainz.org/artist/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": ""
+              },
+              {
+                "code": "G",
+                "entity_type": "item",
+                "iri": "https://musicbrainz.org/release-group/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": ""
+              },
+              {
+                "code": "R",
+                "entity_type": "item",
+                "iri": "https://musicbrainz.org/release/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": ""
+              },
+              {
+                "code": "C",
+                "entity_type": "item",
+                "iri": "https://musicbrainz.org/recording/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": ""
+              },
+              {
+                "code": "W",
+                "entity_type": "item",
+                "iri": "https://musicbrainz.org/work/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": ""
+              },
+              {
+                "code": "L",
+                "entity_type": "item",
+                "iri": "https://musicbrainz.org/label/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": ""
+              },
+              {
+                "code": "D",
+                "entity_type": "item",
+                "iri": "https://musicbrainz.org/area/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": ""
+              },
+              {
+                "code": "P",
+                "entity_type": "item",
+                "iri": "https://musicbrainz.org/place/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": ""
+              },
+              {
+                "code": "E",
+                "entity_type": "item",
+                "iri": "https://musicbrainz.org/event/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": ""
+              },
+              {
+                "code": "S",
+                "entity_type": "item",
+                "iri": "https://musicbrainz.org/series/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": ""
+              },
+              {
+                "code": "I",
+                "entity_type": "item",
+                "iri": "https://musicbrainz.org/instrument/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": ""
+              },
+              {
+                "code": "N",
+                "entity_type": "item",
+                "iri": "https://musicbrainz.org/genre/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": ""
+              }
+            ]
+          },
+          {
+            "chip": {
+              "background": "#DFF0F2",
+              "color": "#0F4C5C"
+            },
+            "code": "XD",
+            "name": "Internet Domains Wikibase",
+            "number": 5,
+            "revision_ids": true,
+            "slug": "internetdomains",
+            "types": [
+              {
+                "code": "Q",
+                "entity_type": "item",
+                "iri": "https://internetdomains.wiki/entity/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": "Q"
+              },
+              {
+                "code": "P",
+                "entity_type": "property",
+                "iri": "https://internetdomains.wiki/entity/{upstream_id}",
+                "namespace": "Property",
+                "upstream_prefix": "P"
+              }
+            ]
+          },
+          {
+            "chip": {
+              "background": "#ECF1DC",
+              "color": "#3D4F12"
+            },
+            "code": "OS",
+            "name": "OpenStreetMap",
+            "number": 6,
+            "revision_ids": false,
+            "slug": "openstreetmap",
+            "types": [
+              {
+                "code": "N",
+                "entity_type": "item",
+                "iri": "https://www.openstreetmap.org/node/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": ""
+              },
+              {
+                "code": "W",
+                "entity_type": "item",
+                "iri": "https://www.openstreetmap.org/way/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": ""
+              },
+              {
+                "code": "R",
+                "entity_type": "item",
+                "iri": "https://www.openstreetmap.org/relation/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": ""
+              }
+            ]
+          },
+          {
+            "chip": {
+              "background": "#F2E8DE",
+              "color": "#5C3A1E"
+            },
+            "code": "OW",
+            "name": "OpenStreetMap Wiki data items",
+            "number": 7,
+            "revision_ids": true,
+            "slug": "osmwiki",
+            "types": [
+              {
+                "code": "Q",
+                "entity_type": "item",
+                "iri": "https://wiki.openstreetmap.org/entity/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": "Q"
+              },
+              {
+                "code": "P",
+                "entity_type": "property",
+                "iri": "https://wiki.openstreetmap.org/entity/{upstream_id}",
+                "namespace": "Property",
+                "upstream_prefix": "P"
+              }
+            ]
+          },
+          {
+            "chip": {
+              "background": "#E8E9EC",
+              "color": "#3A3F4A"
+            },
+            "code": "GD",
+            "name": "GDELT",
+            "number": 8,
+            "revision_ids": false,
+            "slug": "gdelt",
+            "types": [
+              {
+                "code": "E",
+                "entity_type": "item",
+                "iri": "https://scatter.red/gdelt/event/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": ""
+              },
+              {
+                "code": "D",
+                "entity_type": "item",
+                "iri": "https://scatter.red/gdelt/document/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": ""
+              },
+              {
+                "code": "C",
+                "entity_type": "item",
+                "iri": "https://scatter.red/gdelt/cameo/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": ""
+              },
+              {
+                "code": "T",
+                "entity_type": "item",
+                "iri": "https://scatter.red/gdelt/theme/{upstream_id}",
+                "namespace": "Item",
+                "upstream_prefix": ""
+              }
+            ]
+          }
+        ],
+        "triplespace": {
+          "account": {
+            "approval": true,
+            "statement": "optional"
+          },
+          "api_version": 6,
+          "at_farm": true,
+          "build": {
+            "commit": "8898bbfd453e26f62423ac878ca246578a4c1ac5",
+            "modified": true,
+            "version": "0.0.1"
+          },
+          "capabilities": [
+            "wbgetentities",
+            "wbsearchentities",
+            "wbeditentity",
+            "statements",
+            "terms",
+            "login",
+            "clientlogin",
+            "createaccount",
+            "bearer",
+            "version",
+            "recentchanges",
+            "activity",
+            "history",
+            "revisions",
+            "diff",
+            "options",
+            "preferences",
+            "settings",
+            "pages",
+            "parse",
+            "edit",
+            "move",
+            "protect",
+            "userrights",
+            "block",
+            "delete",
+            "notifications",
+            "watchlist",
+            "reports"
+          ],
+          "challenge": {
+            "algorithm": "sha256-leading-zero-bits",
+            "bits": 10,
+            "triggers": [
+              "createaccount",
+              "tempaccount",
+              "badlogin"
+            ]
+          },
+          "farm": "scatter",
+          "farm_code": "vkpt3qph7l3feynfacp6jwvv42",
+          "grants": [
+            "basic",
+            "highvolume",
+            "editpage",
+            "createeditmovepage",
+            "editentity",
+            "editprotected",
+            "patrol",
+            "delete",
+            "protect",
+            "blockusers",
+            "viewdeleted",
+            "editmywatchlist",
+            "ts-jobs"
+          ],
+          "insecure": true,
+          "interface": {
+            "messages": {}
+          },
+          "issuer": "cadnuuwfuhqaju6xp7wbtalkxp",
+          "login": [],
+          "primary": "librarybase",
+          "providers": [
+            "wikidata",
+            "librarybase",
+            "openalex",
+            "musicbrainz",
+            "internetdomains",
+            "openstreetmap",
+            "osmwiki",
+            "gdelt"
+          ],
+          "rate_limits": [],
+          "search": "postgres",
+          "skins": {
+            "default": "worksheet"
+          },
+          "tenancy": {
+            "preset": "isolated",
+            "switches": {
+              "blocks.global": "ip",
+              "config.template": "none",
+              "discussion.cross_tenant": "off",
+              "feeds.farm_wide": "off",
+              "filters.global": "none",
+              "groups.global": "none",
+              "identity.auto_link": "off",
+              "identity.farm_issuer": "none",
+              "identity.required_issuer": "none",
+              "identity.shared_names": "off",
+              "notifications.cross_tenant": "off",
+              "providers.between_tenants": "operator",
+              "providers.reader_lists": "off",
+              "search.farm_wide": "off",
+              "security.restrictions": "any",
+              "skins.available": "all",
+              "wikitext.ceiling": "lua"
+            }
+          },
+          "tenant": "librarybase",
+          "theme": {
+            "choice": "any",
+            "palette": "parchment",
+            "palettes": [
+              {
+                "accessibility": false,
+                "border-radius-base": "2px",
+                "dark": {
+                  "box-shadow-color-progressive--focus": "#6485D1",
+                  "color-placeholder": "#797F85",
+                  "outline-color-progressive--focus": "#6485D1"
+                },
+                "dark-more": {
+                  "background-color-base": "#0B0E11",
+                  "background-color-destructive": "#8F2D21",
+                  "background-color-destructive--active": "#6B2119",
+                  "background-color-destructive--hover": "#7D271D",
+                  "background-color-progressive": "#264C98",
+                  "background-color-progressive--active": "#152A55",
+                  "background-color-progressive--focus": "#264C98",
+                  "background-color-progressive--hover": "#1D3A75",
+                  "border-color-base": "#80868C",
+                  "border-color-divider": "#72777D",
+                  "border-color-interactive": "#80868C",
+                  "border-color-progressive": "#9DB3EC",
+                  "border-color-progressive--focus": "#9DB3EC",
+                  "box-shadow-color-progressive--focus": "#9DB3EC",
+                  "color-base": "#F8F9FA",
+                  "color-destructive": "#FD9585",
+                  "color-emphasized": "#FFFFFF",
+                  "color-error": "#FD9585",
+                  "color-placeholder": "#A2A7AC",
+                  "color-progressive": "#9DB3EC",
+                  "color-progressive--active": "#CCD8F6",
+                  "color-progressive--focus": "#9DB3EC",
+                  "color-progressive--hover": "#B6C7F2",
+                  "color-subtle": "#B3B9C0",
+                  "color-success": "#33C9A2",
+                  "color-visited": "#B9AEDA",
+                  "color-visited--active": "#DAD4EB",
+                  "color-visited--hover": "#CBC2E3",
+                  "color-warning": "#D9AE52",
+                  "outline-color-progressive--focus": "#9DB3EC"
+                },
+                "label": "Encyclopedia",
+                "light": {
+                  "border-color-base": "#8C959F"
+                },
+                "light-more": {
+                  "background-color-destructive": "#8F2D21",
+                  "background-color-destructive--active": "#6B2119",
+                  "background-color-destructive--hover": "#7D271D",
+                  "background-color-progressive": "#264C98",
+                  "background-color-progressive--active": "#152A55",
+                  "background-color-progressive--focus": "#264C98",
+                  "background-color-progressive--hover": "#1D3A75",
+                  "border-color-base": "#6E7783",
+                  "border-color-divider": "#72777D",
+                  "border-color-interactive": "#5C6168",
+                  "border-color-progressive": "#264C98",
+                  "border-color-progressive--focus": "#264C98",
+                  "border-color-subtle": "#A2A9B1",
+                  "box-shadow-color-progressive--focus": "#264C98",
+                  "color-base": "#101418",
+                  "color-destructive": "#8F2D21",
+                  "color-error": "#8F2D21",
+                  "color-placeholder": "#505458",
+                  "color-progressive": "#264C98",
+                  "color-progressive--active": "#152A55",
+                  "color-progressive--focus": "#264C98",
+                  "color-progressive--hover": "#1D3A75",
+                  "color-subtle": "#45494D",
+                  "color-success": "#115947",
+                  "color-visited": "#574D9C",
+                  "color-visited--active": "#352F5E",
+                  "color-visited--hover": "#463E7D",
+                  "color-warning": "#5E4418",
+                  "outline-color-progressive--focus": "#264C98"
+                },
+                "name": "encyclopedia"
+              },
+              {
+                "accessibility": false,
+                "alternate": {
+                  "by": {
+                    "dark": {
+                      "background-color-destructive": "#B3263E",
+                      "background-color-destructive--active": "#B3263E",
+                      "background-color-destructive--hover": "#B3263E",
+                      "background-color-destructive-subtle": "#341419",
+                      "background-color-error-subtle": "#341419",
+                      "background-color-success-subtle": "#2E3414",
+                      "background-color-warning-subtle": "#2D241B",
+                      "border-color-destructive": "#DD6176",
+                      "border-color-error": "#DD6176",
+                      "border-color-success": "#83A81E",
+                      "border-color-warning": "#A48976",
+                      "color-destructive": "#DD6176",
+                      "color-error": "#DD6176",
+                      "color-success": "#83A81E",
+                      "color-visited": "#CE64AE",
+                      "color-visited--active": "#D271B5",
+                      "color-visited--hover": "#CF66AF",
+                      "color-warning": "#A48976"
+                    },
+                    "dark-more": {
+                      "background-color-destructive": "#A6233A",
+                      "background-color-destructive--active": "#941F34",
+                      "background-color-destructive--hover": "#9D2137",
+                      "background-color-destructive-subtle": "#290F14",
+                      "background-color-error-subtle": "#290F14",
+                      "background-color-success-subtle": "#24290F",
+                      "background-color-warning-subtle": "#231C15",
+                      "border-color-destructive": "#E78C9C",
+                      "border-color-error": "#E78C9C",
+                      "border-color-success": "#97C222",
+                      "border-color-warning": "#BAA697",
+                      "color-destructive": "#E78C9C",
+                      "color-error": "#E78C9C",
+                      "color-success": "#97C222",
+                      "color-visited": "#DB8EC4",
+                      "color-visited--active": "#DD95C8",
+                      "color-visited--hover": "#DB8EC4",
+                      "color-warning": "#BAA697"
+                    },
+                    "light": {
+                      "background-color-destructive": "#B3263E",
+                      "background-color-destructive--active": "#B3263E",
+                      "background-color-destructive--hover": "#B3263E",
+                      "background-color-destructive-subtle": "#FBE4E8",
+                      "background-color-error-subtle": "#FBE4E8",
+                      "background-color-success-subtle": "#EEF2DC",
+                      "background-color-warning-subtle": "#EFE9E3",
+                      "border-color-destructive": "#B3263E",
+                      "border-color-error": "#B3263E",
+                      "border-color-success": "#587114",
+                      "border-color-warning": "#5C4A3D",
+                      "color-destructive": "#B3263E",
+                      "color-error": "#B3263E",
+                      "color-success": "#587114",
+                      "color-visited": "#8A2C6E",
+                      "color-visited--active": "#8A2C6E",
+                      "color-visited--hover": "#8A2C6E",
+                      "color-warning": "#5C4A3D"
+                    },
+                    "light-more": {
+                      "background-color-destructive": "#A6233A",
+                      "background-color-destructive--active": "#941F34",
+                      "background-color-destructive--hover": "#9D2137",
+                      "background-color-destructive-subtle": "#FBE4E8",
+                      "background-color-error-subtle": "#FBE4E8",
+                      "background-color-success-subtle": "#EEF2DC",
+                      "background-color-warning-subtle": "#EFE9E3",
+                      "border-color-destructive": "#901E32",
+                      "border-color-error": "#901E32",
+                      "border-color-success": "#42550F",
+                      "border-color-warning": "#5A483B",
+                      "color-destructive": "#901E32",
+                      "color-error": "#901E32",
+                      "color-success": "#42550F",
+                      "color-visited": "#8A2C6E",
+                      "color-visited--active": "#862B6B",
+                      "color-visited--hover": "#8A2C6E",
+                      "color-warning": "#5A483B"
+                    }
+                  },
+                  "rg": {
+                    "dark": {
+                      "background-color-destructive": "#A84300",
+                      "background-color-destructive--active": "#A84300",
+                      "background-color-destructive--hover": "#A84300",
+                      "background-color-destructive-subtle": "#342214",
+                      "background-color-error-subtle": "#342214",
+                      "background-color-success-subtle": "#142E34",
+                      "background-color-warning-subtle": "#2D241B",
+                      "border-color-destructive": "#F26100",
+                      "border-color-error": "#F26100",
+                      "border-color-success": "#0BA0C4",
+                      "border-color-warning": "#C18045",
+                      "color-destructive": "#F26100",
+                      "color-error": "#F26100",
+                      "color-success": "#0BA0C4",
+                      "color-visited": "#A977BB",
+                      "color-visited--active": "#B082C0",
+                      "color-visited--hover": "#AA79BC",
+                      "color-warning": "#C18045"
+                    },
+                    "dark-more": {
+                      "background-color-destructive": "#953B00",
+                      "background-color-destructive--active": "#853500",
+                      "background-color-destructive--hover": "#8D3800",
+                      "background-color-destructive-subtle": "#291B0F",
+                      "background-color-error-subtle": "#291B0F",
+                      "background-color-success-subtle": "#0F2429",
+                      "background-color-warning-subtle": "#231D15",
+                      "border-color-destructive": "#FF8B3E",
+                      "border-color-error": "#FF8B3E",
+                      "border-color-success": "#0DBCE7",
+                      "border-color-warning": "#D1A075",
+                      "color-destructive": "#FF8B3E",
+                      "color-error": "#FF8B3E",
+                      "color-success": "#0DBCE7",
+                      "color-visited": "#BF99CC",
+                      "color-visited--active": "#C3A0CF",
+                      "color-visited--hover": "#BF99CC",
+                      "color-warning": "#D1A075"
+                    },
+                    "light": {
+                      "background-color-destructive": "#A84300",
+                      "background-color-destructive--active": "#A84300",
+                      "background-color-destructive--hover": "#A84300",
+                      "background-color-destructive-subtle": "#FBE7D6",
+                      "background-color-error-subtle": "#FBE7D6",
+                      "background-color-success-subtle": "#E6F3F6",
+                      "background-color-warning-subtle": "#F3ECE4",
+                      "border-color-destructive": "#A84300",
+                      "border-color-error": "#A84300",
+                      "border-color-success": "#087691",
+                      "border-color-warning": "#634021",
+                      "color-destructive": "#A84300",
+                      "color-error": "#A84300",
+                      "color-success": "#087691",
+                      "color-visited": "#6A3D7A",
+                      "color-visited--active": "#6A3D7A",
+                      "color-visited--hover": "#6A3D7A",
+                      "color-warning": "#634021"
+                    },
+                    "light-more": {
+                      "background-color-destructive": "#953B00",
+                      "background-color-destructive--active": "#853500",
+                      "background-color-destructive--hover": "#8D3800",
+                      "background-color-destructive-subtle": "#FBE7D6",
+                      "background-color-error-subtle": "#FBE7D6",
+                      "background-color-success-subtle": "#E6F3F6",
+                      "background-color-warning-subtle": "#F3ECE4",
+                      "border-color-destructive": "#823400",
+                      "border-color-error": "#823400",
+                      "border-color-success": "#06576B",
+                      "border-color-warning": "#634021",
+                      "color-destructive": "#823400",
+                      "color-error": "#823400",
+                      "color-success": "#06576B",
+                      "color-visited": "#6A3D7A",
+                      "color-visited--active": "#6A3D7A",
+                      "color-visited--hover": "#6A3D7A",
+                      "color-warning": "#634021"
+                    }
+                  }
+                },
+                "border-radius-base": "6px",
+                "dark": {
+                  "background-color-base": "#1E1813",
+                  "background-color-interactive": "#31281F",
+                  "background-color-interactive--active": "#473B2F",
+                  "background-color-interactive--hover": "#3B3127",
+                  "background-color-neutral": "#31281F",
+                  "background-color-neutral-subtle": "#271F19",
+                  "background-color-progressive": "#4C73C2",
+                  "background-color-progressive--active": "#4061A5",
+                  "background-color-progressive--focus": "#4C73C2",
+                  "background-color-progressive--hover": "#476BB5",
+                  "background-color-progressive-subtle": "#262C38",
+                  "background-color-progressive-subtle--active": "#384257",
+                  "background-color-progressive-subtle--hover": "#2E3646",
+                  "background-color-warning-subtle": "#3B2914",
+                  "border-color-base": "#8E7E6A",
+                  "border-color-divider": "#4A3E33",
+                  "border-color-emphasized": "#EDE4D6",
+                  "border-color-interactive": "#9C8B76",
+                  "border-color-interactive--active": "#EDE4D6",
+                  "border-color-interactive--hover": "#CABBA6",
+                  "border-color-muted": "#3B3127",
+                  "border-color-progressive": "#9DB6EA",
+                  "border-color-progressive--active": "#CDDAF6",
+                  "border-color-progressive--focus": "#9DB6EA",
+                  "border-color-progressive--hover": "#B8CBF1",
+                  "border-color-subtle": "#4A3E33",
+                  "box-shadow-color-progressive--focus": "#9DB6EA",
+                  "color-base": "#EDE4D6",
+                  "color-emphasized": "#FBF6EE",
+                  "color-inverted": "#1E1813",
+                  "color-neutral": "#D9CEBE",
+                  "color-placeholder": "#A89A85",
+                  "color-progressive": "#9DB6EA",
+                  "color-progressive--active": "#CDDAF6",
+                  "color-progressive--focus": "#9DB6EA",
+                  "color-progressive--hover": "#B8CBF1",
+                  "color-subtle": "#BBAD99",
+                  "color-visited": "#C5B3EC",
+                  "color-visited--active": "#E2D9F7",
+                  "color-visited--hover": "#D5C8F2",
+                  "color-warning": "#F2B66A",
+                  "outline-color-progressive--focus": "#9DB6EA"
+                },
+                "dark-more": {
+                  "background-color-base": "#17120E",
+                  "background-color-destructive": "#9F3225",
+                  "background-color-destructive--active": "#7D271D",
+                  "background-color-destructive--hover": "#8D2C21",
+                  "background-color-neutral-subtle": "#1F1913",
+                  "background-color-progressive": "#385694",
+                  "background-color-progressive--active": "#2D498A",
+                  "background-color-progressive--focus": "#385694",
+                  "background-color-progressive--hover": "#335090",
+                  "background-color-progressive-subtle": "#1E2430",
+                  "background-color-warning-subtle": "#2E200F",
+                  "border-color-base": "#B3A38D",
+                  "border-color-divider": "#6B5D4E",
+                  "border-color-interactive": "#C0B09A",
+                  "border-color-muted": "#4A3E33",
+                  "border-color-progressive": "#B8CBF1",
+                  "border-color-progressive--focus": "#B8CBF1",
+                  "border-color-subtle": "#6B5D4E",
+                  "box-shadow-color-progressive--focus": "#B8CBF1",
+                  "color-base": "#F7F1E8",
+                  "color-destructive": "#FD9282",
+                  "color-emphasized": "#FFFFFF",
+                  "color-error": "#FD9282",
+                  "color-inverted": "#17120E",
+                  "color-neutral": "#E8DFD2",
+                  "color-placeholder": "#C9BCA9",
+                  "color-progressive": "#B8CBF1",
+                  "color-progressive--active": "#E0E8FA",
+                  "color-progressive--focus": "#B8CBF1",
+                  "color-progressive--hover": "#CDDAF6",
+                  "color-subtle": "#D6CBBB",
+                  "color-success": "#30C59F",
+                  "color-visited": "#D5C8F2",
+                  "color-visited--active": "#EEE8FB",
+                  "color-visited--hover": "#E2D9F7",
+                  "color-warning": "#F8CC8E",
+                  "outline-color-progressive--focus": "#B8CBF1"
+                },
+                "label": "Parchment",
+                "light": {
+                  "background-color-base": "#FCFBF8",
+                  "background-color-interactive": "#EDEAE2",
+                  "background-color-interactive--active": "#D9D4C8",
+                  "background-color-interactive--hover": "#E4E0D6",
+                  "background-color-neutral": "#EDEAE2",
+                  "background-color-neutral-subtle": "#F4F2EC",
+                  "background-color-progressive": "#2B559E",
+                  "background-color-progressive--active": "#142C59",
+                  "background-color-progressive--focus": "#2B559E",
+                  "background-color-progressive--hover": "#1C3D78",
+                  "background-color-progressive-subtle": "#EEF2F8",
+                  "background-color-progressive-subtle--active": "#CCD8EC",
+                  "background-color-progressive-subtle--hover": "#E1E8F3",
+                  "background-color-warning-subtle": "#FBEFD9",
+                  "border-color-base": "#8C867A",
+                  "border-color-divider": "#D9D4C8",
+                  "border-color-emphasized": "#1D1C1A",
+                  "border-color-interactive": "#7A7468",
+                  "border-color-interactive--active": "#1D1C1A",
+                  "border-color-interactive--hover": "#3F3C36",
+                  "border-color-muted": "#E4E0D6",
+                  "border-color-progressive": "#2B559E",
+                  "border-color-progressive--active": "#142C59",
+                  "border-color-progressive--focus": "#2B559E",
+                  "border-color-progressive--hover": "#1C3D78",
+                  "border-color-subtle": "#D9D4C8",
+                  "box-shadow-color-progressive--focus": "#2B559E",
+                  "color-base": "#1D1C1A",
+                  "color-emphasized": "#0F0E0D",
+                  "color-neutral": "#3F3C36",
+                  "color-placeholder": "#6B665D",
+                  "color-progressive": "#2B559E",
+                  "color-progressive--active": "#142C59",
+                  "color-progressive--focus": "#2B559E",
+                  "color-progressive--hover": "#1C3D78",
+                  "color-subtle": "#5E5A52",
+                  "color-visited": "#5A4D91",
+                  "color-visited--active": "#2E2652",
+                  "color-visited--hover": "#463A78",
+                  "color-warning": "#7A3F05",
+                  "outline-color-progressive--focus": "#2B559E"
+                },
+                "light-more": {
+                  "background-color-base": "#FFFFFF",
+                  "background-color-destructive": "#9F3225",
+                  "background-color-destructive--active": "#7D271D",
+                  "background-color-destructive--hover": "#8D2C21",
+                  "background-color-neutral-subtle": "#F7F5F0",
+                  "background-color-progressive": "#1C3D78",
+                  "background-color-progressive--active": "#0E1F40",
+                  "background-color-progressive--focus": "#1C3D78",
+                  "background-color-progressive--hover": "#142C59",
+                  "border-color-base": "#5E5A52",
+                  "border-color-divider": "#8C867A",
+                  "border-color-interactive": "#4F4B44",
+                  "border-color-muted": "#B5AFA3",
+                  "border-color-progressive": "#1C3D78",
+                  "border-color-progressive--focus": "#1C3D78",
+                  "border-color-subtle": "#8C867A",
+                  "box-shadow-color-progressive--focus": "#1C3D78",
+                  "color-base": "#141311",
+                  "color-destructive": "#8D2C21",
+                  "color-emphasized": "#000000",
+                  "color-error": "#8D2C21",
+                  "color-neutral": "#2B2925",
+                  "color-placeholder": "#4D4942",
+                  "color-progressive": "#1C3D78",
+                  "color-progressive--active": "#0E1F40",
+                  "color-progressive--focus": "#1C3D78",
+                  "color-progressive--hover": "#142C59",
+                  "color-subtle": "#45413A",
+                  "color-success": "#115847",
+                  "color-visited": "#463A78",
+                  "color-visited--active": "#221C3D",
+                  "color-visited--hover": "#2E2652",
+                  "color-warning": "#5C2F03",
+                  "outline-color-progressive--focus": "#1C3D78"
+                },
+                "name": "parchment"
+              }
+            ],
+            "typeset": "default26",
+            "typesets": [
+              {
+                "accessibility": false,
+                "font": [],
+                "font-family-base": "sans-serif",
+                "font-family-heading-main": "'Linux Libertine', 'Georgia', 'Times', 'Source Serif Pro', serif",
+                "font-family-monospace": "monospace, monospace",
+                "label": "Basic",
+                "name": "basic"
+              },
+              {
+                "accessibility": false,
+                "fallback": "noto",
+                "font": [
+                  {
+                    "family": "Source Serif 4",
+                    "licence": "OFL-1.1",
+                    "weights": [
+                      400,
+                      500
+                    ]
+                  },
+                  {
+                    "family": "Source Sans 3",
+                    "licence": "OFL-1.1",
+                    "weights": [
+                      400,
+                      500,
+                      600
+                    ]
+                  },
+                  {
+                    "family": "Lilex",
+                    "licence": "OFL-1.1",
+                    "weights": [
+                      400,
+                      500
+                    ]
+                  }
+                ],
+                "font-family-base": "'Source Sans 3', system-ui, sans-serif",
+                "font-family-heading-main": "'Source Serif 4', Georgia, 'Times New Roman', serif",
+                "font-family-monospace": "'Lilex', Menlo, Consolas, monospace",
+                "label": "Source",
+                "name": "default26"
+              },
+              {
+                "accessibility": true,
+                "fallback": "noto",
+                "font": [
+                  {
+                    "family": "Atkinson Hyperlegible",
+                    "licence": "OFL-1.1",
+                    "weights": [
+                      400,
+                      700
+                    ]
+                  },
+                  {
+                    "family": "IBM Plex Mono",
+                    "licence": "OFL-1.1",
+                    "weights": [
+                      400,
+                      500
+                    ]
+                  }
+                ],
+                "font-family-base": "'Atkinson Hyperlegible', system-ui, sans-serif",
+                "font-family-heading-main": "'Atkinson Hyperlegible', system-ui, sans-serif",
+                "font-family-monospace": "'IBM Plex Mono', Menlo, Consolas, monospace",
+                "label": "Hyperlegible",
+                "name": "hyperlegible"
+              },
+              {
+                "accessibility": true,
+                "fallback": "noto",
+                "font": [
+                  {
+                    "family": "OpenDyslexic",
+                    "licence": "OFL-1.1",
+                    "weights": [
+                      400,
+                      700
+                    ]
+                  },
+                  {
+                    "family": "OpenDyslexic Mono",
+                    "licence": "OFL-1.1",
+                    "weights": [
+                      400
+                    ]
+                  }
+                ],
+                "font-family-base": "'OpenDyslexic', system-ui, sans-serif",
+                "font-family-heading-main": "'OpenDyslexic', system-ui, sans-serif",
+                "font-family-monospace": "'OpenDyslexic Mono', 'IBM Plex Mono', Menlo, Consolas, monospace",
+                "label": "OpenDyslexic",
+                "name": "opendyslexic"
+              }
+            ]
+          },
+          "thread": {
+            "markup": "markdown"
+          },
+          "visibility": "public"
+        }
+      }
+    }
+  },
+  {
+    "method": "GET",
+    "path_and_query": "/w/api.php?action=query&meta=tokens&type=csrf&format=json&formatversion=2",
+    "credentialed": true,
+    "status": 200,
+    "headers": {
+      "cache-control": "private, no-cache",
+      "content-length": "93",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Sun, 01 Nov 2026 17:53:57 GMT",
+      "etag": "\"4db871cde180990d33d2737893405053\"",
+      "vary": "Accept, Accept-Language"
+    },
+    "json": {
+      "batchcomplete": true,
+      "query": {
+        "tokens": {
+          "csrftoken": "-xFa8TU9e4gauri9EKaRPbgY8LVbjsfg+\\"
+        }
+      }
+    }
+  },
+  {
+    "method": "GET",
+    "path_and_query": "/w/api.php?action=query&meta=userinfo&uiprop=options|accountrequests|rights|groups&format=json&formatversion=2",
+    "credentialed": true,
+    "status": 200,
+    "headers": {
+      "cache-control": "private, no-cache",
+      "content-length": "2051",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Sun, 01 Nov 2026 17:53:57 GMT",
+      "etag": "\"cde11f34f1e7d96da554adc2935a3c99\"",
+      "vary": "Accept, Accept-Language"
+    },
+    "json": {
+      "batchcomplete": true,
+      "query": {
+        "userinfo": {
+          "accountrequests": 0,
+          "groups": [
+            "autoconfirmed",
+            "owner",
+            "*",
+            "user"
+          ],
+          "id": 7,
+          "name": "Alice",
+          "options": {
+            "autowatch.create": true,
+            "autowatch.edit": false,
+            "autowatch.notify": false,
+            "autowatch.post": true,
+            "autowatch.thread": true,
+            "date-format": "default",
+            "feeds.period": "P7D",
+            "feeds.syncs": true,
+            "label-languages": [],
+            "language": "en",
+            "notifications.email-digest": "immediate",
+            "notifications.talk.email": true,
+            "rc.limit": 50,
+            "shapes.pins": {},
+            "threads.visibility": {
+              "closed": "collapsed",
+              "quiet": "collapsed",
+              "quiet-days": 90
+            },
+            "timezone": "UTC",
+            "ts-rc-syncs": false,
+            "ts-upstream-fold": false,
+            "ui.contrast": "auto",
+            "ui.mode": "auto",
+            "ui.text-size": "medium",
+            "ui.vision": "none"
+          },
+          "rights": [
+            "abusefilter-bypass",
+            "abusefilter-log",
+            "abusefilter-log-detail",
+            "abusefilter-log-private",
+            "abusefilter-modify",
+            "abusefilter-modify-restricted",
+            "abusefilter-revert",
+            "abusefilter-view",
+            "abusefilter-view-private",
+            "autopatrol",
+            "block",
+            "bot",
+            "browsearchive",
+            "changetags",
+            "confirmaccount",
+            "createaccount",
+            "createpage",
+            "delete",
+            "delete-redirect",
+            "deletedhistory",
+            "deletedtext",
+            "deletelogentry",
+            "deleterevision",
+            "edit",
+            "editcontentmodel",
+            "editinterface",
+            "editmyoptions",
+            "editmywatchlist",
+            "hideuser",
+            "import",
+            "importupload",
+            "item-merge",
+            "item-redirect",
+            "item-term",
+            "managechangetags",
+            "move",
+            "move-categorypages",
+            "move-rootuserpages",
+            "move-subpages",
+            "movefile",
+            "mwoauthmanageconsumer",
+            "mwoauthmanagemygrants",
+            "mwoauthproposeconsumer",
+            "mwoauthupdateownconsumer",
+            "mwoauthviewprivate",
+            "noratelimit",
+            "nuke",
+            "patrol",
+            "property-create",
+            "property-term",
+            "protect",
+            "read",
+            "renameuser",
+            "reupload",
+            "reupload-own",
+            "reupload-shared",
+            "skipcaptcha",
+            "suppressredirect",
+            "suppressrevision",
+            "ts-config",
+            "ts-convert",
+            "ts-editpost",
+            "ts-erase",
+            "ts-expunge",
+            "ts-keys",
+            "ts-link",
+            "ts-linkproperty",
+            "ts-primary",
+            "ts-retain",
+            "ts-revertjob",
+            "ts-runjob",
+            "ts-takedown",
+            "ts-transferaccount",
+            "ts-unlink",
+            "ts-viewerasures",
+            "ts-viewip",
+            "ts-viewoperator",
+            "ts-viewrejects",
+            "ts-viewtakedown",
+            "undelete",
+            "upload",
+            "upload_by_url",
+            "userrights",
+            "viewmyprivateinfo",
+            "viewmywatchlist",
+            "viewsuppressed"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "method": "GET",
+    "path_and_query": "/w/rest.php/triplespace/v0/account/requests",
+    "credentialed": true,
+    "status": 200,
+    "headers": {
+      "cache-control": "private, no-cache",
+      "content-length": "25",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Sun, 01 Nov 2026 17:53:57 GMT",
+      "etag": "\"1b93036d44139baa5e61a025acae2959\"",
+      "vary": "Accept, Accept-Language"
+    },
+    "json": {
+      "count": 0,
+      "requests": []
+    }
+  }
+]
