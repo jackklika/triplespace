@@ -5,7 +5,10 @@
   prefixed provider.
 - **History:** written 2026-10-04 against `4b8d63a`; stage 1 completed 2026-10-06 and its checks run
   in CI (§1.5). Moved into the repo on 2026-10-21 from a working note. Measurements and the
-  write-path analysis are in [`performance.md`](performance.md).
+  write-path analysis are in [`performance.md`](performance.md). Revised 2026-11-01: stage 1's
+  baseline is now a **full-history** adoption ([0035](../decisions/0035-adopting-a-wikibase.md)
+  A12), so the dump is `--full` and `lastrevid` and each page's history must equal the source's;
+  the 2026-10-06 run was a current-state adoption, the shape `adopt --current-only` keeps.
 - **Where to run:** a Linux VM (Debian) or a Mac, from the repo checkout, with a local Postgres.
   Work files go in `~/ts-test/`. Commands assume Linux; macOS differences are noted.
 
@@ -113,10 +116,10 @@ SQL
 ```
 
 **Pass:**
-- Every page ID matches the entity's page in the dump. `local_revid` is a fresh local revision ID
-  above the revision floor (0035 §3: an adopted record is an ordinary local revision; the source's
-  revision ID is kept as `source_revid` in the content). Spot-check three multi-revision items: the
-  content is the last revision's, not the first.
+- Every page ID matches the entity's page in the dump. Every revision keeps the source's revision
+  ID (0035 A12), so `local_revid` is the dump's last revision ID for the page, below the revision
+  floor. Spot-check three multi-revision items: the content is the last revision's, not the first,
+  and `prop=revisions` lists every revision of the dump with its timestamp, author and summary.
 - Every sequence floor is at or above the dump's maximum.
 - The redirect and the wikitext pages appear as skipped, not as rejected.
 
@@ -140,7 +143,7 @@ always differ.
 - Edit one entity's JSON inside a copy of the dump, then re-run `adopt` with that copy. Expect exactly
   one reject, and the stored entity must be unchanged.
 
-## Stage 1: adopt Librarybase ✔ (2026-10-06)
+## Stage 1: adopt Librarybase (current state ✔ 2026-10-06; full history to rerun)
 
 ### 1.1 On the source: freeze, then dump
 
@@ -149,13 +152,16 @@ The order matters: once the dump is taken, the source must stop accepting edits.
 ```sh
 # librarybase.org host
 # set $wgReadOnly = 'Migrating to Triplespace'; in LocalSettings.php and confirm an edit fails
-php maintenance/run.php dumpBackup --current --include-files=no --quiet | gzip > librarybase-20261005.xml.gz
+php maintenance/run.php dumpBackup --full --include-files=no --quiet | gzip > librarybase-YYYYMMDD.xml.gz
 mysql -N -e 'SELECT * FROM wb_id_counters' <db>          # → item=…, property=…
+# After an importDump rebuild, wb_id_counters may sit below the highest IDs: fix it before dumping
 mysql -N -e 'SELECT MAX(log_id) FROM logging' <db>       # → --log-floor
 mysql -N -e 'SELECT user_id FROM user WHERE user_name="James"' <db>   # the owner's source user ID
 # Did the wiki use federated properties / entity sources pointing at Wikidata? If so, note the prefix.
 ```
 
+The dump must carry history: `adopt` refuses a current-state export (every page one revision
+while revisions name parents) unless it is given `--current-only`, which is not the baseline.
 Copy the dump to `~/ts-test/`. Record its sha256 and its size.
 
 ### 1.2 Create the instance and adopt
@@ -178,9 +184,11 @@ triplespace instance create --key-file triplespace.key \
 #   add --entity-source wikidata=WD only if 1.1 said federated properties were used
 ```
 
-`/usr/bin/time -v` reports wall time and peak RSS. Expect about 12 minutes for 247k entities
-(2.9 ms/entity); [`performance.md`](performance.md) §3 has the `pg_stat_statements` recipe if it is
-far off. The final `untyped N snaks on M properties …` line, if present, names properties the dump
+`/usr/bin/time -v` reports wall time and peak RSS (`-l` on macOS). The 11m56s for 247k entities
+in the results log was a current-state adoption, one record per entity; a full-history adoption
+writes one record per revision and has no measured baseline yet, so record its time and the
+survey's revision count. [`performance.md`](performance.md) §3 has the `pg_stat_statements`
+recipe if it looks far off per revision. The final `untyped N snaks on M properties …` line, if present, names properties the dump
 does not define; on a full dump it should be absent.
 
 To rehearse on a prefix of the real dump:
@@ -230,7 +238,17 @@ Per entity it checks:
 - `view.identifier` has a row per external-id mainsnak.
 - The entity equals the source's `Special:EntityData` output minus `lastrevid/modified/pageid/ns/title`.
 - `pageid` equals the source's.
-- `lastrevid` is above the source's (0035 §3–4: a fresh local revision over the floor).
+- `lastrevid` equals the source's (0035 A12: the newest source revision is the current state,
+  under its own ID, with no adoption revision after it).
+- The page's whole history equals the source's, revision by revision: `revid`, `parentid`,
+  `timestamp`, `user`, `userid`, `comment` and `minor`, read through `prop=revisions` on both
+  sides by page ID. The output's `N revisions equal to the source's` says how many.
+- With `--current-only` (a tenant adopted that way), `lastrevid` is instead above the source's,
+  the one adoption revision over the floor (0035 §4), and the history is not compared.
+
+Both equalities hold only while neither side has changed since the dump. Run `--compare` before
+§1.4's writes, or leave the entities they edit out, and keep the source read-only until it is
+done.
 
 Pick IDs that include the lowest Q, the highest Q, every P with an unusual datatype, and a few
 entities with heavy statements, qualifiers, references and many languages.
@@ -458,7 +476,9 @@ One row per run.
 | 1.2 Librarybase (before) | `librarybase-20261005.xml.gz`, 247,011 entities / 247,055 pages | 51m44s (10m50 user, 11m31 sys) | | | 247,011 | 0 | 0 | | 2026-10-05, `main` before #56. 44.5 SQL statements/entity, `view.identifier` empty (untyped snaks) |
 | 1.2 Librarybase 10k slice | first 10,000 entities | 2m02s → 35s → 34s | | | 10,000 | 0 | 0 | | successive runs: baseline → after 3.1–3.6 → with typed snaks; 44.5 → 17.0 statements/entity |
 | 1.2 Librarybase (after) | same dump | **11m56s** (4m58 user, 1m58 sys) | | | 247,011 | 0 | 0 | **yes**: `rebuild` 10m01s (3m45 user, 1m28 sys), 1,481,456 view rows, diff empty but for pg_dump's `\restrict` token | 2026-10-05/06, after `3d84c87` + #56 + migration 0008. 17.05 statements/entity; `view.identifier` 246,453 rows |
-| 1.3 api_check, 20 random | | | | | | | | | 2026-10-06: **0 failures**. Content identical to source for 20/20; pageid equal; lastrevid = source + 247,617 (fresh IDs above the floor, 0035 §3); 2 notes for labels shared as a prefix by >50 records, matching the live wiki |
+| 1.2 Librarybase, full history | new deployment's `--full` dump | | | | | | | | to rerun on a dump of the rebuilt librarybase.org (page and user IDs reassigned by its import) |
+| 1.3 api_check, 20 random, full history | | | | | | | | | |
+| 1.3 api_check, 20 random (current state) | | | | | | | | | 2026-10-06: **0 failures**. Content identical to source for 20/20; pageid equal; lastrevid = source + 247,617 (fresh IDs above the floor, 0035 §3); 2 notes for labels shared as a prefix by >50 records, matching the live wiki |
 | 1.4 WBI + owner + rebuild | Q1 | | | | Q250001, P51 | | | **yes**: second rebuild identical with the edits in it | 2026-10-06: WikibaseIntegrator 0.12.15 bot login; fr label set (lastrevid 248238 → 495249); stale baserevid → `editconflict`; P3 statement added and removed; item above floor 250000, property above floor 50; browser tabs and editors work; owner `clientlogin` PASS |
 | 1.4 Pywikibot | Q1 | | | | 1 item | | | | 2026-10-06: **14 passed, 0 failed** (Pywikibot 11.8.0) after server fixes for `thumblimits`/`imagelimits`/`magiclinks`, `generator` version, structured `paraminfo`, `meta=wikibase`, `query+tokens`/`wbsearchentities` params. Stale baserevid surfaces as `OtherPageSaveError` wrapping `editconflict` |
 | 1.4 WikidataIntegrator | Q1 | | | | 1 item | | | | 2026-10-06: **11 passed/info, 0 failed** (WDI 0.9.30) with `setuptools<80`, `BACKOFF_MAX_TRIES=2`, endpoint at `<api>/sparql` (404, continues). `write()` sends no baserevid (info); stale `delete_statement` refused |
