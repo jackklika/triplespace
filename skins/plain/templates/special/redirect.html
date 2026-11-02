@@ -1,7 +1,7 @@
 {#- A redirecting special page's form (0047 §9; 21 §6.1): shown when the page needs a
     parameter it was not given, or could not follow the one it was, with why above it.
-    The controls are the changes form's. -#}
+    The controls are `forms.html`'s. -#}
 {%- import "codex.html" as codex -%}
-{%- import "changes.html" as changes -%}
+{%- import "forms.html" as forms -%}
 {%- if error %}{{ codex.message(error) }}{% endif -%}
-<form class="ts-redirects" method="get" action="/w/index.php"><input type="hidden" name="title" value="{{ title }}">{% for i in items %}{{ changes.item(i) }} {% endfor %}<button class="cdx-button cdx-button--action-progressive" type="submit">{{ go }}</button></form>
+<form class="ts-redirects" method="get" action="/w/index.php"><input type="hidden" name="title" value="{{ title }}">{% for i in items %}{{ forms.item(i) }} {% endfor %}<button class="cdx-button cdx-button--action-progressive" type="submit">{{ go }}</button></form>

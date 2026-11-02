@@ -1,8 +1,8 @@
 {#- Special:AllPages and Special:PrefixIndex (0047 §4.4; 21 §2.4): the form, then a
     namespace's titles in columns, a redirect marked, with the pages either side. The
-    form's controls are the changes form's. -#}
-{%- import "changes.html" as changes -%}
-<form class="ts-changes-form ts-allpages__form" method="get" action="/w/index.php"><input type="hidden" name="title" value="{{ form.title }}">{% for i in form.items %}{{ changes.item(i) }} {% endfor %}<button class="cdx-button cdx-button--action-progressive" type="submit">{{ form.go }}</button></form>
+    form's controls are `forms.html`'s. -#}
+{%- import "forms.html" as forms -%}
+<form class="ts-changes-form ts-allpages__form" method="get" action="/w/index.php"><input type="hidden" name="title" value="{{ form.title }}">{% for i in form.items %}{{ forms.item(i) }} {% endfor %}<button class="cdx-button cdx-button--action-progressive" type="submit">{{ form.go }}</button></form>
 {%- if empty %}<p class="ts-empty">{{ empty }}</p>{% endif -%}
 {%- if search %}<p><a href="{{ search.href }}">{{ search.label }}</a></p>{% endif -%}
 {%- if list %}<ul class="ts-allpages">{% for t in list.titles %}<li{% if t.redirect %} class="ts-allpages__redirect"{% endif %}><a href="{{ t.href }}">{{ t.text }}</a></li>{% endfor %}</ul>

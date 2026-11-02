@@ -495,47 +495,8 @@ pub struct ListModel {
     pub days: Vec<Day>,
 }
 
-/// One control of the filter form.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
-pub enum FormItem {
-    /// A text field.
-    Text {
-        /// The label.
-        label: String,
-        /// The `name`.
-        name: String,
-        /// The value.
-        value: String,
-    },
-    /// An inline check box.
-    Check {
-        /// The `name`.
-        name: String,
-        /// The value.
-        value: String,
-        /// Whether it is checked.
-        checked: bool,
-        /// The label.
-        label: String,
-    },
-    /// A labelled menu.
-    Select {
-        /// The label.
-        label: String,
-        /// The `name`.
-        name: String,
-        /// The options: value, text, selected.
-        options: Vec<(String, String, bool)>,
-    },
-    /// The row kinds and the bots box, in a fieldset.
-    Kinds {
-        /// The legend.
-        legend: String,
-        /// The boxes.
-        items: Vec<FormItem>,
-    },
-}
+/// One control of the filter form: the shared vocabulary of `controls` (0097 A8).
+pub use crate::special::controls::FormItem;
 
 /// The filter form.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -979,29 +940,22 @@ fn form_model(m: &Messages, ask: &Ask) -> FormModel {
         (Which::Contributions, None) => "Special:Contributions".to_string(),
         (Which::NewPages, _) => "Special:NewPages".to_string(),
     };
-    let text = |label: String, name: &str, value: Option<&str>| FormItem::Text {
-        label,
-        name: name.to_string(),
-        value: value.unwrap_or("").to_string(),
+    let text = |label: String, name: &str, value: Option<&str>| {
+        FormItem::text(label, name, value.unwrap_or(""))
     };
-    let bots = || FormItem::Check {
-        name: "bots".into(),
-        value: "1".into(),
-        checked: !ask.hide_bots,
-        label: m.get("ts-changes-bots"),
-    };
+    let bots = || FormItem::check("bots", "1", !ask.hide_bots, m.get("ts-changes-bots"));
     let select = |label: String, name: &str, options: Vec<(String, String)>, current: &str| {
-        FormItem::Select {
+        FormItem::select(
             label,
-            name: name.to_string(),
-            options: options
+            name,
+            options
                 .into_iter()
                 .map(|(v, t)| {
                     let selected = v == current;
                     (v, t, selected)
                 })
                 .collect(),
-        }
+        )
     };
     let days = || {
         select(
@@ -1085,18 +1039,17 @@ fn form_model(m: &Messages, ask: &Ask) -> FormModel {
         if ask.which != Which::NewPages {
             let mut kinds: Vec<FormItem> = KINDS
                 .iter()
-                .map(|(kind, msg, _)| FormItem::Check {
-                    name: "kind".into(),
-                    value: (*kind).to_string(),
-                    checked: ask.kinds.iter().any(|k| k == kind),
-                    label: m.get(msg),
+                .map(|(kind, msg, _)| {
+                    FormItem::check(
+                        "kind",
+                        kind,
+                        ask.kinds.iter().any(|k| k == kind),
+                        m.get(msg),
+                    )
                 })
                 .collect();
             kinds.push(bots());
-            items.push(FormItem::Kinds {
-                legend: m.get("ts-changes-kinds"),
-                items: kinds,
-            });
+            items.push(FormItem::group(m.get("ts-changes-kinds"), kinds));
         }
         items.push(namespace());
         items.push(days());

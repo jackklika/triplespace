@@ -2,6 +2,7 @@
     the models of `triplespace_ui::special::changes`: recent changes, contributions, the
     log, new pages, the watchlist and every history tab draw their rows with these. -#}
 {%- import "codex.html" as codex -%}
+{%- import "forms.html" as forms -%}
 
 {#- An account, as a target or as the actor (0095 §3). -#}
 {%- macro account(a) -%}
@@ -64,15 +65,7 @@
 </table></div>
 {%- endmacro -%}
 
-{#- One control of the filter form. -#}
-{%- macro item(i) -%}
-{%- if i.kind == "text" %}<label class="ts-changes-form__field"><span>{{ i.label }}</span> <input class="cdx-text-input__input" type="text" name="{{ i.name }}" value="{{ i.value }}"></label>
-{%- elif i.kind == "check" %}<label class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" name="{{ i.name }}" value="{{ i.value }}"{% if i.checked %} checked{% endif %}><span class="cdx-checkbox__icon"></span><span class="cdx-checkbox__label">{{ i.label }}</span></label>
-{%- elif i.kind == "select" %}<label class="ts-changes-form__field"><span>{{ i.label }}</span> <select class="cdx-select" name="{{ i.name }}">{% for o in i.options %}<option value="{{ o[0] }}"{% if o[2] %} selected{% endif %}>{{ o[1] }}</option>{% endfor %}</select></label>
-{%- else %}<fieldset class="ts-changes-form__kinds"><legend>{{ i.legend }}</legend>{% for c in i.items %}{{ item(c) }}{% endfor %}</fieldset>{% endif -%}
-{%- endmacro -%}
-
 {#- The filter form. -#}
 {%- macro form(f) -%}
-<form class="ts-changes-form" action="/w/index.php" method="get" aria-label="{{ f.label }}"><input type="hidden" name="title" value="{{ f.title }}"><input type="hidden" name="filtered" value="1">{% for i in f.items %}{{ item(i) }}{% endfor %} <button class="cdx-button cdx-button--action-progressive cdx-button--weight-primary" type="submit">{{ f.apply }}</button></form>
+<form class="ts-changes-form" action="/w/index.php" method="get" aria-label="{{ f.label }}"><input type="hidden" name="title" value="{{ f.title }}"><input type="hidden" name="filtered" value="1">{% for i in f.items %}{{ forms.item(i) }}{% endfor %} <button class="cdx-button cdx-button--action-progressive cdx-button--weight-primary" type="submit">{{ f.apply }}</button></form>
 {%- endmacro -%}

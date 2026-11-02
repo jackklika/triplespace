@@ -22,8 +22,12 @@
 	background-color: var( --background-color-neutral-subtle, #f8f9fa );
 }
 
-/* The row kinds take a row of their own; the selects and the button share the next. */
+/* The row kinds take a row of their own; the selects and the button share the next.
+ * `ts-form-group` and `ts-form-field` are Plain's `forms.html` items (0097 A8); the
+ * `ts-changes-form__` names are the built-in drawing's, kept until groups 11 and 12 of the
+ * skin migration switch (19 §5.10). */
 
+.ts-form-group,
 .ts-changes-form__kinds {
 	display: flex;
 	flex-wrap: wrap;
@@ -34,6 +38,7 @@
 	border: 0;
 }
 
+.ts-form-group legend,
 .ts-changes-form__kinds legend {
 	flex-basis: 100%;
 	padding: 0;
@@ -41,10 +46,12 @@
 	font-weight: bold;
 }
 
+.ts-form-group .cdx-checkbox--inline,
 .ts-changes-form__kinds .cdx-checkbox--inline {
 	margin-inline-end: 0;
 }
 
+.ts-form-field,
 .ts-changes-form__field {
 	display: inline-flex;
 	flex-direction: column;
@@ -52,6 +59,7 @@
 	min-width: 10rem;
 }
 
+.ts-form-field > span,
 .ts-changes-form__field > span {
 	font-weight: bold;
 }

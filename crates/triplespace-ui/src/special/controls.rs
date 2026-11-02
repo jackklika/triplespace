@@ -149,21 +149,25 @@ pub struct OptionModel {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum ControlModel {
-    /// An inline checkbox.
+    /// An inline checkbox: bare, the row labelling it, or carrying its own label.
     Checkbox {
-        /// The element ID.
-        id: String,
+        /// The element ID, where the page refers to it.
+        id: Option<String>,
         /// The field's name.
         name: String,
+        /// The value posted when it is on.
+        value: String,
         /// Whether it is on.
         checked: bool,
+        /// Its own label, after the box; the checkbox is then a `<label>`.
+        label: Option<String>,
         /// The element describing it.
         described_by: Option<String>,
     },
     /// A select.
     Select {
-        /// The element ID.
-        id: String,
+        /// The element ID, where the page refers to it.
+        id: Option<String>,
         /// The field's name.
         name: String,
         /// The options, "no value" first where the value may be absent.
@@ -173,8 +177,8 @@ pub enum ControlModel {
     },
     /// A one-line input: `number` or `text`.
     Input {
-        /// The element ID.
-        id: String,
+        /// The element ID, where the page refers to it.
+        id: Option<String>,
         /// The field's name.
         name: String,
         /// `number` or `text`.
@@ -186,8 +190,8 @@ pub enum ControlModel {
     },
     /// A text area.
     TextArea {
-        /// The element ID.
-        id: String,
+        /// The element ID, where the page refers to it.
+        id: Option<String>,
         /// The field's name.
         name: String,
         /// The value as text.
@@ -212,7 +216,7 @@ impl Control<'_> {
     /// The control as Plain's `forms.html` draws it.
     #[must_use]
     pub fn model(&self) -> ControlModel {
-        let id = self.id.to_string();
+        let id = Some(self.id.to_string());
         let name = self.name.to_string();
         let described_by = self.described_by.map(str::to_string);
         let text = self
@@ -223,7 +227,9 @@ impl Control<'_> {
             Kind::Boolean => ControlModel::Checkbox {
                 id,
                 name,
+                value: "1".into(),
                 checked: self.value == Some(&Value::Bool(true)),
+                label: None,
                 described_by,
             },
             Kind::Choice => {
@@ -274,7 +280,112 @@ impl Control<'_> {
                     described_by,
                 }
             }
-            Kind::ReadOnly => ControlModel::ReadOnly { id, value: text },
+            Kind::ReadOnly => ControlModel::ReadOnly {
+                id: self.id.to_string(),
+                value: text,
+            },
+        }
+    }
+}
+
+/// One item of a form that works by `GET`, as Plain's `forms.html` lays it out (`item`;
+/// 0097 A8): a control under its label, a checkbox carrying its own label, or a fieldset
+/// of items. The controls are [`ControlModel`]s, the same as a settings row's.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum FormItem {
+    /// A control with its label above it, the label wrapping it.
+    Field {
+        /// The label.
+        label: String,
+        /// The control.
+        control: ControlModel,
+    },
+    /// A checkbox with its label after it.
+    Check {
+        /// The checkbox.
+        control: ControlModel,
+    },
+    /// A fieldset of items under a legend.
+    Group {
+        /// The legend.
+        legend: String,
+        /// The items.
+        items: Vec<FormItem>,
+    },
+}
+
+impl FormItem {
+    /// A one-line text field.
+    #[must_use]
+    pub fn text(label: String, name: &str, value: &str) -> Self {
+        Self::Field {
+            label,
+            control: ControlModel::Input {
+                id: None,
+                name: name.to_string(),
+                input_type: "text".into(),
+                value: value.to_string(),
+                described_by: None,
+            },
+        }
+    }
+
+    /// A select of `(value, text, selected)` options.
+    #[must_use]
+    pub fn select(label: String, name: &str, options: Vec<(String, String, bool)>) -> Self {
+        Self::Field {
+            label,
+            control: ControlModel::Select {
+                id: None,
+                name: name.to_string(),
+                options: options
+                    .into_iter()
+                    .map(|(value, label, selected)| OptionModel {
+                        value,
+                        label,
+                        selected,
+                    })
+                    .collect(),
+                described_by: None,
+            },
+        }
+    }
+
+    /// An inline checkbox with its label.
+    #[must_use]
+    pub fn check(name: &str, value: &str, checked: bool, label: String) -> Self {
+        Self::Check {
+            control: ControlModel::Checkbox {
+                id: None,
+                name: name.to_string(),
+                value: value.to_string(),
+                checked,
+                label: Some(label),
+                described_by: None,
+            },
+        }
+    }
+
+    /// A fieldset of items.
+    #[must_use]
+    pub fn group(legend: String, items: Vec<FormItem>) -> Self {
+        Self::Group { legend, items }
+    }
+
+    /// The field's name, for a test; `None` for a group.
+    #[must_use]
+    pub fn name(&self) -> Option<&str> {
+        let control = match self {
+            Self::Field { control, .. } | Self::Check { control } => control,
+            Self::Group { .. } => return None,
+        };
+        match control {
+            ControlModel::Checkbox { name, .. }
+            | ControlModel::Select { name, .. }
+            | ControlModel::Input { name, .. }
+            | ControlModel::TextArea { name, .. } => Some(name),
+            ControlModel::ReadOnly { .. } => None,
         }
     }
 }

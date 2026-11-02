@@ -536,20 +536,16 @@ fn form_model(m: &Messages, which: Which, error: Option<&str>, value: &str) -> R
     let (_, label, field) = which.form();
     let mut items = Vec::new();
     if which == Which::Redirect {
-        items.push(FormItem::Select {
-            label: m.get("ts-redirect-type"),
-            name: "wptype".into(),
-            options: vec![
+        items.push(FormItem::select(
+            m.get("ts-redirect-type"),
+            "wptype",
+            vec![
                 ("revision".into(), m.get("ts-redirect-type-revision"), false),
                 ("page".into(), m.get("ts-redirect-type-page"), false),
             ],
-        });
+        ));
     }
-    items.push(FormItem::Text {
-        label: m.get(label),
-        name: field.to_string(),
-        value: value.to_string(),
-    });
+    items.push(FormItem::text(m.get(label), field, value));
     RedirectForm {
         error: error.map(|e| Message::block(MessageKind::Error, e).model()),
         title: format!("Special:{}", which.name()),
@@ -569,14 +565,16 @@ mod tests {
         let m = Messages::for_language("en");
         let f = form_model(&m, Which::Redirect, Some("Not a number"), "abc");
         assert_eq!(f.title, "Special:Redirect");
-        assert!(matches!(&f.items[0], FormItem::Select { name, .. } if name == "wptype"));
-        assert!(
-            matches!(&f.items[1], FormItem::Text { name, value, .. } if name == "wpvalue" && value == "abc")
-        );
+        assert_eq!(f.items[0].name(), Some("wptype"));
+        assert_eq!(f.items[1].name(), Some("wpvalue"));
+        assert!(matches!(
+            &f.items[1],
+            FormItem::Field { control: crate::special::controls::ControlModel::Input { value, .. }, .. } if value == "abc"
+        ));
         assert!(f.error.unwrap().classes.contains("cdx-message--error"));
         let f = form_model(&m, Which::EditPage, None, "");
         assert_eq!(f.items.len(), 1);
-        assert!(matches!(&f.items[0], FormItem::Text { name, .. } if name == "page"));
+        assert_eq!(f.items[0].name(), Some("page"));
         assert!(f.error.is_none());
     }
 }

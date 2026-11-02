@@ -381,17 +381,8 @@ fn page_model(
 
 /// The form's model.
 fn form_model(m: &Messages, ask: &Ask, rows: &[NamespaceRow]) -> AllPagesForm {
-    let text = |name: &str, label: &str, value: &str| FormItem::Text {
-        label: m.get(label),
-        name: name.to_string(),
-        value: value.to_string(),
-    };
-    let check = |name: &str, label: &str, on: bool| FormItem::Check {
-        name: name.to_string(),
-        value: "1".into(),
-        checked: on,
-        label: m.get(label),
-    };
+    let text = |name: &str, label: &str, value: &str| FormItem::text(m.get(label), name, value);
+    let check = |name: &str, label: &str, on: bool| FormItem::check(name, "1", on, m.get(label));
     let mut items = match ask.which {
         Which::AllPages => vec![
             text("from", "ts-allpages-from", &ask.from),
@@ -399,11 +390,10 @@ fn form_model(m: &Messages, ask: &Ask, rows: &[NamespaceRow]) -> AllPagesForm {
         ],
         Which::PrefixIndex => vec![text("prefix", "ts-prefixindex-prefix", &ask.prefix)],
     };
-    items.push(FormItem::Select {
-        label: m.get("ts-changes-namespace"),
-        name: "namespace".into(),
-        options: rows
-            .iter()
+    items.push(FormItem::select(
+        m.get("ts-changes-namespace"),
+        "namespace",
+        rows.iter()
             .filter(|n| listable(n.id))
             .map(|n| {
                 let name = if n.id == 0 {
@@ -414,7 +404,7 @@ fn form_model(m: &Messages, ask: &Ask, rows: &[NamespaceRow]) -> AllPagesForm {
                 (n.id.to_string(), name, n.id == ask.namespace)
             })
             .collect(),
-    });
+    ));
     items.push(check(
         "hideredirects",
         "ts-allpages-hideredirects",
@@ -586,12 +576,7 @@ mod tests {
             .form
             .items
             .iter()
-            .map(|i| match i {
-                FormItem::Text { name, .. }
-                | FormItem::Check { name, .. }
-                | FormItem::Select { name, .. } => name.as_str(),
-                FormItem::Kinds { .. } => "kinds",
-            })
+            .map(|i| i.name().unwrap_or("group"))
             .collect();
         assert_eq!(
             names,
