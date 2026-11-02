@@ -83,10 +83,13 @@ pub async fn actor_key_of(ctx: &Ctx, name: &str) -> Result<Option<String>, tokio
 }
 
 /// The numeric user ID MediaWiki clients expect: the number after the issuer in the
-/// actor key, `0` for a surrogate without one.
+/// actor key, `0` for a surrogate. A surrogate's `actor:{n}` numbers the tenant's
+/// surrogates, not accounts (0007 A27), and MediaWiki gives an IP or an imported edit
+/// user ID 0.
 #[must_use]
 pub fn user_id(key: Option<&str>) -> u64 {
     key.and_then(|k| k.rsplit_once(':'))
+        .filter(|(issuer, _)| *issuer != scatter_actors::issuer::ACTOR)
         .and_then(|(_, n)| n.parse().ok())
         .unwrap_or(0)
 }
@@ -138,13 +141,19 @@ pub fn title_of(row: &Row) -> Option<(i64, String)> {
     }
 }
 
-/// The user name a row shows: the name, the raw key for a surrogate, or nothing for a
-/// hidden actor.
-fn user_name(row: &Row) -> Option<String> {
+/// The user name a row shows: the name; for an `anonymous` or `imported` surrogate the
+/// raw value, as the source showed it (07 §1.4: the IP, or `imported>Name`); else the
+/// key; nothing for a hidden actor.
+pub(crate) fn user_name(row: &Row) -> Option<String> {
     if row.actor.hidden {
         return None;
     }
-    row.actor.name.clone().or_else(|| row.actor.key.clone())
+    let shown_raw = matches!(row.actor.kind.as_deref(), Some("anonymous" | "imported"));
+    row.actor
+        .name
+        .clone()
+        .or_else(|| row.actor.raw.clone().filter(|_| shown_raw))
+        .or_else(|| row.actor.key.clone())
 }
 
 /// The automatic summary (0001 §6) in MediaWiki's comment field: the operation and its
@@ -597,6 +606,7 @@ mod tests {
                 key: Some("librarybase:7".into()),
                 name: Some("Alice".into()),
                 kind: Some("registered".into()),
+                raw: None,
                 iri: Some("https://librarybase.org/actor/librarybase:7".into()),
                 hidden: false,
             },
@@ -692,6 +702,23 @@ mod tests {
     fn user_ids_are_the_number_in_the_key() {
         assert_eq!(user_id(Some("librarybase:7")), 7);
         assert_eq!(user_id(Some("ip:127.0.0.1")), 0);
+        assert_eq!(user_id(Some("actor:3")), 0);
         assert_eq!(user_id(None), 0);
+    }
+
+    #[test]
+    fn a_surrogate_shows_as_the_source_showed_it() {
+        let mut r = row();
+        r.actor = Actor {
+            key: Some("actor:1".into()),
+            kind: Some("imported".into()),
+            raw: Some("imported>Harej".into()),
+            ..Actor::default()
+        };
+        assert_eq!(user_name(&r).as_deref(), Some("imported>Harej"));
+        r.actor.kind = Some("federated".into());
+        assert_eq!(user_name(&r).as_deref(), Some("actor:1"));
+        r.actor.hidden = true;
+        assert_eq!(user_name(&r), None);
     }
 }

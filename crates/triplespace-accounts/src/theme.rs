@@ -354,7 +354,18 @@ mod tests {
     fn the_shipped_catalogue() {
         let c = Catalogue::shipped();
         let names: Vec<&str> = c.palettes.iter().map(|p| p.name.as_str()).collect();
-        assert_eq!(names, ["encyclopedia", "parchment"]);
+        assert_eq!(
+            names,
+            [
+                "catppuccin",
+                "cyanotype",
+                "encyclopedia",
+                "greenbar",
+                "gruvbox",
+                "nord",
+                "parchment"
+            ]
+        );
         let p = c.palette("parchment").unwrap();
         assert!(!p.accessibility && p.extends.is_none());
         assert_eq!(
@@ -382,6 +393,24 @@ mod tests {
         let t = c.typeset("basic").unwrap();
         assert!(!t.accessibility && t.fonts.is_empty() && t.fallback.is_none());
         assert_eq!(t.roles["font-family-base"], "sans-serif");
+        for (palette, typeset) in [
+            ("gruvbox", "retro"),
+            ("nord", "nordic"),
+            ("catppuccin", "cozy"),
+            ("greenbar", "mainframe"),
+            ("cyanotype", "drafting"),
+        ] {
+            let p = c.palette(palette).unwrap();
+            assert!(p.dark.is_some() && p.light_more.is_some() && p.dark_more.is_some());
+            assert_eq!(
+                p.alternate.keys().collect::<Vec<_>>(),
+                ["by", "rg"],
+                "{palette}"
+            );
+            let t = c.typeset(typeset).unwrap();
+            assert!(!t.accessibility && t.fonts.len() == 3, "{typeset}");
+            assert_eq!(t.fallback.as_deref(), Some("noto"));
+        }
     }
 
     #[test]

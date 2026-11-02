@@ -1,0 +1,12 @@
+/* The typefaces of the type set `drafting` (docs/registry/themes.toml; ADR 0086 §3), made for the
+   palette `cyanotype`: Barlow Condensed for headings over Barlow and JetBrains Mono. Served from
+   the site's own origin, as the content security policy requires (ADR 0034 §11), inside the type
+   set's stylesheet. SIL Open Font License 1.1. */
+@import '@fontsource/barlow-condensed/400.css';
+@import '@fontsource/barlow-condensed/500.css';
+@import '@fontsource/barlow/400.css';
+@import '@fontsource/barlow/400-italic.css';
+@import '@fontsource/barlow/500.css';
+@import '@fontsource/barlow/600.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';

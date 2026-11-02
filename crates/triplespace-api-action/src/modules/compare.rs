@@ -317,12 +317,7 @@ fn side_fields(out: &mut Map<String, Value>, prefix: &str, rev: &Rev, props: &[S
         if row.visibility & visibility::USER != 0 || row.actor.hidden {
             flag(out, key("userhidden"));
         } else {
-            let name = row
-                .actor
-                .name
-                .clone()
-                .or_else(|| row.actor.key.clone())
-                .unwrap_or_default();
+            let name = crate::activity::user_name(row).unwrap_or_default();
             out.insert(key("user"), json!(name));
             out.insert(key("userid"), json!(user_id(row.actor.key.as_deref())));
         }

@@ -455,7 +455,17 @@ mod tests {
         assert!(!d.contains("</"));
         assert!(data(&t, None, None).contains("\"signedIn\":false"));
         let v: Value = serde_json::from_str(&data(&t, Some(&o), None)).unwrap();
-        assert_eq!(v["choices"]["ui.palette"], json!(["encyclopedia"]));
+        assert_eq!(
+            v["choices"]["ui.palette"],
+            json!([
+                "catppuccin",
+                "cyanotype",
+                "encyclopedia",
+                "greenbar",
+                "gruvbox",
+                "nord"
+            ])
+        );
         assert_eq!(v["values"]["ui.vision"], "none");
         assert_eq!(v["values"]["ui.palette"], "");
     }
