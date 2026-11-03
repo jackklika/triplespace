@@ -1,0 +1,12 @@
+/* The typefaces of the type set `nordic` (docs/registry/themes.toml; ADR 0086 §3), made for the
+   palette `nord`: Rubik for headings over Inter and JetBrains Mono. Served from the site's own
+   origin, as the content security policy requires (ADR 0034 §11), inside the type set's
+   stylesheet. SIL Open Font License 1.1. */
+@import '@fontsource/rubik/400.css';
+@import '@fontsource/rubik/500.css';
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/400-italic.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';

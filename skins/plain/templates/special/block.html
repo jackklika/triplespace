@@ -1,0 +1,9 @@
+{#- Special:Block and Special:Unblock (09 §3.3, §6.3; 19 §6.3): the account, the expiry and
+    reason, the block's options, and a link to the other form. -#}
+{%- import "codex.html" as codex -%}
+{%- import "forms.html" as forms -%}
+<div class="ts-block-page">{% for n in notices %}{{ codex.message(n) }}{% endfor -%}
+<form class="ts-block" method="post" action="{{ action }}"><input type="hidden" name="token" value="{{ token }}">{{ codex.field(user) }}{% if expiry %}{{ codex.field(expiry) }}{% endif %}{{ codex.field(reason) }}
+{%- for o in options %}{{ forms.check(o) }}{% endfor -%}
+{%- if hidden_note %}{{ codex.message(hidden_note) }}{% endif -%}
+<div class="ts-block__actions">{{ codex.button(submit) }}</div></form><p class="ts-block__links"><a href="{{ other.href }}">{{ other.label }}</a></p></div>

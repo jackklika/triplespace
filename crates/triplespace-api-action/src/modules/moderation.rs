@@ -314,10 +314,9 @@ async fn admit_entity(ctx: &Ctx, id: &str, permission: &str) -> Result<Admit, Ap
 /// read; `None` for a title that is not an entity's. A local entity only: a mirrored one
 /// is the provider's to moderate (09 §5.6), `ts-not-supported`.
 fn entity_of(site: &Site, title: &str) -> Result<Option<String>, ApiError> {
-    if !pages::names_entity(site, title) {
+    let Some(id) = pages::entity_of_title(site, title) else {
         return Ok(None);
-    }
-    let id = crate::modules::entities::parse_id(title)?;
+    };
     if id.form() == scatter_wikibase_model::id::IdForm::Foreign {
         return Err(ApiError::new(
             "ts-not-supported",

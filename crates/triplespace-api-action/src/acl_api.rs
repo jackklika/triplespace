@@ -399,8 +399,7 @@ fn body_of_write(target: &Target, acl: Option<&Acl>, chain: &[Acl]) -> Value {
     body(target, acl, chain)
 }
 
-/// A set member as a request names it: `{kind: "page", id}`. Entities wait for their
-/// read enforcement (tier 6), so an entity member is `ts-not-supported` for now.
+/// A set member as a request names it: `{kind: "page", id}` or `{kind: "entity", id}`.
 fn member_of(kind: &str, id: &str) -> Result<scatter_actors::acl::SetMember, ApiError> {
     match kind {
         "page" => id
@@ -417,6 +416,32 @@ fn member_of(kind: &str, id: &str) -> Result<scatter_actors::acl::SetMember, Api
     }
 }
 
+/// A set member as a request names it, with an entity's page ID read as the entity (09
+/// §4.7): an entity's page is not in `view.page`, so the page ID `prop=info` gives for
+/// `Item:Q5` names the entity, as `pageids=` reads it (18 §2.3). Members are IDs, so the
+/// set records the entity's.
+async fn resolve_member(
+    ctx: &Ctx,
+    kind: &str,
+    id: &str,
+) -> Result<scatter_actors::acl::SetMember, ApiError> {
+    let member = member_of(kind, id)?;
+    let scatter_actors::acl::SetMember::Page(page) = member else {
+        return Ok(member);
+    };
+    let row = ctx
+        .db()
+        .query_opt(
+            "SELECT id FROM view.entity WHERE tenant = $1 AND page_id = $2",
+            &[&ctx.tenant.slug, &i64::try_from(page).unwrap_or(i64::MAX)],
+        )
+        .await?;
+    Ok(match row {
+        Some(r) => member_of("entity", &r.get::<_, String>(0))?,
+        None => member,
+    })
+}
+
 /// A member the caller may add or remove: a page that exists and that the caller may
 /// read; one it may not read answers as missing (09 §5.3).
 async fn check_member(ctx: &Ctx, m: &scatter_actors::acl::SetMember) -> Result<(), ApiError> {
@@ -431,7 +456,10 @@ async fn check_member(ctx: &Ctx, m: &scatter_actors::acl::SetMember) -> Result<(
     Ok(())
 }
 
-fn members_of(body: &Map<String, Value>) -> Result<Vec<scatter_actors::acl::SetMember>, ApiError> {
+async fn members_of(
+    ctx: &Ctx,
+    body: &Map<String, Value>,
+) -> Result<Vec<scatter_actors::acl::SetMember>, ApiError> {
     let Some(list) = body.get("members") else {
         return Ok(Vec::new());
     };
@@ -441,17 +469,17 @@ fn members_of(body: &Map<String, Value>) -> Result<Vec<scatter_actors::acl::SetM
             "`members` is a list of {kind, id}.",
         ));
     };
-    list.iter()
-        .map(|m| {
-            let kind = m.get("kind").and_then(Value::as_str).unwrap_or_default();
-            let id = match m.get("id") {
-                Some(Value::String(s)) => s.clone(),
-                Some(Value::Number(n)) => n.to_string(),
-                _ => String::new(),
-            };
-            member_of(kind, &id)
-        })
-        .collect()
+    let mut out = Vec::with_capacity(list.len());
+    for m in list {
+        let kind = m.get("kind").and_then(Value::as_str).unwrap_or_default();
+        let id = match m.get("id") {
+            Some(Value::String(s)) => s.clone(),
+            Some(Value::Number(n)) => n.to_string(),
+            _ => String::new(),
+        };
+        out.push(resolve_member(ctx, kind, &id).await?);
+    }
+    Ok(out)
 }
 
 /// `POST /acl/set`: creates a set with a `name`, `restrictions` and `members`, under an
@@ -476,7 +504,7 @@ pub async fn create_set(ctx: &Ctx, body: &Map<String, Value>) -> Result<Value, A
         .filter_map(|r| r.group.clone())
         .collect();
     known_groups(ctx, &names).await?;
-    let members = members_of(body)?;
+    let members = members_of(ctx, body).await?;
     for m in &members {
         check_member(ctx, m).await?;
     }
@@ -572,7 +600,7 @@ pub async fn add_member(ctx: &Ctx, set: u64, body: &Map<String, Value>) -> Resul
         Some(Value::Number(n)) => n.to_string(),
         _ => return Err(ApiError::new("badbody", "`kind` and `id` name the member.")),
     };
-    let member = member_of(kind, &id)?;
+    let member = resolve_member(ctx, kind, &id).await?;
     let reason = body
         .get("reason")
         .and_then(Value::as_str)
@@ -592,7 +620,7 @@ pub async fn remove_member(
     id: &str,
     reason: &str,
 ) -> Result<Value, ApiError> {
-    let member = member_of(kind, id)?;
+    let member = resolve_member(ctx, kind, id).await?;
     change_member(ctx, set, member, false, reason).await
 }
 

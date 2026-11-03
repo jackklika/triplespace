@@ -2349,7 +2349,7 @@ async fn entities_under_acls() {
         .await;
     assert_eq!(w["error"]["code"], "no-such-entity", "{w}");
     let w = bob
-        .api_post(&format!("action=delete&title={secret}&token={bt}"))
+        .api_post(&format!("action=delete&title=Item:{secret}&token={bt}"))
         .await;
     assert_eq!(w["error"]["code"], "missingtitle", "{w}");
     // The group reads and writes it.
@@ -2371,7 +2371,7 @@ async fn entities_under_acls() {
     // Protection on an entity: edit restricted to sysop refuses an ordinary user.
     let r = alice
         .api_post(&format!(
-            "action=protect&title={member}&protections=edit%3Dsysop&token={t}"
+            "action=protect&title=Item:{member}&protections=edit%3Dsysop&token={t}"
         ))
         .await;
     assert!(r.get("error").is_none(), "{r}");
@@ -2404,11 +2404,53 @@ async fn entities_under_acls() {
     assert!(e["entities"][&member].get("missing").is_some(), "{e}");
     let e = carol.api(&get(&member)).await;
     assert!(e["entities"][&member].get("missing").is_none(), "{e}");
+    // An entity named by its page ID, as `prop=info` gives it and Special:ProtectedPages
+    // sends it, is the entity (09 §4.7): added, held once, and removed by the same ID.
+    let vault = r.body["id"].as_u64().expect("the set's ID");
+    let i = alice
+        .api(&format!("action=query&prop=info&titles=Item:{gone}"))
+        .await;
+    let page = i["query"]["pages"][0]["pageid"]
+        .as_u64()
+        .expect("a page ID");
+    let r = alice
+        .rest(
+            "POST",
+            &format!("/acl/set/{vault}/members"),
+            Some(json!({"kind": "page", "id": page, "token": at})),
+        )
+        .await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.body);
+    assert!(
+        r.body["acl"]["members"].to_string().contains(&gone),
+        "recorded as the entity: {}",
+        r.body
+    );
+    let e = anon.api(&get(&gone)).await;
+    assert!(e["entities"][&gone].get("missing").is_some(), "{e}");
+    let r = alice
+        .rest(
+            "POST",
+            &format!("/acl/set/{vault}/members"),
+            Some(json!({"kind": "entity", "id": gone, "token": at})),
+        )
+        .await;
+    assert_eq!(r.body["code"], "ts-already-member", "{}", r.body);
+    let r = alice
+        .rest(
+            "DELETE",
+            &format!("/acl/set/{vault}/members/page/{page}"),
+            Some(json!({"token": at})),
+        )
+        .await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.body);
+    let e = anon.api(&get(&gone)).await;
+    assert!(e["entities"][&gone].get("missing").is_none(), "{e}");
 
     // Deletion: missing outside sysop, seen as deleted within, undeleted by it.
     let r = bob
         .api_post(&format!(
-            "action=delete&title={gone}&reason=Spam&token={bt}"
+            "action=delete&title=Item:{gone}&reason=Spam&token={bt}"
         ))
         .await;
     assert!(r["delete"]["logid"].is_u64(), "{r}");
@@ -2427,11 +2469,11 @@ async fn entities_under_acls() {
     let l = anon.api("action=query&list=logevents&letype=delete").await;
     assert!(l.to_string().contains(&gone), "a deletion is public: {l}");
     let r = carol
-        .api_post(&format!("action=undelete&title={gone}&token={ct}"))
+        .api_post(&format!("action=undelete&title=Item:{gone}&token={ct}"))
         .await;
     assert_eq!(r["error"]["code"], "permissiondenied", "{r}");
     let r = bob
-        .api_post(&format!("action=undelete&title={gone}&token={bt}"))
+        .api_post(&format!("action=undelete&title=Item:{gone}&token={bt}"))
         .await;
     assert!(r.get("error").is_none(), "{r}");
     let e = anon.api(&get(&gone)).await;
@@ -2440,17 +2482,17 @@ async fn entities_under_acls() {
         "{e}"
     );
     let r = bob
-        .api_post(&format!("action=undelete&title={gone}&token={bt}"))
+        .api_post(&format!("action=undelete&title=Item:{gone}&token={bt}"))
         .await;
     assert_eq!(r["error"]["code"], "cantundelete", "{r}");
     // Found on a live instance: deleting an entity no graph holds wrote a deletion ACL.
     let r = bob
-        .api_post(&format!("action=delete&title=Q999999&token={bt}"))
+        .api_post(&format!("action=delete&title=Item:Q999999&token={bt}"))
         .await;
     assert_eq!(r["error"]["code"], "missingtitle", "{r}");
     let r = bob
         .api_post(&format!(
-            "action=protect&title=Q999999&protections=edit%3Dsysop&token={bt}"
+            "action=protect&title=Item:Q999999&protections=edit%3Dsysop&token={bt}"
         ))
         .await;
     assert_eq!(r["error"]["code"], "ts-restricted-title", "{r}");

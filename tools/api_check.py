@@ -6,6 +6,8 @@
     tools/api_check.py --ids Q1 Q100 P1
     tools/api_check.py --db "$URL" --sample 20                  # random adopted entities
     tools/api_check.py --db "$URL" --sample 20 --compare https://librarybase.org/
+    tools/api_check.py --db "$URL" --sample 20 --compare https://librarybase.org/ --current-only
+    tools/api_check.py --db "$URL" --sample 20 --compare-dump librarybase-20261101.xml.gz
     tools/api_check.py --db "$URL" --ids Q1 --wbi-login "James bot@test" --wbi-secret "$SECRET" \
         [--wbi-property P5] [--wbi-create-property]       # test plan 1.4, needs wikibaseintegrator
 
@@ -16,8 +18,21 @@ What is checked, per entity:
   3. wbsearchentities finds it by its English (or first) label.
   4. With --db: view.identifier holds a row for each external-id mainsnak with a value.
   5. With --compare: the entity equals the source's Special:EntityData output, ignoring
-     lastrevid/modified/pageid/ns/title (the test plan's spot check); pageid equals the
-     source's; lastrevid is a fresh local ID above the source's (0035 section 3-4).
+     lastrevid/modified/pageid/ns/title (the test plan's spot check), and pageid equals the
+     source's. Then, for a full-history adoption (0035 A12, the default):
+       - lastrevid equals the source's: the newest source revision is the current state,
+         under its own ID, with no adoption revision after it;
+       - the page's whole history (prop=revisions, oldest first) equals the source's,
+         revision by revision: revid, parentid, timestamp, user, userid, comment, minor.
+     With --current-only (an adoption run with `adopt --current-only`): lastrevid is a
+     fresh local ID above the source's, the one adoption revision over the floor (0035
+     section 4), and the history is not compared.
+     Both hold only while neither side has been edited since the dump: run --compare
+     before the --wbi-login writes, or leave their entity out.
+  6. With --compare-dump: the same against the adopted XML dump itself, with no network
+     (CI): the entity's labels, descriptions, aliases, statements and sitelinks equal its
+     newest revision's text, snak datatypes aside (a dump's snaks have none); pageid and
+     lastrevid equal the dump's; the history equals the page's revisions in the dump.
 With --wbi-login/--wbi-secret (a subsidiary key, `name@label` and its secret), the
 WikibaseIntegrator section of test plan 1.4 runs on the first --ids entity: log in as a
 bot; set a label; add then remove a string statement; a stale baserevid is refused; create
@@ -65,6 +80,117 @@ def snaks(entity):
                     yield "reference", x
 
 
+REV_FIELDS = ("revid", "parentid", "timestamp", "user", "userid", "comment", "minor")
+
+
+def history(base, pageid):
+    """A page's revisions, oldest first, as tuples of REV_FIELDS (formatversion=2)."""
+    params = {"action": "query", "prop": "revisions", "pageids": pageid, "rvdir": "newer",
+              "rvlimit": "max", "rvprop": "ids|timestamp|user|userid|comment|flags",
+              "formatversion": 2}
+    revs = []
+    while True:
+        doc = api(base, **params)
+        if "error" in doc:
+            raise RuntimeError(f"{doc['error'].get('code')}: {doc['error'].get('info')}")
+        for page in doc.get("query", {}).get("pages", []):
+            for r in page.get("revisions", []):
+                revs.append(tuple(
+                    "(hidden)" if r.get(f"{k}hidden") else bool(r.get(k)) if k == "minor" else r.get(k)
+                    for k in REV_FIELDS))
+        if "continue" not in doc:
+            return revs
+        params.update(doc["continue"])
+
+
+def history_diff(mine, theirs):
+    """None when equal, else a short description of the first difference."""
+    if mine == theirs:
+        return None
+    for i, (m, t) in enumerate(zip(mine, theirs)):
+        if m != t:
+            fields = [f"{k} {a!r} != source {b!r}" for k, a, b in zip(REV_FIELDS, m, t) if a != b]
+            return f"revision {i + 1} of {len(theirs)} (source revid {t[0]}): " + "; ".join(fields)
+    return (f"{len(mine)} revisions, source has {len(theirs)}; "
+            f"first unmatched source revid {theirs[len(mine)][0] if len(theirs) > len(mine) else None}, "
+            f"local {mine[len(theirs)][0] if len(mine) > len(theirs) else None}")
+
+
+CONTENT = ("type", "id", "datatype", "labels", "descriptions", "aliases", "claims", "sitelinks",
+           "lemmas", "lexicalCategory", "language", "forms", "senses")
+
+
+def untyped(v):
+    """A copy without snak datatypes (a dump's stored JSON has none, 0035 A12)."""
+    if isinstance(v, dict):
+        return {k: untyped(x) for k, x in v.items()
+                if not (k == "datatype" and "snaktype" in v)}
+    if isinstance(v, list):
+        return [untyped(x) for x in v]
+    return v
+
+
+def content(entity):
+    """The parts of an entity a dump's text and Special:EntityData both hold, with PHP's
+    `[]` for an empty map read as `{}`."""
+    out = {}
+    for k in CONTENT:
+        if k in entity:
+            v = entity[k]
+            out[k] = {} if v == [] else untyped(v)
+    return out
+
+
+class DumpSource:
+    """The pages of an XML dump for some entity IDs: page ID, revisions and newest text."""
+
+    def __init__(self, path, ids):
+        import gzip
+        import xml.etree.ElementTree as ET
+        want = set(ids)
+        self.pages = {}
+        opener = gzip.open if str(path).endswith(".gz") else open
+        with opener(path, "rb") as f:
+            for _, el in ET.iterparse(f, events=("end",)):
+                if el.tag.rsplit("}", 1)[-1] != "page":
+                    continue
+                kids = {c.tag.rsplit("}", 1)[-1]: c for c in el}
+                title = kids["title"].text or ""
+                eid = title.split(":", 1)[-1]
+                if eid in want:
+                    revs, text = [], None
+                    for r in el:
+                        if r.tag.rsplit("}", 1)[-1] != "revision":
+                            continue
+                        f_ = {c.tag.rsplit("}", 1)[-1]: c for c in r}
+                        who = f_.get("contributor")
+                        if who is None or who.get("deleted"):
+                            user, userid = "(hidden)", None
+                        else:
+                            w = {c.tag.rsplit("}", 1)[-1]: c.text for c in who}
+                            user = w.get("username") or w.get("ip")
+                            userid = int(w.get("id") or 0)
+                        c = f_.get("comment")
+                        comment = "(hidden)" if c is not None and c.get("deleted") else (c.text or "") if c is not None else ""
+                        revs.append((int(f_["id"].text), int(f_["parentid"].text) if "parentid" in f_ else 0,
+                                     f_["timestamp"].text, user, userid, comment, "minor" in f_))
+                        t = f_.get("text")
+                        if t is not None and t.text:
+                            text = t.text
+                    self.pages[eid] = {"pageid": int(kids["id"].text), "revisions": revs,
+                                       "entity": json.loads(text) if text else None}
+                el.clear()
+
+    def entity(self, eid):
+        p = self.pages.get(eid)
+        if not p:
+            return None
+        return dict(p["entity"] or {}, pageid=p["pageid"], lastrevid=p["revisions"][-1][0])
+
+    def history(self, eid):
+        return self.pages[eid]["revisions"]
+
+
 def psql(db, sql):
     out = subprocess.run(
         ["psql", db, "-At", "-c", sql], capture_output=True, text=True, check=True
@@ -88,7 +214,12 @@ def main():
     ap.add_argument("--ids", nargs="*", default=[], help="entity IDs to check")
     ap.add_argument("--sample", type=int, default=0, help="also check N random adopted entities (needs --db)")
     ap.add_argument("--db", help="Postgres URL, for --sample and the view.identifier check (uses psql)")
-    ap.add_argument("--compare", metavar="SOURCE_BASE", help="compare with the source wiki's Special:EntityData")
+    ap.add_argument("--compare", metavar="SOURCE_BASE", help="compare with the source wiki: EntityData, lastrevid and the page history")
+    ap.add_argument("--compare-dump", metavar="XML",
+                    help="compare with the adopted XML dump itself: content, pageid, lastrevid and history")
+    ap.add_argument("--current-only", action="store_true",
+                    help="with --compare: the tenant was adopted with `adopt --current-only`, so lastrevid "
+                         "is a fresh ID above the source's and the history is not compared")
     ap.add_argument("--wbi-login", metavar="NAME@LABEL", help="bot-password login name from `subsidiary key`")
     ap.add_argument("--wbi-secret", help="the key's secret (or set TRIPLESPACE_WBI_SECRET)")
     ap.add_argument("--wbi-property", help="a string-typed property to add a statement with (found automatically if omitted)")
@@ -103,6 +234,7 @@ def main():
     if not ids:
         sys.exit("nothing to check: pass --ids or --db --sample N")
 
+    dump = DumpSource(a.compare_dump, ids) if a.compare_dump else None
     failures = 0
 
     def fail(eid, what):
@@ -118,6 +250,7 @@ def main():
         sys.exit(f"siteinfo failed: {e} (is the server up, with --dev-tenant {a.tenant}?)")
 
     for eid in ids:
+        hist = None
         # 1. EntityData and datatypes
         try:
             ent = entity_data(a.api, eid)
@@ -191,27 +324,52 @@ def main():
                 if not want <= have:
                     fail(eid, f"view.identifier lacks {sorted(want - have)} (has {sorted(have)})")
 
-        # 5. compare with the source
-        if a.compare:
-            try:
-                src = entity_data(a.compare, eid)
-            except Exception as e:  # noqa: BLE001
-                fail(eid, f"source EntityData: {e}")
-                src = None
+        # 5. compare with the source wiki, or 6. with the dump
+        if a.compare or dump:
+            src = None
+            if dump:
+                src = dump.entity(eid)
+                if src is None:
+                    fail(eid, f"not in {a.compare_dump}")
+            else:
+                try:
+                    src = entity_data(a.compare, eid)
+                except Exception as e:  # noqa: BLE001
+                    fail(eid, f"source EntityData: {e}")
             if src:
-                mine = {k: v for k, v in ent.items() if k not in META}
-                theirs = {k: v for k, v in src.items() if k not in META}
+                if dump:
+                    mine, theirs = content(ent), content(src)
+                else:
+                    mine = {k: v for k, v in ent.items() if k not in META}
+                    theirs = {k: v for k, v in src.items() if k not in META}
                 if mine != theirs:
                     diff = [k for k in sorted(set(mine) | set(theirs)) if mine.get(k) != theirs.get(k)]
                     fail(eid, f"differs from source in: {', '.join(diff)}")
                 if ent.get("pageid") != src.get("pageid"):
                     fail(eid, f"pageid {ent.get('pageid')} != source {src.get('pageid')}")
-                # 0035 section 3: an adopted record is a fresh local revision above the
-                # floor (section 4), never the source's number.
-                if not (ent.get("lastrevid") or 0) > (src.get("lastrevid") or 0):
-                    fail(eid, f"lastrevid {ent.get('lastrevid')} is not above the source's {src.get('lastrevid')}")
+                if a.current_only:
+                    # 0035 section 7 (b): the one adoption revision is a fresh local ID
+                    # above the floor (section 4), never the source's number.
+                    if not (ent.get("lastrevid") or 0) > (src.get("lastrevid") or 0):
+                        fail(eid, f"lastrevid {ent.get('lastrevid')} is not above the source's {src.get('lastrevid')}")
+                else:
+                    # 0035 A12: every source revision under its own ID, nothing after.
+                    if ent.get("lastrevid") != src.get("lastrevid"):
+                        fail(eid, f"lastrevid {ent.get('lastrevid')} != source {src.get('lastrevid')}")
+                    if src.get("pageid"):
+                        try:
+                            theirs = dump.history(eid) if dump else history(a.compare, src["pageid"])
+                            mine = history(a.api, ent.get("pageid") or src["pageid"])
+                            d = history_diff(mine, theirs)
+                            if d:
+                                fail(eid, f"history differs: {d}")
+                            else:
+                                hist = len(theirs)
+                        except Exception as e:  # noqa: BLE001
+                            fail(eid, f"history: {e}")
 
-        print(f"seen {eid}: {total} snaks" + (f", label {label['value']!r}" if label else ""))
+        print(f"seen {eid}: {total} snaks" + (f", {hist} revisions equal to the source's" if hist else "")
+              + (f", label {label['value']!r}" if label else ""))
 
     if a.wbi_login:
         failures += wbi_section(a, ids[0])

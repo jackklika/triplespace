@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-09-28
-- **Updated:** 2026-10-29 (A15)
+- **Updated:** 2026-11-02 (A16)
 - **Author:** James Hare / Claude Fable
 - **Changes:** [0002](0002-source-graphs-and-mass-ingest.md), [0005](0005-crate-organization.md), [0007](0007-actor-identity.md), [0008](0008-namespaces-and-document-pages.md), [0011](0011-logs.md), [0012](0012-api-requirements.md), [0013](0013-postgres-storage.md), [0015](0015-record-format-and-partition-registry.md), [0016](0016-permissions-and-access-control.md), [0018](0018-tenants.md)
 - **Uses:** [0024](0024-subsidiary-accounts.md), [Wikibase contract](../api/wikibase-compat.md)
@@ -51,7 +51,7 @@ One alternative needs no new operation and was rejected: load the old wiki into 
 
 ### 5. Accounts (amends 0007 §3 and 0016 §3; uses 0018 §4 and §10)
 
-*Changed by A5, A8, A10.*
+*Changed by A5, A8, A10, A16.*
 
 *Current text: [07](../architecture/07-actors-and-accounts.md) §2.5.*
 
@@ -274,3 +274,10 @@ Replaced text ([16](../architecture/16-logs-feeds-and-notifications.md) §2.3, a
 - **Source:** [0096](0096-adopting-any-mediawiki.md) §1, §2
 - **Change:** extends §1, §2
 - **Summary:** A source without Wikibase may be adopted: it has no entities, so the job writes nothing to `local`, takes no `--counters` and sets no entity floor, and adopts its pages, accounts and files as any source's (0096 §1). The job registers the source's namespaces: a number the registry lists for a `pages` namespace keeps its pages there; a number it does not list becomes a tenant `namespace` record with its talk number; a number it lists for a namespace that holds no pages is archived or deferred. A taken name is renamed or archived into Project under a prefix, by `--namespace`, and the survey pass refuses the job until every taken name is decided (0096 §2). The chapter text is [05](../architecture/05-providers-and-ingest.md) §7.1, §7.2 and §7.6.
+
+### A16. The source's accounts must agree with the tenant's
+
+- **Date:** 2026-11-02
+- **Source:** Direct: James, confirmed 2026-11-03; Claude's call while building the Librarybase full-history adoption check, 2026-11-02
+- **Change:** extends §5
+- **Summary:** Before it writes anything, the survey pass compares the dump's accounts with the accounts the tenant already has (in practice the owner that `instance create` made). It refuses the job when a source account's name is held by an account under another user ID, or when a source user ID is held under another name, and names each disagreement. Account names are unique on a tenant, as on MediaWiki, and the job leaves an account it finds present as it is, so either case would leave two accounts with one name or the source's account under the wrong name. The Librarybase run of 2026-11-01 met the first case: the owner was created under another user ID with the name of the source's account `Librarybase`, and the two same-named accounts stopped the `addressing` projection at the user page. `--no-accounts` skips the check with the accounts. The chapter text is [07](../architecture/07-actors-and-accounts.md) §2.5.

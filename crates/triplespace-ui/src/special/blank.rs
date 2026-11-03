@@ -6,7 +6,6 @@ use axum::response::Response;
 
 use crate::Site;
 use crate::frame::Page;
-use crate::html::esc;
 use crate::pages::{self, Params, Peer};
 
 /// `GET Special:BlankPage`.
@@ -16,13 +15,12 @@ pub async fn serve(site: &Site, headers: &HeaderMap, peer: Peer, params: &Params
         Ok(cx) => cx,
         Err(r) => return r,
     };
+    let text = cx.m.get("ts-blankpage-text");
+    let body = cx.draw("special/blank.html", serde_json::json!({ "text": text }));
     pages::respond(&cx, headers, StatusCode::OK, |m| Page {
         title: m.get("ts-blankpage-title"),
         returnto: Some("Special:BlankPage".into()),
-        body: format!(
-            "<p class=\"ts-blankpage\"><i>{}</i></p>",
-            esc(&m.get("ts-blankpage-text"))
-        ),
+        body,
         ..Page::default()
     })
 }

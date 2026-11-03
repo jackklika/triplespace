@@ -123,6 +123,21 @@ pub struct SiteInfo {
     /// The wiki's interface overrides and names, by message key and then language, `""`
     /// for the base page (`triplespace.interface.messages`; 0095 §5).
     pub interface: std::collections::BTreeMap<String, std::collections::BTreeMap<String, String>>,
+    /// The wiki's skins (`triplespace.skins`; 0097 §8): its default and the ones it
+    /// offers; `None` from an API that reports none, which leaves both to the site.
+    pub skins: SkinsInfo,
+}
+
+/// What `triplespace.skins` reports (0097 §8).
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Deserialize)]
+pub struct SkinsInfo {
+    /// `skins.default`: the wiki's skin for readers who have not chosen.
+    #[serde(default)]
+    pub default: Option<String>,
+    /// `skins.available`: the skins readers may choose from; `None` for every skin the
+    /// instance has.
+    #[serde(default)]
+    pub available: Option<Vec<String>>,
 }
 
 /// A provider as `siprop=providers` reports it.
@@ -467,6 +482,11 @@ impl Client {
                 &ts["interface"]["messages"],
                 "triplespace.interface.messages",
             )?,
+            skins: if ts["skins"].is_object() {
+                section(&ts["skins"], "triplespace.skins")?
+            } else {
+                SkinsInfo::default()
+            },
         };
         Ok(Fetched { value, cache })
     }

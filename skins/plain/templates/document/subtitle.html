@@ -1,0 +1,3 @@
+{#- Under the title: where a redirect was followed from, or that the revision is old. -#}
+{%- if subtitle.kind == "redirected" %}<span class="ts-document__redirected">{{ subtitle.before }}<a href="{{ subtitle.from.href }}">{{ subtitle.from.label }}</a>{{ subtitle.after }}</span>
+{%- else %}<span class="ts-document__old">{{ subtitle.text }} <a href="{{ subtitle.current.href }}">{{ subtitle.current.label }}</a></span>{% endif -%}

@@ -1,0 +1,12 @@
+{#- A thread page: where it lives, its status, the whole tree, and the reply form. -#}
+{%- import "codex.html" as codex -%}
+{%- import "discussion.html" as discussion -%}
+<div class="ts-thread-page"><div class="ts-thread-page__head"><dl class="ts-thread-page__where">
+{%- if home %}<div><dt>{{ home[0] }}</dt><dd><a href="{{ home[1].href }}">{{ home[1].label }}</a></dd></div>{% endif -%}
+{%- if also %}<div><dt>{{ also[0] }}</dt><dd>{% for p in also[1] %}{% if not loop.first %}, {% endif %}<a href="{{ p.href }}">{{ p.label }}</a>{% endfor %}</dd></div>{% endif -%}
+</dl><p class="ts-thread-page__state">{{ discussion.chip(chip) }} <span class="ts-thread__meta">{{ meta }}</span></p></div>
+<div class="ts-thread-page__posts">{{ discussion.posts(posts) }}</div>
+{%- if notice %}{{ codex.message(notice) }}{% endif -%}
+{%- if form %}{{ discussion.reply_form(form) }}{% endif -%}
+{%- if login %}{{ discussion.login(login) }}{% endif -%}
+</div>

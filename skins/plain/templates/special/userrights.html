@@ -1,0 +1,11 @@
+{#- Special:UserRights (09 §3.3, §4.5; 19 §2.2): the form asking for a name, or an
+    account's groups, each a checkbox the viewer may change or sees disabled, with the
+    expiry, the reason and **Save**. -#}
+{%- import "codex.html" as codex -%}
+{%- import "forms.html" as forms -%}
+<div class="ts-userrights">{% for n in notices %}{{ codex.message(n) }}{% endfor -%}
+{%- if ask %}<form class="ts-userrights__ask" method="get" action="/w/index.php"><input type="hidden" name="title" value="Special:UserRights">{{ codex.field(ask.user) }}{{ codex.button(ask.go) }}</form>
+{%- else %}{% set f = form %}<form class="ts-userrights__groups" method="post" action="{{ f.action }}"><input type="hidden" name="token" value="{{ f.token }}"><fieldset class="ts-userrights__set"><legend>{{ f.legend }}</legend>
+{%- for g in f.groups %}<div class="ts-userrights__group"><input type="hidden" name="was-{{ g.name }}" value="{{ g.was }}">{{ forms.control(g.control) }}</div>{% endfor %}</fieldset>
+{%- if f.nothing %}{{ codex.message(f.nothing) }}{% endif -%}
+{{ codex.field(f.expiry) }}{{ codex.field(f.reason) }}<div class="ts-userrights__actions">{{ codex.button(f.save) }}</div></form><p class="ts-userrights__links"><a href="{{ f.contributions.href }}">{{ f.contributions.label }}</a></p>{% endif %}</div>

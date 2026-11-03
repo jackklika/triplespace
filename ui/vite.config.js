@@ -97,6 +97,11 @@ export default defineConfig( {
 				'typeset-default26': 'src/typesets/default26.css',
 				'typeset-hyperlegible': 'src/typesets/hyperlegible.css',
 				'typeset-opendyslexic': 'src/typesets/opendyslexic.css',
+				'typeset-retro': 'src/typesets/retro.css',
+				'typeset-nordic': 'src/typesets/nordic.css',
+				'typeset-cozy': 'src/typesets/cozy.css',
+				'typeset-mainframe': 'src/typesets/mainframe.css',
+				'typeset-drafting': 'src/typesets/drafting.css',
 				// The typefaces of each fallback layer (ADR 0093 §3), written by
 				// scripts/fallbacks.js and written by triplespace-ui into the stylesheet of
 				// every type set that names the layer.

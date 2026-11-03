@@ -1,0 +1,12 @@
+/* The typefaces of the type set `cozy` (docs/registry/themes.toml; ADR 0086 §3), made for the
+   palette `catppuccin`: Fraunces for headings over Nunito and Lilex. Served from the site's own
+   origin, as the content security policy requires (ADR 0034 §11), inside the type set's
+   stylesheet. SIL Open Font License 1.1. */
+@import '@fontsource/fraunces/400.css';
+@import '@fontsource/fraunces/500.css';
+@import '@fontsource/nunito/400.css';
+@import '@fontsource/nunito/400-italic.css';
+@import '@fontsource/nunito/500.css';
+@import '@fontsource/nunito/600.css';
+@import '@fontsource/lilex/400.css';
+@import '@fontsource/lilex/500.css';

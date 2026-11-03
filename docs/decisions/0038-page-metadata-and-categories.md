@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-09-29
-- **Updated:** 2026-10-29 (A16)
+- **Updated:** 2026-10-31 (A17)
 - **Author:** James Hare / Claude Opus
 - **Changes:** [0001](0001-revision-metadata-rdf.md), [0003](0003-statement-ui.md), [0005](0005-crate-organization.md), [0008](0008-namespaces-and-document-pages.md), [0010](0010-site-ui.md), [0012](0012-api-requirements.md), [0013](0013-postgres-storage.md), [0014](0014-caches-and-search.md), [0015](0015-record-format-and-partition-registry.md), [0019](0019-discussions.md), [0026](0026-sitelinks.md), [0029](0029-resolver-namespaces.md)
 - **Uses:** [0002](0002-source-graphs-and-mass-ingest.md), [0004](0004-identity-clusters-and-equivalence.md), [0006](0006-log-integrity-and-erasure.md), [0009](0009-keyed-entity-types-and-domain.md), [0016](0016-permissions-and-access-control.md), [0017](0017-entity-id-grammar.md), [0018](0018-tenants.md), [0023](0023-moderation.md), [0030](0030-edit-filters.md), [0031](0031-property-constraints.md), [0032](0032-sparql-update-stream.md), [0035](0035-adopting-a-wikibase.md), [0039](0039-files-and-media.md), [0041](0041-content-models.md), [0042](0042-template-expansion-and-parsoid.md), [0049](0049-boards.md)
@@ -64,6 +64,8 @@ James's direction, from the design discussion of 2026-09-29:
 *Current text: [19](../architecture/19-site-ui.md) §1.1, §1.3, §1.4, §3.1.*
 
 ### 8. Namespace 0 holds articles (amends 0008 §2)
+
+*Changed by A17.*
 
 *Current text: [10](../architecture/10-pages-and-content-models.md) §1.4, §3.3.*
 
@@ -292,3 +294,10 @@ Replaced text ([10](../architecture/10-pages-and-content-models.md) §5.3, as it
 - **Source:** [0096](0096-adopting-any-mediawiki.md) §3
 - **Change:** extends §1
 - **Summary:** Help (12) is a document namespace (0096 §3), so its pages carry statements, as Project's do. The chapter text is [06](../architecture/06-statements-and-properties.md) §5.1.
+
+### A17. A page title names a page; an entity's page is in its namespace
+
+- **Date:** 2026-10-31
+- **Source:** Direct: James, design discussion of 2026-10-31
+- **Change:** extends §8
+- **Summary:** The Action API took a bare entity ID given as a page title (`action=edit&title=Q42`, `action=delete&title=Q42`, `titles=Q42`) for the entity's page, so an article titled `Q42`, which §8 allows, could not be reached through the API; and since the check went by an ID's shape, every main-namespace title beginning with three letters (`Stub`, parsed as the foreign ID `STUb`) was refused as an entity, which no wiki noticed only because none had articles yet. James: a bare `Q42` is valid where an entity is being identified, as a concept, "but insufficient when talking about an on-wiki page. Consider the distinction in example.wikibase.cloud/entity/Q6 and example.wikibase.cloud/wiki/Item:Q6. Q6 is the name of the entity, but when identifying it as a wiki page, it's Item:Q6." So a parameter that names a page takes a page title: a bare title is in the main namespace, and an entity's page is its namespace's title, `Item:Q42`; a parameter that names an entity (`ids`, `entity`, `/entity/Q42`, `Special:EntityPage/Q42`) takes the bare ID as before. A title names an entity's page when its namespace holds entities, by any of the tenant's names for it, and its ID is one the tenant serves. "On a Wikidata-style wiki where items are the main namespace, it would not coincide with titled pages, so you would be able to do strict enforcement in that context": the same rule makes a bare ID the entity's page there, since no article can share its title. The chapter text is 10 §3.3.

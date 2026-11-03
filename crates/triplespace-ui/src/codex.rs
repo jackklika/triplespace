@@ -1,10 +1,6 @@
-//! The Codex builder (0034 §1.4): Codex components as their CSS-only markup, so that a page
-//! reads without JavaScript and in either direction, styled by `codex.style.css` and
-//! themed by the token values of [`crate::theme`].
-//!
-//! Each component is an askama template that escapes what it is given; its rendering is
-//! therefore safe to place in another template unescaped, except where a field is named
-//! `…_html` or is a [`Cell`]'s HTML, which the caller builds from escaped parts.
+//! The Codex components (0034 §1.4) as the models the skin draws: Codex's CSS-only
+//! markup, so that a page reads without JavaScript and in either direction, styled by
+//! `codex.style.css` and themed by the token values of [`crate::theme`].
 //!
 //! Codex's components: button, search input, message, table, accordion, card, field with
 //! a text input, and the indeterminate progress bar (a determinate one sets its width in
@@ -12,8 +8,11 @@
 //! styled from tokens in the frame (`ts-tabs`), since Codex's Tabs are in-page panels.
 //! The chips of 0010 §2 are the site's own (`ts-chip`), built from Codex tokens; a
 //! provider's colours come from the theme stylesheet ([`crate::theme`]).
-
-use askama::Template;
+//!
+//! Each component's `model()` is the component as the skin's macro draws it
+//! (`skins/plain/templates/codex.html`; 19 §5.2): the fields with every class computed.
+//! The macro escapes what it is given, except a field named `…_html`, which the caller
+//! builds from escaped parts. `tests/codex_macros.rs` holds each macro's markup.
 
 /// What a button does (Codex `action`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -40,8 +39,7 @@ pub enum Weight {
 }
 
 /// A Codex button.
-#[derive(Debug, Clone, Template)]
-#[template(path = "codex/button.html")]
+#[derive(Debug, Clone)]
 pub struct Button<'a> {
     /// The label.
     pub label: &'a str,
@@ -53,7 +51,28 @@ pub struct Button<'a> {
     pub weight: Weight,
 }
 
+/// A button as the skin's macro draws it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ButtonModel {
+    /// The label.
+    pub label: String,
+    /// `submit` or `button`.
+    pub kind: String,
+    /// The `class` attribute.
+    pub classes: String,
+}
+
 impl<'a> Button<'a> {
+    /// The component as the skin's macro draws it.
+    #[must_use]
+    pub fn model(&self) -> ButtonModel {
+        ButtonModel {
+            label: self.label.to_string(),
+            kind: self.kind.to_string(),
+            classes: self.classes(),
+        }
+    }
+
     /// A neutral submit button.
     #[must_use]
     pub fn submit(label: &'a str) -> Self {
@@ -83,9 +102,37 @@ impl<'a> Button<'a> {
     }
 }
 
+/// A search input as the skin's macro draws it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct SearchModel {
+    /// The field's name.
+    pub name: String,
+    /// What is already in it.
+    pub value: String,
+    /// The placeholder.
+    pub placeholder: String,
+    /// The field's accessible name.
+    pub label: String,
+    /// The button's label.
+    pub button: String,
+}
+
+impl SearchInput<'_> {
+    /// The component as the skin's macro draws it.
+    #[must_use]
+    pub fn model(&self) -> SearchModel {
+        SearchModel {
+            name: self.name.to_string(),
+            value: self.value.to_string(),
+            placeholder: self.placeholder.to_string(),
+            label: self.label.to_string(),
+            button: self.button.to_string(),
+        }
+    }
+}
+
 /// A Codex search input with its button, for inside a `GET` form.
-#[derive(Debug, Clone, Template)]
-#[template(path = "codex/search.html")]
+#[derive(Debug, Clone)]
 pub struct SearchInput<'a> {
     /// The field's name.
     pub name: &'a str,
@@ -114,8 +161,7 @@ pub enum MessageKind {
 }
 
 /// A Codex message, of plain text.
-#[derive(Debug, Clone, Template)]
-#[template(path = "codex/message.html")]
+#[derive(Debug, Clone)]
 pub struct Message<'a> {
     /// The kind.
     pub kind: MessageKind,
@@ -125,7 +171,28 @@ pub struct Message<'a> {
     pub text: &'a str,
 }
 
+/// A message as the skin's macro draws it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct MessageModel {
+    /// The `class` attribute.
+    pub classes: String,
+    /// The live-region attribute, HTML.
+    pub live: String,
+    /// The text.
+    pub text: String,
+}
+
 impl<'a> Message<'a> {
+    /// The component as the skin's macro draws it.
+    #[must_use]
+    pub fn model(&self) -> MessageModel {
+        MessageModel {
+            classes: self.classes(),
+            live: self.live().to_string(),
+            text: self.text.to_string(),
+        }
+    }
+
     /// A block message.
     #[must_use]
     pub fn block(kind: MessageKind, text: &'a str) -> Self {
@@ -187,8 +254,7 @@ pub enum ChipKind {
 }
 
 /// A chip.
-#[derive(Debug, Clone, Template)]
-#[template(path = "codex/chip.html")]
+#[derive(Debug, Clone)]
 pub struct Chip<'a> {
     /// What it marks.
     pub kind: ChipKind,
@@ -198,7 +264,28 @@ pub struct Chip<'a> {
     pub title: Option<&'a str>,
 }
 
+/// A chip as the skin's macro draws it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ChipModel {
+    /// The `class` attribute.
+    pub classes: String,
+    /// The text.
+    pub text: String,
+    /// The tooltip.
+    pub title: Option<String>,
+}
+
 impl<'a> Chip<'a> {
+    /// The component as the skin's macro draws it.
+    #[must_use]
+    pub fn model(&self) -> ChipModel {
+        ChipModel {
+            classes: self.classes(),
+            text: self.text.to_string(),
+            title: self.title.map(str::to_string),
+        }
+    }
+
     /// A chip of a kind.
     #[must_use]
     pub fn new(kind: ChipKind, text: &'a str) -> Self {
@@ -261,58 +348,197 @@ impl Align {
     }
 }
 
-/// A table column.
-#[derive(Debug, Clone)]
-pub struct Column {
-    /// The heading.
-    pub label: String,
-    /// How its cells align.
-    pub align: Align,
-}
-
-/// A table cell: HTML built from escaped parts.
-#[derive(Debug, Clone, Default)]
-pub struct Cell {
-    /// The content.
-    pub html: String,
-    /// How it aligns.
-    pub align: Align,
-    /// A row header (`<th scope="row">`).
-    pub header: bool,
-    /// The language of its text, where it differs from the page's.
-    pub lang: Option<String>,
-}
-
-impl Cell {
-    /// A cell of HTML.
-    #[must_use]
-    pub fn html(html: String) -> Self {
-        Self {
-            html,
-            ..Self::default()
-        }
-    }
-}
-
-/// A Codex table.
-#[derive(Debug, Clone, Template)]
-#[template(path = "codex/table.html")]
-pub struct Table {
-    /// A visible heading above the table, if any.
+/// A table as the skin's macro draws it: each column and cell with its alignment class.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct TableModel {
+    /// The header caption, above the table.
     pub header: Option<String>,
-    /// The caption, for screen readers.
+    /// The caption.
     pub caption: String,
     /// The columns.
-    pub columns: Vec<Column>,
+    pub columns: Vec<ColumnModel>,
     /// The rows.
-    pub rows: Vec<Vec<Cell>>,
+    pub rows: Vec<Vec<CellModel>>,
     /// What an empty table says.
     pub empty: String,
 }
 
+/// A column of [`TableModel`].
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ColumnModel {
+    /// The heading.
+    pub label: String,
+    /// The alignment class.
+    pub align_class: Option<String>,
+}
+
+/// A cell of [`TableModel`].
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct CellModel {
+    /// The cell, as parts.
+    pub content: Vec<crate::inline::Inline>,
+    /// The alignment class.
+    pub align_class: Option<String>,
+    /// Whether it is a row heading.
+    pub header: bool,
+    /// Its language, where it differs from the page's.
+    pub lang: Option<String>,
+}
+
+impl ColumnModel {
+    /// A column aligned as `align`.
+    #[must_use]
+    pub fn new(label: String, align: Align) -> Self {
+        Self {
+            label,
+            align_class: align.class().map(str::to_string),
+        }
+    }
+}
+
+impl CellModel {
+    /// A cell of parts.
+    #[must_use]
+    pub fn of(content: Vec<crate::inline::Inline>) -> Self {
+        Self {
+            content,
+            align_class: None,
+            header: false,
+            lang: None,
+        }
+    }
+
+    /// A row heading of parts.
+    #[must_use]
+    pub fn heading(content: Vec<crate::inline::Inline>) -> Self {
+        Self {
+            header: true,
+            ..Self::of(content)
+        }
+    }
+
+    /// Text.
+    #[must_use]
+    pub fn text(s: &str) -> Self {
+        Self::of(crate::inline::text(s))
+    }
+}
+
+/// An accordion as the skin's macro draws it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct AccordionModel {
+    /// The title.
+    pub title: String,
+    /// The description.
+    pub description: Option<String>,
+    /// The content, HTML.
+    pub content_html: String,
+    /// Whether it starts open.
+    pub open: bool,
+}
+
+impl Accordion<'_> {
+    /// The component as the skin's macro draws it.
+    #[must_use]
+    pub fn model(&self) -> AccordionModel {
+        AccordionModel {
+            title: self.title.to_string(),
+            description: self.description.map(str::to_string),
+            content_html: self.content.to_string(),
+            open: self.open,
+        }
+    }
+}
+
+/// A card as the skin's macro draws it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct CardModel {
+    /// The title.
+    pub title: String,
+    /// The description.
+    pub description: Option<String>,
+    /// The supporting text.
+    pub supporting: Option<String>,
+    /// Where it links.
+    pub href: Option<String>,
+}
+
+impl Card<'_> {
+    /// The component as the skin's macro draws it.
+    #[must_use]
+    pub fn model(&self) -> CardModel {
+        CardModel {
+            title: self.title.to_string(),
+            description: self.description.map(str::to_string),
+            supporting: self.supporting.map(str::to_string),
+            href: self.href.map(str::to_string),
+        }
+    }
+}
+
+/// A field as the skin's macro draws it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct FieldModel {
+    /// The input's `id`.
+    pub id: String,
+    /// The input's name.
+    pub name: String,
+    /// The input's type.
+    pub kind: String,
+    /// The value.
+    pub value: String,
+    /// The label.
+    pub label: String,
+    /// The description.
+    pub description: Option<String>,
+    /// The help text.
+    pub help: Option<String>,
+    /// Whether it is required.
+    pub required: bool,
+    /// The `autocomplete` hint.
+    pub autocomplete: Option<String>,
+}
+
+impl Field<'_> {
+    /// The component as the skin's macro draws it.
+    #[must_use]
+    pub fn model(&self) -> FieldModel {
+        FieldModel {
+            id: self.id.to_string(),
+            name: self.name.to_string(),
+            kind: self.kind.to_string(),
+            value: self.value.to_string(),
+            label: self.label.to_string(),
+            description: self.description.map(str::to_string),
+            help: self.help.map(str::to_string),
+            required: self.required,
+            autocomplete: self.autocomplete.map(str::to_string),
+        }
+    }
+}
+
+/// A progress bar as the skin's macro draws it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ProgressModel {
+    /// The accessible name.
+    pub label: String,
+    /// Whether it is inline.
+    pub inline: bool,
+}
+
+impl ProgressBar<'_> {
+    /// The component as the skin's macro draws it.
+    #[must_use]
+    pub fn model(&self) -> ProgressModel {
+        ProgressModel {
+            label: self.label.to_string(),
+            inline: self.inline,
+        }
+    }
+}
+
 /// A Codex accordion: a `<details>` that opens without JavaScript.
-#[derive(Debug, Clone, Template)]
-#[template(path = "codex/accordion.html")]
+#[derive(Debug, Clone)]
 pub struct Accordion<'a> {
     /// The title.
     pub title: &'a str,
@@ -325,8 +551,7 @@ pub struct Accordion<'a> {
 }
 
 /// A Codex card, a link when it has an `href`.
-#[derive(Debug, Clone, Template)]
-#[template(path = "codex/card.html")]
+#[derive(Debug, Clone)]
 pub struct Card<'a> {
     /// The title.
     pub title: &'a str,
@@ -339,8 +564,7 @@ pub struct Card<'a> {
 }
 
 /// A Codex field: a label, a text input, a description and help text.
-#[derive(Debug, Clone, Template)]
-#[template(path = "codex/field.html")]
+#[derive(Debug, Clone)]
 pub struct Field<'a> {
     /// The input's `id`.
     pub id: &'a str,
@@ -363,8 +587,7 @@ pub struct Field<'a> {
 }
 
 /// A Codex progress bar, indeterminate.
-#[derive(Debug, Clone, Template)]
-#[template(path = "codex/progress.html")]
+#[derive(Debug, Clone)]
 pub struct ProgressBar<'a> {
     /// Its accessible name.
     pub label: &'a str,
@@ -384,151 +607,25 @@ mod tests {
             ..Button::submit("Save <now>")
         };
         assert_eq!(
-            b.render().unwrap(),
-            "<button type=\"submit\" class=\"cdx-button cdx-button--action-progressive \
-             cdx-button--weight-primary\">Save &#60;now&#62;</button>"
+            b.model().classes,
+            "cdx-button cdx-button--action-progressive cdx-button--weight-primary"
         );
         assert_eq!(Button::submit("Go").classes(), "cdx-button");
     }
 
     #[test]
-    fn messages_escape_and_announce() {
-        let m = Message::block(MessageKind::Error, "a & b")
-            .render()
-            .unwrap();
-        assert!(m.contains("class=\"cdx-message cdx-message--error\" role=\"alert\""));
-        assert!(m.contains("a &#38; b"));
-        let n = Message::block(MessageKind::Notice, "x").render().unwrap();
-        assert!(n.contains("class=\"cdx-message\" aria-live=\"polite\""));
+    fn messages_announce() {
+        let m = Message::block(MessageKind::Error, "a & b").model();
+        assert_eq!(m.classes, "cdx-message cdx-message--error");
+        assert_eq!(m.live, "role=\"alert\"");
+        let n = Message::block(MessageKind::Notice, "x").model();
+        assert_eq!(n.classes, "cdx-message");
+        assert_eq!(n.live, "aria-live=\"polite\"");
     }
 
     #[test]
     fn chips() {
-        let c = Chip::new(ChipKind::Provider("WD\"x".into()), "WDQ65")
-            .render()
-            .unwrap();
-        assert_eq!(
-            c,
-            "<span class=\"ts-chip ts-chip--provider ts-chip--p-wdx\">WDQ65</span>"
-        );
-        let l = Chip {
-            title: Some("Made here"),
-            ..Chip::new(ChipKind::Local, "Local")
-        };
-        assert!(l.render().unwrap().contains("title=\"Made here\""));
-    }
-
-    #[test]
-    fn tables_escape_headings_and_keep_cell_html() {
-        let t = Table {
-            header: None,
-            caption: "Labels <all>".into(),
-            columns: vec![
-                Column {
-                    label: "Language".into(),
-                    align: Align::Start,
-                },
-                Column {
-                    label: "Count".into(),
-                    align: Align::Number,
-                },
-            ],
-            rows: vec![vec![
-                Cell {
-                    header: true,
-                    lang: Some("de".into()),
-                    ..Cell::html("<b>de</b>".into())
-                },
-                Cell {
-                    align: Align::Number,
-                    ..Cell::html("3".into())
-                },
-            ]],
-            empty: "None".into(),
-        }
-        .render()
-        .unwrap();
-        assert!(t.contains("<caption>Labels &#60;all&#62;</caption>"));
-        assert!(t.contains("<th scope=\"row\" lang=\"de\" dir=\"auto\"><b>de</b></th>"));
-        assert!(t.contains("class=\"cdx-table__table__cell--align-number\">3</td>"));
-        let empty = Table {
-            rows: vec![],
-            ..Table {
-                header: Some("H".into()),
-                caption: "c".into(),
-                columns: vec![Column {
-                    label: "a".into(),
-                    align: Align::Start,
-                }],
-                rows: vec![],
-                empty: "Nothing".into(),
-            }
-        }
-        .render()
-        .unwrap();
-        assert!(empty.contains("colspan=\"1\">Nothing</td>"));
-        assert!(empty.contains("cdx-table__header__caption"));
-    }
-
-    #[test]
-    fn accordion_card_field_progress() {
-        let a = Accordion {
-            title: "2 references",
-            description: None,
-            content: "<p>x</p>",
-            open: false,
-        }
-        .render()
-        .unwrap();
-        assert!(a.starts_with("<details class=\"cdx-accordion\">"));
-        assert!(a.contains("<p>x</p>"));
-        let c = Card {
-            title: "T",
-            description: Some("d"),
-            supporting: None,
-            href: Some("/wiki/X"),
-        }
-        .render()
-        .unwrap();
-        assert!(c.starts_with("<a class=\"cdx-card cdx-card--is-link\" href=\"/wiki/X\">"));
-        assert!(c.trim_end().ends_with("</a>"));
-        let f = Field {
-            id: "wpName",
-            name: "username",
-            kind: "text",
-            value: "\"",
-            label: "Username",
-            description: Some("Your name"),
-            help: None,
-            required: true,
-            autocomplete: Some("username"),
-        }
-        .render()
-        .unwrap();
-        assert!(f.contains("aria-describedby=\"wpName-description\""));
-        assert!(f.contains("value=\"&#34;\""));
-        assert!(f.contains(" required autocomplete=\"username\">"));
-        let p = ProgressBar {
-            label: "Loading",
-            inline: true,
-        }
-        .render()
-        .unwrap();
-        assert!(p.contains("cdx-progress-bar--inline"));
-    }
-
-    #[test]
-    fn search_input_escapes_its_value() {
-        let s = SearchInput {
-            name: "search",
-            value: "\"><script>",
-            placeholder: "Search",
-            label: "Search",
-            button: "Search",
-        }
-        .render()
-        .unwrap();
-        assert!(s.contains("value=\"&#34;&#62;&#60;script&#62;\""));
-        assert!(s.contains("cdx-search-input__end-button"));
+        let c = Chip::new(ChipKind::Provider("WD\"x".into()), "WDQ65").model();
+        assert_eq!(c.classes, "ts-chip ts-chip--provider ts-chip--p-wdx");
     }
 }

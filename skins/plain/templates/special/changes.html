@@ -1,0 +1,12 @@
+{#- A feed page: Special:RecentChanges, Special:Contributions, Special:Log, Special:NewPages. -#}
+{%- import "codex.html" as codex -%}
+{%- import "changes.html" as changes -%}
+{%- import "nav.html" as shared -%}
+<div class="ts-changes">{{ changes.form(form) }}
+{%- if strip %}<p class="ts-changes__strip">{{ strip.text }} <a href="{{ strip.show.href }}">{{ strip.show.label }}</a></p>{% endif -%}
+{%- if error %}{{ codex.message(error) }}{% endif -%}
+{%- if empty %}<p class="ts-empty">{{ empty }}</p>{% endif -%}
+{%- if list %}{{ changes.list(list) }}{% endif -%}
+{%- if pager %}{{ shared.pager(pager) }}{% endif -%}
+{%- if intro %}<p class="ts-search-intro">{{ intro }}</p>{% endif -%}
+</div>

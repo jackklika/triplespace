@@ -4,9 +4,6 @@
 //! API checks the rest at both ends (10 §2.5), and its refusal is shown over the form
 //! with what was typed. A move that succeeds lands on the page at its new title.
 
-use std::fmt::Write as _;
-
-use askama::Template as _;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use triplespace_client::Incoming;
@@ -15,14 +12,47 @@ use triplespace_client::settings::Saved;
 
 use crate::Site;
 use crate::codex::{Action, Button, MessageKind, Weight};
+use crate::codex::{ButtonModel, Message, MessageModel};
+use crate::entity::history::Choice;
 use crate::features::Feature;
 use crate::frame::{Page, title_url};
-use crate::html::{esc, link};
 use crate::i18n::Messages;
-use crate::moderation::{gate, reason_field};
+use crate::moderation::{gate, link_to, reason_row};
 use crate::pages::{self, Context, Params, Peer};
+use crate::special::controls::{AskForm, CheckRow, ControlModel, FieldRow};
 
 const TITLE: &str = "Special:MovePage";
+
+/// `Special:MovePage` as Plain's `special/movepage.html` draws it: the form asking for a
+/// page, or the Move form.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MovePage {
+    /// The form asking for a page, where none is named.
+    pub ask: Option<AskForm>,
+    /// The Move form.
+    pub form: Option<MoveFormModel>,
+}
+
+/// The Move form.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MoveFormModel {
+    /// The notice it came back with, then what moving does.
+    pub notices: Vec<MessageModel>,
+    /// Where it posts.
+    pub action: String,
+    /// The CSRF token.
+    pub token: String,
+    /// The new title.
+    pub to: FieldRow,
+    /// The reason.
+    pub reason: FieldRow,
+    /// **Leave a redirect** and **Move subpages**, as the viewer's rights allow.
+    pub options: Vec<CheckRow>,
+    /// **Move**.
+    pub submit: ButtonModel,
+    /// Back to the page.
+    pub cancel: Choice,
+}
 
 /// What the form holds, typed or defaulted.
 struct Typed {
@@ -41,15 +71,6 @@ fn subject(title: &str, params: &Params) -> Option<String> {
         .filter(|s| !s.is_empty())
         .or_else(|| params.map.get("target").map(|t| t.trim().to_string()))
         .filter(|s| !s.is_empty())
-}
-
-fn checkbox(m: &Messages, id: &str, name: &str, label: &str, help: &str, checked: bool) -> String {
-    format!(
-        "<div class=\"ts-protect__talk\"><span class=\"cdx-checkbox cdx-checkbox--inline\"><input class=\"cdx-checkbox__input\" type=\"checkbox\" id=\"{id}\" name=\"{name}\" value=\"1\"{}><span class=\"cdx-checkbox__icon\"></span><label class=\"cdx-checkbox__label\" for=\"{id}\">{}</label></span><div class=\"cdx-field__help-text\">{}</div></div>",
-        if checked { " checked" } else { "" },
-        esc(&m.get(label)),
-        esc(&m.get(help)),
-    )
 }
 
 /// The form.
@@ -81,63 +102,50 @@ async fn form(
         redirect: true,
         subpages: false,
     });
-    let mut body = String::new();
-    if let Some((kind, text)) = notice {
-        body.push_str(&pages::message(kind, &text));
-    }
-    body.push_str(&pages::message(
-        MessageKind::Notice,
-        &m.get("ts-move-intro"),
-    ));
-    let mut options = String::new();
+    let option = |id: &str, name: &str, on: bool| CheckRow {
+        class: "ts-protect__talk".into(),
+        control: ControlModel::check(id, name, on, m.get(id)),
+        help: m.get(&format!("{id}-help")),
+    };
+    let mut options_model = Vec::new();
     if cx.holds("suppressredirect") {
-        options.push_str(&checkbox(
-            m,
-            "ts-move-redirect",
-            "redirect",
-            "ts-move-redirect",
-            "ts-move-redirect-help",
-            typed.redirect,
-        ));
+        options_model.push(option("ts-move-redirect", "redirect", typed.redirect));
     }
     if cx.holds("move-subpages") {
-        options.push_str(&checkbox(
-            m,
-            "ts-move-subpages",
-            "subpages",
-            "ts-move-subpages",
-            "ts-move-subpages-help",
-            typed.subpages,
-        ));
+        options_model.push(option("ts-move-subpages", "subpages", typed.subpages));
     }
-    let _ = write!(
-        body,
-        "<form class=\"ts-move\" method=\"post\" action=\"/wiki/{}/{}\"><input type=\"hidden\" name=\"token\" value=\"{}\"><div class=\"cdx-field\"><div class=\"cdx-label\"><label class=\"cdx-label__label\" for=\"ts-move-to\"><span class=\"cdx-label__label__text\">{}</span></label></div><div class=\"cdx-field__control\"><div class=\"cdx-text-input\"><input class=\"cdx-text-input__input\" type=\"text\" id=\"ts-move-to\" name=\"to\" value=\"{}\" required></div></div></div>{}{}<div class=\"ts-protect__actions\">{}{}</div></form>",
-        TITLE,
-        esc(&title_url(from)),
-        esc(&token.value.value),
-        esc(&m.get("ts-move-to")),
-        esc(&typed.to),
-        reason_field(m, "ts-move-reason", &typed.reason),
-        options,
-        Button {
-            label: &m.get("ts-move-submit"),
-            kind: "submit",
-            action: Action::Progressive,
-            weight: Weight::Primary,
-        }
-        .render()
-        .unwrap_or_default(),
-        link(
-            &format!("/wiki/{}", title_url(from)),
-            &esc(&m.get("ts-protect-cancel")),
-            " class=\"ts-protect__cancel\""
-        ),
-    );
+    let mut notices: Vec<MessageModel> = notice
+        .iter()
+        .map(|(k, t)| Message::block(*k, t).model())
+        .collect();
+    notices.push(Message::block(MessageKind::Notice, &m.get("ts-move-intro")).model());
+    let model = MovePage {
+        ask: None,
+        form: Some(MoveFormModel {
+            notices,
+            action: format!("/wiki/{TITLE}/{}", title_url(from)),
+            token: token.value.value.clone(),
+            to: FieldRow::text("ts-move-to", "to", m.get("ts-move-to"), &typed.to, true),
+            reason: reason_row(m, "ts-move-reason", &typed.reason),
+            options: options_model,
+            submit: Button {
+                label: &m.get("ts-move-submit"),
+                kind: "submit",
+                action: Action::Progressive,
+                weight: Weight::Primary,
+            }
+            .model(),
+            cancel: link_to(
+                format!("/wiki/{}", title_url(from)),
+                m.get("ts-protect-cancel"),
+            ),
+        }),
+    };
+    let body = cx.draw("special/movepage.html", &model);
     let r = pages::respond(&cx, headers, StatusCode::OK, |_| Page {
         title: heading.clone(),
         returnto: Some(from.to_string()),
-        body: format!("<div class=\"ts-protect-page\">{body}</div>"),
+        body,
         ..Page::default()
     });
     pages::with_cookies(r, &token.set_cookies)
@@ -159,15 +167,19 @@ pub async fn serve(
     let Some(from) = subject(title, params) else {
         // No page named: ask for one.
         let m = &cx.m;
-        let body = format!(
-            "<form class=\"ts-undelete__ask\" method=\"get\" action=\"/w/index.php\"><input type=\"hidden\" name=\"title\" value=\"{TITLE}\"><label class=\"ts-changes-form__field\"><span>{}</span> <input class=\"cdx-text-input__input\" type=\"text\" name=\"target\"></label> <button class=\"cdx-button cdx-button--action-progressive\" type=\"submit\">{}</button></form>",
-            esc(&m.get("ts-move-which")),
-            esc(&m.get("ts-undelete-go")),
-        );
+        let model = MovePage {
+            ask: Some(crate::special::undelete::ask_form(
+                m,
+                TITLE,
+                "ts-move-which",
+            )),
+            form: None,
+        };
+        let body = cx.draw("special/movepage.html", &model);
         return pages::respond(&cx, headers, StatusCode::OK, |m| Page {
             title: m.get("ts-move-index-title"),
             returnto: Some(TITLE.to_string()),
-            body: format!("<div class=\"ts-changes\">{body}</div>"),
+            body,
             ..Page::default()
         });
     };

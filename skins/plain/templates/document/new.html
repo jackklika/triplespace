@@ -1,0 +1,3 @@
+{#- The New page form: a title to create. -#}
+{%- import "codex.html" as codex -%}
+<p>{{ intro }}</p><form class="ts-form" method="get" action="/w/index.php"><input type="hidden" name="action" value="edit">{{ codex.field(title) }}<div class="ts-form__actions">{{ codex.button(go) }}</div></form>

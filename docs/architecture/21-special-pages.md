@@ -10,7 +10,7 @@ This chapter describes the pages in the `Special` namespace: the registry that l
 
 *Sources: [0047](../decisions/0047-special-pages.md) §1.*
 
-**`docs/registry/special-pages.toml` lists every special page name the instance knows**, including pages it serves, pages it defers or declines, and names it reserves. It is embedded by `triplespace-titles`, which already resolves titles in the `Special` namespace ([0008](../decisions/0008-namespaces-and-document-pages.md) §3). Each entry has these fields:
+**`docs/registry/special-pages.toml` lists every special page name the instance knows**, including pages it serves, pages it defers or declines, and names it reserves. It is embedded by `scatter-titles`, beside the namespace registry, for the server and the site alike; `triplespace-titles`, the DB-backed resolver over it, resolves titles in the `Special` namespace ([0008](../decisions/0008-namespaces-and-document-pages.md) §3; [0047](../decisions/0047-special-pages.md) A28). Each entry has these fields:
 
 | Field | Meaning |
 |---|---|
@@ -28,6 +28,8 @@ This chapter describes the pages in the `Special` namespace: the registry that l
 | `requires` | A `site` setting that must be on ([0042](../decisions/0042-template-expansion-and-parsoid.md) §2) for the page to be listed and served |
 | `note` | Free text for maintainers |
 | `adr` | Where the page is specified |
+
+**`Special:SpecialPages` lists the pages a reader is offered under their `group` headings**, in this order: `maintenance`, `pages`, `login`, `users`, `changes`, `media`, `wiki`, `redirects`, `highuse`, `pagetools`, `wikibaserepo`, `wikibaseclient`, `identity`, `instance`, and `other` last, as MediaWiki keeps it; under a heading, by the page's name in the reader's language. Each heading is MediaWiki's or Wikibase's message (`specialpages-group-*`), with Triplespace's own for `identity` (*Identity and corrections*) and `instance` (*Instance administration*), and carries MediaWiki's class and id (`mw-specialpagesgroup`, `mw-specialpagesgroup-{key}`), which gadgets and user scripts select. A page under `unlisted`, with `listed = false`, or `restricted` to a permission the reader does not hold, is not listed; a heading with no page is not drawn ([0047](../decisions/0047-special-pages.md) A27).
 
 **Rules**, as for the other registry files:
 

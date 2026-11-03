@@ -1,0 +1,222 @@
+{#- The entity page (0010 §2; 0003 §3–5; 19 §4): its values, statements, shapes, groups and
+    regions as Plain draws them, over the models of `triplespace_ui::entity::model`. Every
+    macro here draws from a model the binary computed; `*_html` fields are SVG the binary
+    drew (0097 A4). -#}
+{%- import "codex.html" as codex -%}
+
+{#- A link to an entity's page: by its label, or its ID where it has no label. -#}
+{%- macro link(l) -%}
+{%- if l.label is not none -%}
+<a href="{{ l.href }}" title="{{ l.id }}"{% if l.lang %} lang="{{ l.lang }}" dir="auto"{% endif %}>{{ l.label }}</a>
+{%- else -%}
+<a href="{{ l.href }}"><span class="ts-mono">{{ l.id }}</span></a>
+{%- endif -%}
+{%- endmacro -%}
+
+{#- A quantity's unit or a coordinate's globe. -#}
+{%- macro unit(u) -%}
+{%- if u.kind == "entity" %}{{ link(u.link) }}
+{%- elif u.kind == "external" %}<a href="{{ u.href }}" class="external" rel="nofollow noopener">{{ u.text }}</a>
+{%- else %}{{ u.text }}{% endif -%}
+{%- endmacro -%}
+
+{#- A data value. -#}
+{%- macro value(v) -%}
+{%- if v.kind == "entity" -%}
+{%- if v.link.label is not none -%}
+<a href="{{ v.link.href }}" title="{{ v.link.id }}"{% if v.link.lang %} lang="{{ v.link.lang }}" dir="auto"{% endif %}>{{ v.link.label }}</a>
+{%- else -%}
+<a href="{{ v.link.href }}"><span class="ts-mono">{{ v.link.id }}</span></a>
+{%- endif -%}
+{%- elif v.kind == "time" %}<span class="ts-time">{{ v.text }}</span>{% if v.julian %} <span class="ts-subtle">{{ msg("ts-time-julian") }}</span>{% endif %}
+{%- elif v.kind == "text" %}<bdi>{{ v.text }}</bdi>
+{%- elif v.kind == "quantity" %}<span class="ts-number">{{ v.amount }}</span>{% if v.plus %}±{{ v.plus }}{% endif %}{% if v.bounds %} <span class="ts-subtle">[{{ v.bounds[0] }}, {{ v.bounds[1] }}]</span>{% endif %}{% if v.unit %} <span class="ts-unit">{{ unit(v.unit) }}</span>{% endif %}
+{%- elif v.kind == "external-id" %}<span class="ts-mono" dir="ltr">{{ v.text }}</span>
+{%- elif v.kind == "url" %}<a href="{{ v.href }}" class="external" rel="nofollow ugc noopener" dir="ltr">{{ v.href }}</a>
+{%- elif v.kind == "special" %}<span class="ts-special-value">{{ v.text }}</span>
+{%- elif v.kind == "media" %}<a href="{{ v.href }}" class="external" rel="nofollow noopener">{{ v.text }}</a>
+{%- elif v.kind == "code" %}<code class="ts-mono"{% if v.ltr %} dir="ltr"{% endif %}>{{ v.text }}</code>
+{%- elif v.kind == "monolingual" %}<span lang="{{ v.lang }}" dir="auto">{{ v.text }}</span> <span class="ts-subtle">({{ v.lang }})</span>
+{%- elif v.kind == "coordinate" %}<span class="ts-number">{{ v.text }}</span>{% if v.globe %} <span class="ts-subtle">({{ unit(v.globe) }})</span>{% endif %}
+{%- else %}{{ v.text }}{% endif -%}
+{%- endmacro -%}
+
+{#- A message whose parameters are values or links, each isolated. -#}
+{%- macro rich(r) -%}
+{%- for p in r.parts -%}
+{%- if p.kind == "text" %}{{ p.text }}
+{%- elif p.kind == "value" %}<bdi>{{ value(p.value) }}</bdi>
+{%- elif p.kind == "link" %}<bdi>{{ link(p.link) }}</bdi>
+{%- elif p.kind == "groups" %}<bdi>{% for g in p.groups %}{% if not loop.first %}, {% endif %}<a href="#{{ g[0] }}">{{ g[1] }}</a>{% endfor %}</bdi>
+{%- endif -%}
+{%- endfor -%}
+{%- endmacro -%}
+
+{#- Footnote markers. -#}
+{%- macro marks(ms) -%}
+{%- if ms %} <span class="ts-fns">{% for mk in ms %}<a class="ts-fn" href="#ts-ref-{{ mk.n }}" aria-label="{{ mk.label }}">{{ mk.n }}</a>{% endfor %}</span>{% endif -%}
+{%- endmacro -%}
+
+{#- Chips beside a value, each after a space. -#}
+{%- macro chips(cs) -%}
+{%- for c in cs %} {{ codex.chip(c) }}{% endfor -%}
+{%- endmacro -%}
+
+{#- A "key: value" list: a statement's qualifiers, or a reference's snaks. -#}
+{%- macro snaks(rows, class) -%}
+{%- if rows %}<dl class="{{ class }}">{% for q in rows %}<div class="{{ class }}__row"><dt>{% if q.property.label is not none %}<a href="{{ q.property.href }}" title="{{ q.property.id }}"{% if q.property.lang %} lang="{{ q.property.lang }}" dir="auto"{% endif %}>{{ q.property.label }}</a>{% else %}<a href="{{ q.property.href }}"><span class="ts-mono">{{ q.property.id }}</span></a>{% endif %}</dt><dd>{% for val in q.values %}{% if not loop.first %}, {% endif %}
+{%- if val.kind == "entity" -%}
+{%- if val.link.label is not none -%}
+<a href="{{ val.link.href }}" title="{{ val.link.id }}"{% if val.link.lang %} lang="{{ val.link.lang }}" dir="auto"{% endif %}>{{ val.link.label }}</a>
+{%- else -%}
+<a href="{{ val.link.href }}"><span class="ts-mono">{{ val.link.id }}</span></a>
+{%- endif -%}
+{%- elif val.kind == "time" %}<span class="ts-time">{{ val.text }}</span>{% if val.julian %} <span class="ts-subtle">{{ msg("ts-time-julian") }}</span>{% endif %}
+{%- elif val.kind == "text" %}<bdi>{{ val.text }}</bdi>
+{%- elif val.kind == "quantity" %}<span class="ts-number">{{ val.amount }}</span>{% if val.plus %}±{{ val.plus }}{% endif %}{% if val.bounds %} <span class="ts-subtle">[{{ val.bounds[0] }}, {{ val.bounds[1] }}]</span>{% endif %}{% if val.unit %} <span class="ts-unit">{{ unit(val.unit) }}</span>{% endif %}
+{%- elif val.kind == "external-id" %}<span class="ts-mono" dir="ltr">{{ val.text }}</span>
+{%- elif val.kind == "url" %}<a href="{{ val.href }}" class="external" rel="nofollow ugc noopener" dir="ltr">{{ val.href }}</a>
+{%- elif val.kind == "special" %}<span class="ts-special-value">{{ val.text }}</span>
+{%- elif val.kind == "media" %}<a href="{{ val.href }}" class="external" rel="nofollow noopener">{{ val.text }}</a>
+{%- elif val.kind == "code" %}<code class="ts-mono"{% if val.ltr %} dir="ltr"{% endif %}>{{ val.text }}</code>
+{%- elif val.kind == "monolingual" %}<span lang="{{ val.lang }}" dir="auto">{{ val.text }}</span> <span class="ts-subtle">({{ val.lang }})</span>
+{%- elif val.kind == "coordinate" %}<span class="ts-number">{{ val.text }}</span>{% if val.globe %} <span class="ts-subtle">({{ unit(val.globe) }})</span>{% endif %}
+{%- else %}{{ val.text }}{% endif -%}
+{%- endfor %}</dd></div>{% endfor %}</dl>{% endif -%}
+{%- endmacro -%}
+
+{#- The value line of a statement, then its period, then its qualifiers. -#}
+{%- macro body(s) -%}
+<div class="ts-statement__value"><span class="ts-statement__main">{{ value(s.main) }}</span>{% if s.badge %} {{ codex.chip(s.badge) }}{% endif %}{% if s.chips %}{{ chips(s.chips) }}{% endif %}{% if s.marks %}{{ marks(s.marks) }}{% endif %}</div>
+{%- if s.period %}<p class="ts-period">{{ rich(s.period) }}</p>{% endif -%}
+{%- if s.qualifiers %}{{ snaks(s.qualifiers, "ts-qualifiers") }}{% endif -%}
+{%- endmacro -%}
+
+{#- A list of statements: a list, chips, a timeline, or numbered. -#}
+{%- macro items(list, chips_shape) -%}
+{%- for s in list -%}
+{%- if chips_shape -%}
+<li class="ts-chips__item"{% if s.id %} id="{{ s.id }}"{% endif %}><span class="ts-statement__main">{{ value(s.main) }}</span>{% if s.badge %} {{ codex.chip(s.badge) }}{% endif %}{% if s.chips %}{{ chips(s.chips) }}{% endif %}{% if s.marks %}{{ marks(s.marks) }}{% endif %}</li>
+{%- else -%}
+<li class="ts-statement"{% if s.ordinal is not none %} value="{{ s.ordinal }}"{% endif %}{% if s.id %} id="{{ s.id }}"{% endif %}>{{ body(s) }}</li>
+{%- endif -%}
+{%- endfor -%}
+{%- endmacro -%}
+
+{%- macro list(list, chips_shape, class) -%}
+{%- if chips_shape %}<ul class="ts-chips">{{ items(list, true) }}</ul>{% else %}<ol class="{{ class }}">{{ items(list, false) }}</ol>{% endif -%}
+{%- endmacro -%}
+
+{#- A grid cell's content. -#}
+{%- macro cell_content(c) -%}
+{%- if c.kind == "text" %}{{ c.text }}
+{%- elif c.kind == "link" %}{{ link(c.link) }}
+{%- elif c.kind == "value" %}{{ value(c.value) }}
+{%- elif c.kind == "rich" %}{{ rich(c.rich) }}
+{%- elif c.kind == "marks" %}{{ marks(c.marks) }}
+{%- elif c.kind == "statement" %}{% if c.span %}<span class="ts-statement__main">{{ value(c.main) }}</span>{% else %}{{ value(c.main) }}{% endif %}{% if c.badge %} {{ codex.chip(c.badge) }}{% endif %}{% if c.chips %}{{ chips(c.chips) }}{% endif %}{% if c.qualifiers %}{{ snaks(c.qualifiers, "ts-qualifiers") }}{% endif %}{% if c.marks %}{{ marks(c.marks) }}{% endif %}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- A table in Codex's markup. -#}
+{%- macro grid(g) -%}
+<div class="cdx-table ts-grid"><div class="cdx-table__table-wrapper"><table class="cdx-table__table"><caption class="ts-visually-hidden">{{ g.caption }}</caption><thead><tr>
+{%- for h in g.head %}<th scope="col"{% if h.align_class %} class="{{ h.align_class }}"{% endif %}>{{ cell_content(h.content) }}</th>{% endfor -%}
+</tr></thead><tbody>
+{%- for r in g.rows %}<tr{% if r.id %} id="{{ r.id }}"{% endif %}{% if r.best %} class="ts-grid__row--best"{% endif %}>
+{%- for c in r.cells -%}
+{%- if c.header %}<th scope="row"{% if c.align_class %} class="{{ c.align_class }}"{% endif %}>{% else %}<td{% if c.align_class %} class="{{ c.align_class }}"{% endif %}>{% endif -%}
+{%- if c.hidden %}<span class="ts-visually-hidden">{{ cell_content(c.content) }}</span>{% else %}{{ cell_content(c.content) }}{% endif -%}
+{%- if c.header %}</th>{% else %}</td>{% endif -%}
+{%- endfor -%}
+</tr>{% endfor -%}
+</tbody></table></div></div>
+{%- endmacro -%}
+
+{%- macro split_grid(t) -%}
+{{ grid(t.grid) }}{% if t.more %}<details class="ts-fold ts-fold--more"><summary>{{ t.more.summary }}</summary>{{ grid(t.more.grid) }}</details>{% endif -%}
+{%- endmacro -%}
+
+{%- macro split_list(visible, more, chips_shape, class) -%}
+{{ list(visible, chips_shape, class) }}{% if more %}<details class="ts-fold ts-fold--more"><summary>{{ more.summary }}</summary>{{ list(more.items, chips_shape, class) }}</details>{% endif -%}
+{%- endmacro -%}
+
+{#- A view switch between two panels. -#}
+{%- macro views(v, a, b) -%}
+<div class="ts-views"><fieldset class="ts-views__switch"><legend class="ts-views__legend">{{ v.legend }}</legend><span class="ts-views__option"><input type="radio" class="ts-views__input ts-views__input--a" name="ts-view-{{ v.property }}" id="{{ v.property }}-view-a" checked><label for="{{ v.property }}-view-a">{{ v.a }}</label></span><span class="ts-views__option"><input type="radio" class="ts-views__input ts-views__input--b" name="ts-view-{{ v.property }}" id="{{ v.property }}-view-b"><label for="{{ v.property }}-view-b">{{ v.b }}</label></span></fieldset><div class="ts-views__panel ts-views__panel--a">{{ a }}</div><div class="ts-views__panel ts-views__panel--b">{{ b }}</div></div>
+{%- endmacro -%}
+
+{#- A statement group in its shape. -#}
+{%- macro group(g) -%}
+<section class="ts-group ts-group--{{ g.shape }}" id="{{ g.pid }}" data-region="statements/{{ g.pid }}" data-shape="{{ g.shape }}"><div class="ts-group__property">{{ link(g.property) }}
+{%- if g.count %}<span class="ts-group__count">{{ g.count }}</span>{% endif -%}
+{%- if g.edit %}<button type="button" class="cdx-button cdx-button--action-progressive cdx-button--weight-quiet ts-edit" data-ts-edit="group" data-property="{{ g.pid }}" aria-label="{{ g.edit.label }}" hidden>{{ g.edit.text }}</button>{% endif -%}
+</div><div class="ts-group__body">
+{%- set b = g.body -%}
+{%- if b.shape == "empty" or b.shape == "no-current-value" %}<p class="ts-empty">{{ b.text }}</p>
+{%- elif b.shape == "single" %}<div class="ts-statement ts-statement--headline"{% if b.statement.id %} id="{{ b.statement.id }}"{% endif %}>{{ body(b.statement) }}</div>
+{%- elif b.shape == "list" %}{{ split_list(b.visible, b.more, b.chips, "ts-group__values") }}{% if b.folded %}<details class="ts-fold"><summary>{{ b.folded.summary }}</summary>{{ list(b.folded.items, b.chips, "ts-group__values") }}</details>{% endif %}
+{%- elif b.shape == "timeline" %}{{ b.axis_html|safe }}{{ split_list(b.visible, b.more, false, "ts-group__values ts-timeline") }}
+{%- elif b.shape == "series" %}<div class="ts-statement ts-statement--headline"><div class="ts-statement__value"><span class="ts-statement__main">{{ value(b.headline.main) }}</span>{% if b.headline.when %} <span class="ts-subtle">{{ rich(b.headline.when) }}</span>{% endif %}{% if b.headline.badge %} {{ codex.chip(b.headline.badge) }}{% endif %}</div></div>
+{%- if b.views %}{{ views(b.views, b.chart_html|safe, split_grid(b.table)) }}{% else %}{{ split_grid(b.table) }}{% endif %}
+{%- elif b.shape == "table" %}{% if b.views %}{{ views(b.views, split_grid(b.table), grid(b.matrix)) }}{% else %}{{ split_grid(b.table) }}{% endif %}
+{%- elif b.shape == "numbered" %}{{ split_list(b.visible, b.more, false, "ts-numbered") }}
+{%- endif -%}
+{%- if g.deprecated %}<details class="ts-fold ts-fold--deprecated"{% if g.deprecated.open %} open{% endif %}><summary>{{ g.deprecated.summary }}</summary><ol class="ts-group__values">
+{%- for s in g.deprecated.items %}<li class="ts-statement ts-statement--deprecated"{% if s.id %} id="{{ s.id }}"{% endif %}><div class="ts-statement__value"><span class="ts-statement__main">{{ value(s.main) }}</span>{% if s.reason %} <span class="ts-deprecated__reason">{{ value(s.reason) }}</span>{% endif %}{{ marks(s.marks) }}{{ chips(s.chips) }}</div>{{ snaks(s.qualifiers, "ts-qualifiers") }}</li>{% endfor -%}
+</ol></details>{% endif -%}
+{%- if g.footer %}<div class="ts-group__footer">
+{%- if g.footer.hoisted %}<div class="ts-hoisted"><p class="ts-hoisted__title">{{ g.footer.hoisted.title }}</p>{{ snaks(g.footer.hoisted.qualifiers, "ts-qualifiers") }}</div>{% endif -%}
+{%- if g.footer.shared %}<p class="ts-footnotes__shared">{{ g.footer.shared.text }} <span class="ts-fns"><a class="ts-fn" href="#ts-ref-{{ g.footer.shared.mark.n }}" aria-label="{{ g.footer.shared.mark.label }}">{{ g.footer.shared.mark.n }}</a></span></p>{% endif -%}
+{%- if g.footer.unsourced %}<p class="ts-subtle ts-unsourced">{{ g.footer.unsourced }}</p>{% endif -%}
+</div>{% endif -%}
+</div></section>
+{%- endmacro -%}
+
+{#- A tab's groups, with what an empty tab says, Add statement, and the endnotes. -#}
+{%- macro groups(t) -%}
+{%- for g in t.groups %}{{ group(g) }}{% endfor -%}
+{%- if t.empty %}<p class="ts-empty">{{ t.empty }}</p>{% endif -%}
+{%- if t.add %}<p class="ts-edit-bar ts-edit-bar--add"><button type="button" class="cdx-button ts-edit" data-ts-edit="add-statement" hidden>{{ t.add }}</button></p>{% endif -%}
+{%- if t.endnotes %}<section class="ts-endnotes" aria-labelledby="ts-endnotes-title"><h2 class="ts-endnotes__title" id="ts-endnotes-title">{{ t.endnotes.title }}</h2><ol class="ts-endnotes__list">
+{%- for n in t.endnotes.notes %}<li id="ts-ref-{{ loop.index }}">{{ snaks(n.snaks, "ts-snaks") }}<p class="ts-endnotes__cited">{{ rich(n.cited) }}</p></li>{% endfor -%}
+</ol></section>{% endif -%}
+{%- endmacro -%}
+
+{#- "Where this comes from". -#}
+{%- macro sources(s) -%}
+<aside class="ts-sources" aria-labelledby="ts-sources-title"><h2 class="ts-sources__title" id="ts-sources-title">{{ s.title }}</h2>
+{%- if s.unknown %}<p class="ts-empty">{{ s.unknown }}</p>{% endif -%}
+{%- for g in s.graphs %}<section class="ts-sources__graph"><h3>{{ codex.chip(g.chip) }} {{ g.name }}</h3><p>{{ g.statements }}</p>
+{%- if g.synced %}<p class="ts-subtle">{{ g.synced.text }}{% if g.synced.upstream %} · {% if g.synced.upstream.href %}<a href="{{ g.synced.upstream.href }}">{{ g.synced.upstream.text }}</a>{% else %}{{ g.synced.upstream.text }}{% endif %}{% endif %}</p>{% endif -%}
+</section>{% endfor -%}
+{%- if s.retention %}<section class="ts-sources__graph"><p class="ts-subtle">{{ s.retention }}</p></section>{% endif -%}
+<p class="ts-sources__actions"><a href="{{ s.json_href }}">{{ s.json_text }}</a></p></aside>
+{%- endmacro -%}
+
+{#- The identity line. -#}
+{%- macro identity(i) -%}
+{{ codex.chip(i.chip) }}{% if i.key is not none %} <span class="ts-mono" dir="ltr">{{ i.key }}</span>{% endif %} <span>{{ i.kind }}</span>
+{%- if i.adopted %} <span aria-hidden="true">·</span> <span>{{ i.adopted }}</span>{% endif -%}
+{%- if i.iri %} <span aria-hidden="true">·</span> <a href="{{ i.iri[0] }}" class="external" rel="noopener" dir="ltr">{{ i.iri[1] }} ↗</a>{% endif -%}
+{%- if i.restricted %} <span aria-hidden="true">·</span> <span class="ts-chip ts-chip--restricted" title="{{ i.restricted.tip }}"><span class="ts-chip__lock" aria-hidden="true">🔒</span> {{ i.restricted.text }}<span class="ts-visually-hidden">: {{ i.restricted.tip }}</span></span>{% endif -%}
+{%- endmacro -%}
+
+{#- The terms region. -#}
+{%- macro terms(t) -%}
+<div class="ts-terms" data-region="terms">
+{%- if t.description %}<p class="ts-terms__description"{% if t.description[1] %} lang="{{ t.description[1] }}" dir="auto"{% endif %}>{{ t.description[0] }}</p>{% else %}<p class="ts-terms__description ts-terms__description--none">{{ t.no_description }}</p>{% endif -%}
+{%- if t.aliases %}<p class="ts-terms__aliases">{{ t.aliases.label }} <span{% if t.aliases.lang %} lang="{{ t.aliases.lang }}" dir="auto"{% endif %}>{% for a in t.aliases.list %}{% if not loop.first %} · {% endif %}{{ a }}{% endfor %}</span></p>{% endif -%}
+{%- if t.edit %}<p class="ts-edit-bar"><button type="button" class="cdx-button cdx-button--action-progressive cdx-button--weight-quiet ts-edit" data-ts-edit="terms" aria-label="{{ t.edit.label }}" hidden>{{ t.edit.text }}</button></p>{% endif -%}
+</div>
+{%- endmacro -%}
+
+{#- The sitelinks region. -#}
+{%- macro sitelinks(s) -%}
+<div class="ts-sitelinks" data-region="sitelinks">
+{%- if s.empty %}<p class="ts-empty">{{ s.empty }}</p>{% endif -%}
+{%- for h in s.hosts %}<section class="ts-sitelinks__host"><h3><a href="{{ h.href }}">{{ codex.chip(h.chip) }}</a></h3><ul>
+{%- for i in h.items %}<li>{% if i.href %}<a href="{{ i.href }}" class="external" rel="noopener">{% endif %}<span{% if i.lang %} lang="{{ i.lang }}" dir="auto"{% endif %}>{{ i.title }}</span>{% if i.href %}</a>{% endif %}{% for b in i.badges %} {{ link(b) }}{% endfor %}</li>{% endfor -%}
+</ul></section>{% endfor -%}
+</div>
+{%- endmacro -%}

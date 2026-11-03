@@ -272,35 +272,35 @@ fn changeset_columns(record: &Record, mirror: bool) -> Result<Columns, String> {
     };
     // An adopted revision that kept the source's revision ID is history: it shows at its
     // source time, `new` only on the first revision adopted, with its minor flag and the
-    // bot flag (0035 A12). A `--current-only` record is the job's own revision.
+    // bot flag, and with the source's edit summary as the source showed it, with no
+    // automatic summary of the `adopt` before it (0035 A12). A `--current-only` record is
+    // the job's own revision, summarized as `adopt`.
+    let history = matches!(&op, Operation::Adopt { source_revid, .. }
+        if record.header().revid == Some(*source_revid));
     let (new, time, minor, bot, visibility) = match &op {
         Operation::Adopt {
-            source_revid,
             source_parentid,
             source_time,
             minor,
             withheld,
             ..
-        } => {
-            let history = record.header().revid == Some(*source_revid);
-            (
-                Some(!history || source_parentid.is_none()),
-                history
-                    .then(|| crate::feed::parse_timestamp(source_time))
-                    .flatten(),
-                Some(*minor),
-                Some(true),
-                withheld_bits(withheld),
-            )
-        }
+        } => (
+            Some(!history || source_parentid.is_none()),
+            history
+                .then(|| crate::feed::parse_timestamp(source_time))
+                .flatten(),
+            Some(*minor),
+            Some(true),
+            withheld_bits(withheld),
+        ),
         Operation::Create { .. } => (Some(true), None, None, None, 0),
         _ => (Some(false), None, None, None, 0),
     };
     Ok(Columns {
         kind: if mirror { "sync" } else { "edit" },
         target,
-        summary_op: Some(op.name().to_string()),
-        summary_args: summarize(&op),
+        summary_op: (!history).then(|| op.name().to_string()),
+        summary_args: if history { None } else { summarize(&op) },
         new,
         size,
         delta,

@@ -23,6 +23,25 @@ test( 'without JavaScript, registration explains what it asks for', async ( { pa
 	await expect( page.getByLabel( 'Username' ) ).toHaveValue( 'Nojs Reader' );
 } );
 
+test( 'the form carries what the challenge script reads', async ( { page } ) => {
+	// The contract with ui/src/challenge/form.js, whichever renderer drew the form (19 §5.10).
+	await page.goto( '/wiki/Special:CreateAccount' );
+	const form = page.locator( 'form[data-ts-challenge]' );
+	await expect( form ).toHaveCount( 1 );
+	const bits = await form.getAttribute( 'data-ts-challenge' );
+	expect( Number( bits ) ).toBeGreaterThan( 0 );
+	const id = form.locator( 'input[type="hidden"][name="tschallengeid"]' );
+	await expect( id ).toHaveAttribute( 'data-ts-challenge-bits', bits );
+	expect( await id.inputValue() ).not.toBe( '' );
+	await expect( form.locator( 'input[type="hidden"][name="tschallengesolution"]' ) ).toHaveValue( '' );
+	const status = form.locator( '[data-ts-challenge-status]' );
+	await expect( status ).toHaveAttribute( 'role', 'status' );
+	await expect( status ).toHaveAttribute( 'aria-live', 'polite' );
+	for ( const attribute of [ 'data-working', 'data-waiting', 'data-done', 'data-failed' ] ) {
+		expect( await status.getAttribute( attribute ) ).toBeTruthy();
+	}
+} );
+
 test.describe( 'with JavaScript', () => {
 	test.use( { javaScriptEnabled: true } );
 

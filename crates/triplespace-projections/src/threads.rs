@@ -194,13 +194,17 @@ async fn apply(cx: &PgCx, at: &At<'_>, rec: &scatter_threads::Record) -> Result<
                 .unwrap_or_else(|| at.thread.to_string());
             rows += cx
                 .execute(
-                    "INSERT INTO view.page (tenant, page_id, ns, title, content_model, latest_offset,
-                       latest_revid, latest_at, revisions, reserved)
-                     VALUES ($1, $2, $3, $4, 'triplespace-thread', $5, $6, $7, 1, false)
+                    concat!(
+                        "INSERT INTO view.page (tenant, page_id, ns, title, content_model, latest_offset,
+                       latest_revid, latest_at, revisions, reserved, random)
+                     VALUES ($1, $2, $3, $4, 'triplespace-thread', $5, $6, $7, 1, false, ",
+                        crate::page_random_sql!(),
+                        ")
                      ON CONFLICT (tenant, page_id) DO UPDATE SET ns = EXCLUDED.ns, title = EXCLUDED.title,
                        content_model = EXCLUDED.content_model, latest_offset = EXCLUDED.latest_offset,
                        latest_revid = EXCLUDED.latest_revid, latest_at = EXCLUDED.latest_at,
-                       revisions = 1, reserved = false",
+                       revisions = 1, reserved = false"
+                    ),
                     &[&tenant, &at.thread, &NS_THREAD, &title, &at.offset, &at.revid, &at.time],
                 )
                 .await

@@ -14,7 +14,6 @@ use triplespace_projections::read;
 
 use crate::api::Ctx;
 use crate::entity_json::title_of;
-use crate::modules::entities::parse_id;
 use crate::pages::{self, Page, Site};
 use crate::response::ApiError;
 
@@ -122,9 +121,7 @@ pub async fn resolve(ctx: &Ctx, site: &Site) -> Result<PageSet, ApiError> {
     let mut docs: Vec<(Page, Option<u64>)> = Vec::new();
 
     for t in &titles {
-        if pages::names_entity(site, t)
-            && let Ok(id) = parse_id(t)
-        {
+        if let Some(id) = pages::entity_of_title(site, t) {
             entities.push((id, None, Some(t.clone())));
             continue;
         }

@@ -1,0 +1,11 @@
+{#- A deleted page (09 §5.3; 19 §6.3): the deletion log's entry for everyone; for the
+    deletion group the newest deleted revision as the API renders it, and for a holder of
+    `undelete` the Undelete form. -#}
+{%- import "codex.html" as codex -%}
+{%- import "forms.html" as forms -%}
+<div class="ts-deleted">{% for n in notices %}{{ codex.message(n) }}{% endfor -%}
+<div class="cdx-message cdx-message--block cdx-message--warning ts-deleted__banner" aria-live="polite"><span class="cdx-message__icon"></span><div class="cdx-message__content">{{ banner }} <a href="{{ log.href }}">{{ log.label }}</a></div></div>
+{%- if content_html is not none %}<div class="ts-document ts-deleted__content"><div class="ts-document__content">{{ content_html|safe }}</div></div>
+{%- elif source is not none %}<pre class="ts-deleted__source">{{ source }}</pre>{% endif -%}
+{%- if undelete %}<form class="ts-undelete" method="post" action="{{ undelete.action }}"><input type="hidden" name="token" value="{{ undelete.token }}">{{ forms.field(undelete.reason) }}<div class="ts-protect__actions">{{ codex.button(undelete.submit) }}</div></form>{% endif -%}
+</div>

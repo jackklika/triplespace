@@ -57,6 +57,9 @@ struct Args {
     /// `off` when a separate web tier serves it (`server.ui`, 0057 §1.4).
     #[arg(long, env = "TRIPLESPACE_UI", default_value = "embedded")]
     ui: String,
+    /// A directory of installed skins beside the shipped ones (`server.skins`, 0097 §8).
+    #[arg(long, env = "TRIPLESPACE_SKINS")]
+    skins: Option<std::path::PathBuf>,
 }
 
 /// How long an idle worker waits before looking again.
@@ -213,7 +216,11 @@ async fn run() -> Result<()> {
         args.ui
     );
     let api = router_with(app, triplespace_api_rest::routes());
-    let router = if embedded { with_site(api) } else { api };
+    let router = if embedded {
+        with_site(api, args.skins.as_deref())
+    } else {
+        api
+    };
     axum::serve(
         listener,
         router.into_make_service_with_connect_info::<SocketAddr>(),
@@ -229,9 +236,10 @@ async fn run() -> Result<()> {
 /// The API's router with the site as its fallback, calling the API in process (0057 §1.4,
 /// §2): whatever the API does not route, the site serves, except the API's own paths,
 /// which the site refuses.
-fn with_site(api: axum::Router) -> axum::Router {
+fn with_site(api: axum::Router, skins: Option<&std::path::Path>) -> axum::Router {
     let client = Client::new(ServiceTransport::new(api.clone()));
-    api.fallback_service(triplespace_ui::router(client))
+    let site = triplespace_ui::Site::new(client).with_skins_dir(skins);
+    api.fallback_service(triplespace_ui::router_for(site))
 }
 
 /// How often the services are probed for Special:Version (0077 §4), in seconds.

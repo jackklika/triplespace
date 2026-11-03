@@ -1,0 +1,8 @@
+{#- Special:Watchlist (0020 §4; 19 §6.2): the changes to what the viewer watches. -#}
+{%- import "changes.html" as changes -%}
+<div class="ts-changes ts-watchlist"><nav class="ts-watchlist__tabs" aria-label="{{ tabs.label }}">{% for t in tabs.items %}{% if not loop.first %} {% endif %}<a class="ts-watchlist__tab" href="{{ t.href }}"{% if t.current %} aria-current="page"{% endif %}>{{ t.label }}</a>{% endfor %}</nav>
+{%- if seen %}<form class="ts-watchlist__seen" method="post" action="{{ seen.action }}"><input type="hidden" name="wpEditToken" value="{{ seen.token }}"><input type="hidden" name="markseen" value="1"><button class="cdx-button" type="submit">{{ seen.label }}</button></form>{% endif -%}
+{%- if empty %}<p class="ts-empty">{{ empty }}</p>{% endif -%}
+{%- if list %}{{ changes.list(list) }}{% endif -%}
+{%- if older %}<nav class="ts-changes__pager"><a href="{{ older.href }}" rel="next">{{ older.label }}</a></nav>{% endif -%}
+</div>

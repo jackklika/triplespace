@@ -1,0 +1,16 @@
+{#- Special:Version and its subpages (0077; 19 §5.10): the credit line and licence notice,
+    then a heading and a table or two for each of installed software, features, entry
+    points, components, wikitext, lineage, agents and the instance; Credits; and the
+    licences, verbatim. Every link and code span is a part (`inline.html`). -#}
+{%- import "codex.html" as codex -%}
+{%- import "inline.html" as inline -%}
+{%- for b in blocks -%}
+{%- if b.kind == "heading" %}<h2{% if b.id %} id="{{ b.id }}"{% endif %}>{{ b.text }}</h2>
+{%- elif b.kind == "para" %}<p>{{ inline.parts(b.parts) }}</p>
+{%- elif b.kind == "div" %}<div class="{{ b.class }}">{% for p in b.paras %}<p>{{ inline.parts(p) }}</p>{% endfor %}</div>
+{%- elif b.kind == "table" %}{{ codex.table(b.table) }}
+{%- elif b.kind == "accordion" %}<details class="cdx-accordion"><summary><span class="cdx-accordion__header"><span class="cdx-accordion__header__title">{{ b.title }}</span></span></summary><div class="cdx-accordion__content">{{ codex.table(b.table) }}</div></details>
+{%- elif b.kind == "message" %}{{ codex.message(b.message) }}
+{%- else %}<pre class="ts-version__license"{% if b.lang %} lang="{{ b.lang }}"{% endif %} dir="ltr">{{ b.text }}</pre>
+{%- endif -%}
+{%- endfor -%}

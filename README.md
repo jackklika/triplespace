@@ -229,7 +229,7 @@ the XML carries page IDs, revision IDs, timestamps and contributors together:
 
 ```sh
 # On the frozen source wiki:
-php maintenance/dumpBackup.php --current --include-files=no | gzip > librarybase-20261003.xml.gz
+php maintenance/dumpBackup.php --full --include-files=no | gzip > librarybase-20261003.xml.gz
 mysql -e 'SELECT * FROM wb_id_counters'          # the counters, not the highest IDs in the dump
 
 # Here. --adopt tells the tenant where it came from; --owner is the owner's user ID *on the source*.
@@ -245,10 +245,12 @@ triplespace adopt --tenant librarybase --dump librarybase-20261003.xml.gz \
 ```
 
 `adopt` reads the dump twice: a survey for the floors and the accounts, then the job, which
-writes each entity's current state as an `adopt` record with the source revision ID, timestamp
-and page ID as content (0035 §3). Re-running it over the same dump is a no-op; a changed dump is
-a reject per differing entity, never an overwrite. Pages that are not entities (the main page,
-templates), redirects and anything the model cannot parse are skipped and counted; the job's
+writes every revision of every entity page as an `adopt` record under the source's own revision
+ID, timestamp, author and edit summary, so `lastrevid` and every `oldid=` match the source (0035
+A12). The dump must carry history; `--current-only` adopts a current-state export instead, one
+record per entity under a fresh revision ID. Re-running it over the same dump is a no-op; a
+changed dump is a reject per differing revision, never an overwrite. Pages the model cannot
+parse are skipped and counted; the job's
 first hundred rejects are on its `job/finish` record and in `view.job_reject`. Pass
 `--counters` from `wb_id_counters` whenever you can: without it the floors come from the highest
 IDs in the dump, and a number the source allocated and deleted could be reused (0035 §4).

@@ -1,0 +1,12 @@
+{#- The Protect form (09 §4.5; 0056 §13; 19 §6.3): what encloses the title, then one row
+    per action the title may be restricted on, each a group picker (Read with **Also the
+    talk page**), the expiry, the reason and **Protect**. -#}
+{%- import "codex.html" as codex -%}
+{%- import "forms.html" as forms -%}
+<div class="ts-protect-page">{% for n in notices %}{{ codex.message(n) }}{% endfor -%}
+{%- if enclosing %}<section class="ts-protect__enclosing"><h2>{{ enclosing.heading }}</h2><ul>{% for r in enclosing.rows %}<li>{{ r }}</li>{% endfor %}</ul></section>{% endif -%}
+<form class="ts-protect" method="post" action="{{ action }}"><input type="hidden" name="token" value="{{ token }}">
+{%- for r in rows %}<div class="cdx-field ts-protect__row"><div class="cdx-label"><label class="cdx-label__label" for="{{ r.id }}"><span class="cdx-label__label__text">{{ r.label }}</span></label></div><div class="cdx-field__control">{{ forms.control(r.control) }}</div><div class="cdx-field__help-text" id="{{ r.help_id }}">{{ r.help }}</div>
+{%- if r.current_expiry %}<div class="cdx-field__help-text">{{ r.current_expiry }}</div>{% endif -%}
+{%- if r.talk %}{{ forms.check(r.talk) }}{% endif %}</div>{% endfor -%}
+{{ forms.field(expiry) }}{{ forms.field(reason) }}<div class="ts-protect__actions">{{ codex.button(submit) }}<a href="{{ cancel.href }}" class="ts-protect__cancel">{{ cancel.label }}</a></div></form></div>

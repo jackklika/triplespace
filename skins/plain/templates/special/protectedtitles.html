@@ -1,0 +1,7 @@
+{#- Special:ProtectedTitles (0023 §9; 09 §4.8): the reserved titles, each with the group
+    that may create it and when the reservation ends. -#}
+<p>{{ intro }}</p>
+{%- if nothing %}<p class="ts-empty">{{ nothing }}</p>
+{%- else %}<table class="cdx-table__table ts-protectedpages__table"><thead><tr>{% for c in columns %}<th scope="col">{{ c }}</th>{% endfor %}</tr></thead><tbody>
+{%- for r in rows %}<tr><td><a href="{{ r.page.href }}">{{ r.page.label }}</a></td><td>{{ r.group }}</td><td>{{ r.expiry }}</td></tr>{% endfor %}</tbody></table>{% endif -%}
+<p><a href="{{ all.href }}">{{ all.label }}</a></p>

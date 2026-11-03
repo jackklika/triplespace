@@ -295,7 +295,8 @@ impl<B: Backend> Pipeline<B> {
         Ok(progress)
     }
 
-    /// Resets every projection on `partitions` and replays each from offset 0.
+    /// Resets every projection on `partitions` and replays each from offset 0, one
+    /// partition after another.
     pub async fn rebuild<S: LogStore>(
         &self,
         backend: &B,
@@ -303,8 +304,31 @@ impl<B: Backend> Pipeline<B> {
         partitions: &[u64],
         batch: usize,
     ) -> Result<Vec<Progress>, ProjectionError> {
+        let groups: Vec<Vec<u64>> = partitions.iter().map(|p| vec![*p]).collect();
+        Ok(self
+            .rebuild_grouped(backend, store, &groups, batch)
+            .await?
+            .into_iter()
+            .map(|(_, p)| p)
+            .collect())
+    }
+
+    /// Resets every projection on every partition of `groups` and replays them from
+    /// offset 0: the groups one after another, and the partitions of one group
+    /// interleaved in `(appended_at, partition, offset)` order, the order the write path
+    /// applied them in (03 §6.1, replay order; 0013 §7, A53). A projection that changes a row another
+    /// partition's records create (a deletion ACL in a tenant's `log` on its `pages` row)
+    /// then sees the same state on a rebuild as it did when the record was written.
+    /// Returns each partition's progress, in the order replayed.
+    pub async fn rebuild_grouped<S: LogStore>(
+        &self,
+        backend: &B,
+        store: &S,
+        groups: &[Vec<u64>],
+        batch: usize,
+    ) -> Result<Vec<(u64, Progress)>, ProjectionError> {
         let mut cx = backend.begin().await?;
-        for &partition in partitions {
+        for &partition in groups.iter().flatten() {
             for p in &self.projections {
                 p.reset(&mut cx, partition)
                     .await
@@ -319,10 +343,120 @@ impl<B: Backend> Pipeline<B> {
         }
         backend.commit(cx).await?;
         let mut out = Vec::new();
-        for &partition in partitions {
-            out.push(self.catch_up(backend, store, partition, batch).await?);
+        for group in groups {
+            if let [partition] = group.as_slice() {
+                out.push((
+                    *partition,
+                    self.catch_up(backend, store, *partition, batch).await?,
+                ));
+            } else {
+                out.extend(self.replay_merged(backend, store, group, batch).await?);
+            }
         }
         Ok(out)
+    }
+
+    /// Replays freshly reset partitions together, always applying next the pending record
+    /// with the lowest `(appended_at, partition, offset)`, `batch` records per unit of
+    /// work.
+    async fn replay_merged<S: LogStore>(
+        &self,
+        backend: &B,
+        store: &S,
+        group: &[u64],
+        batch: usize,
+    ) -> Result<Vec<(u64, Progress)>, ProjectionError> {
+        struct Cursor {
+            partition: u64,
+            next: u64,
+            pending: Option<Record>,
+            positions: BTreeMap<&'static str, u64>,
+            progress: Progress,
+        }
+        let mut cursors = Vec::with_capacity(group.len());
+        for &partition in group {
+            let head = store.head(partition).await?.size;
+            cursors.push(Cursor {
+                partition,
+                next: 0,
+                pending: None,
+                positions: self.projections.iter().map(|p| (p.name(), 0)).collect(),
+                progress: Progress {
+                    head,
+                    ..Progress::default()
+                },
+            });
+        }
+        let batch = batch.max(1);
+        loop {
+            let mut cx = backend.begin().await?;
+            let mut applied = 0usize;
+            let outcome: Result<(), ProjectionError> = async {
+                while applied < batch {
+                    // Each cursor's next record, past any compacted slots.
+                    for c in &mut cursors {
+                        while c.pending.is_none() && c.next < c.progress.head {
+                            match store.read(c.partition, c.next).await? {
+                                Slot::Record(record) => c.pending = Some(record),
+                                Slot::Compacted { .. } => {
+                                    for pos in c.positions.values_mut() {
+                                        if *pos <= c.next {
+                                            *pos = c.next + 1;
+                                        }
+                                    }
+                                    c.progress.records += 1;
+                                    c.next += 1;
+                                }
+                            }
+                        }
+                    }
+                    let Some(i) = cursors
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, c)| {
+                            c.pending.as_ref().map(|r| {
+                                let h = r.header();
+                                ((h.appended_at, c.partition, h.offset), i)
+                            })
+                        })
+                        .min()
+                        .map(|(_, i)| i)
+                    else {
+                        break;
+                    };
+                    let c = &mut cursors[i];
+                    let record = c.pending.take().expect("pending");
+                    self.apply_behind(backend, &mut cx, &record, &mut c.positions, &mut c.progress)
+                        .await?;
+                    c.progress.records += 1;
+                    c.next += 1;
+                    applied += 1;
+                }
+                for c in &cursors {
+                    for (name, pos) in &c.positions {
+                        backend
+                            .set_applied(&mut cx, name, c.partition, *pos)
+                            .await?;
+                    }
+                }
+                Ok(())
+            }
+            .await;
+            match outcome {
+                Ok(()) => backend.commit(cx).await?,
+                Err(e) => {
+                    backend.rollback(cx).await?;
+                    return Err(e);
+                }
+            }
+            if applied == 0 {
+                break;
+            }
+        }
+        Ok(cursors
+            .into_iter()
+            .map(|c| (c.partition, c.progress))
+            .collect())
     }
 
     /// Each projection's lag on a partition.

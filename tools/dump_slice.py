@@ -10,11 +10,20 @@ Two ways to choose pages:
     dump_slice.py librarybase-20261005.xml.gz sample.xml.gz --sample 200 --seed 1 \\
         --all-properties --include Q1
 
+    # the same, plus 10 items whose pages have more than one revision
+    dump_slice.py librarybase-20261101.xml.gz sample.xml.gz --sample 200 --seed 1 \\
+        --history 10 --all-properties --include Q1
+
 An entity is a page whose <model> is wikibase-* (item, property, lexeme). With --limit
 the slice is a prefix of the dump: non-entity pages before the Nth entity are kept too.
 With --sample the slice holds only entity pages (and, with --keep-other, the non-entity
 pages as well), written in their original order; sampling is a reservoir over the
 non-property entities, so the same --seed on the same dump gives the same slice.
+
+A page is copied whole, with every revision a full-history dump gives it. On a real wiki
+few pages have more than one revision, so a random sample rarely holds any; --history N
+adds N items drawn from those that do, by a second reservoir on the same seed, so the
+--sample N part is the same with or without it.
 
 --all-properties copies every wikibase-property page wherever it sits in the dump, so
 each snak in the slice has the datatype its property declares (`adopt` reports snaks
@@ -85,10 +94,13 @@ def prefix(stream, out, limit, all_properties):
     return written, entities
 
 
-def sample(stream, out, n, seed, all_properties, include, keep_other, defined_only):
+def sample(stream, out, n, seed, all_properties, include, keep_other, defined_only, history=0):
     rng = random.Random(seed)
     chosen = []  # reservoir of (index, text)
     seen = 0
+    hrng = random.Random(f"history-{seed}")
+    hchosen = []  # reservoir of (index, text) over pages with more than one revision
+    hseen = 0
     kept = []  # (index, text) copied unconditionally
     for i, model, eid, text in stream:
         if model is None:
@@ -107,7 +119,17 @@ def sample(stream, out, n, seed, all_properties, include, keep_other, defined_on
             j = rng.randrange(seen)
             if j < n:
                 chosen[j] = (i, text)
-    selected = sorted(kept + chosen)
+        if history and text.count("<revision>") > 1:
+            hseen += 1
+            if len(hchosen) < history:
+                hchosen.append((i, text))
+            else:
+                j = hrng.randrange(hseen)
+                if j < history:
+                    hchosen[j] = (i, text)
+    if history:
+        print(f"{len(hchosen)} of {hseen} items with more than one revision", file=sys.stderr)
+    selected = sorted(dict(kept + chosen + hchosen).items())
     if defined_only:
         defined = {TITLE.search(t).group(1) for _, t in selected if MODEL.search(t) and TITLE.search(t)}
         defined = {d for d in defined if d.startswith("P")}
@@ -135,6 +157,8 @@ def main():
     ap.add_argument("--all-properties", action="store_true", help="copy every property page")
     ap.add_argument("--include", default="", help="entity IDs to copy regardless, comma-separated (Q1,P5)")
     ap.add_argument("--keep-other", action="store_true", help="with --sample, keep non-entity pages too")
+    ap.add_argument("--history", type=int, default=0,
+                    help="with --sample, also N items whose pages have more than one revision")
     ap.add_argument("--defined-only", action="store_true",
                     help="with --sample, drop items using properties the slice does not define")
     a = ap.parse_args()
@@ -146,7 +170,7 @@ def main():
             written, entities = prefix(stream, out, a.limit, a.all_properties)
             note = ""
         else:
-            written, entities, seen = sample(stream, out, a.sample, a.seed, a.all_properties, include, a.keep_other, a.defined_only)
+            written, entities, seen = sample(stream, out, a.sample, a.seed, a.all_properties, include, a.keep_other, a.defined_only, a.history)
             note = f" (sampled from {seen}, seed {a.seed})"
         out.write("</mediawiki>\n")
     print(f"{written} pages, {entities} entities -> {a.dst}{note}", file=sys.stderr)

@@ -993,8 +993,8 @@ def positive(x):
     must("board member reads its provenance", c.rest("GET", f"/entity/{vault}/provenance"), vault)
     must("board member reads its page info", c.api(action="query", prop="info", titles=f"Item:{vault}"), "lastrevid")
     must("owner reads the entity by includes", a.api(action="wbgetentities", ids=vault), "Vaulted")
-    must("sysop in board deletes the entity", c.post(action="delete", title=vault, token=c.token()))
-    must("sysop in board undeletes the entity", c.post(action="undelete", title=vault, token=c.token()))
+    must("sysop in board deletes the entity", c.post(action="delete", title=f"Item:{vault}", token=c.token()))
+    must("sysop in board undeletes the entity", c.post(action="undelete", title=f"Item:{vault}", token=c.token()))
     must("board member lifts the entity restriction", c.rest("DELETE", f"/acl/entity/{vault}", {"token": c.token()}))
     must("anon reads the entity then", anon.api(action="wbgetentities", ids=vault), "Vaulted")
 

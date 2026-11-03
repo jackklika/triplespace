@@ -1,0 +1,9 @@
+{#- Special:AllMessages (0047 §9; 0095 §8): the filter form, then each message's key, its
+    default text and the wiki's own, each key linking to the Interface page that overrides
+    it. -#}
+{%- import "forms.html" as forms -%}
+<p>{{ intro }}</p><form class="ts-changes-form ts-allmessages__form" method="get" action="/w/index.php"><input type="hidden" name="title" value="{{ form.title }}">{% for i in form.items %}{{ forms.item(i) }}{% endfor %} <button class="cdx-button cdx-button--action-progressive" type="submit">{{ form.go }}</button></form>
+{%- if nothing %}<p class="ts-empty">{{ nothing }}</p>
+{%- else %}<table class="cdx-table__table ts-allmessages" lang="{{ lang }}"><thead><tr>{% for c in columns %}<th scope="col">{{ c }}</th>{% endfor %}</tr></thead><tbody>
+{%- for r in rows %}<tr{% if r.customised %} class="ts-allmessages__customised"{% endif %}><td><a href="{{ r.href }}"><code>{{ r.name }}</code></a></td><td>{{ r.default }}</td><td>{{ r.current }}</td></tr>{% endfor %}</tbody></table>
+{%- if next %}<p class="ts-allmessages__more"><a href="{{ next.href }}">{{ next.label }}</a></p>{% endif %}{% endif -%}

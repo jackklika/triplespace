@@ -24,10 +24,12 @@ use std::fmt::Write as _;
 use triplespace_client::activity::ActivityQuery;
 use triplespace_client::{ActivityPage, Provenance, SiteInfo};
 
+use serde::Serialize;
+
 use crate::frame::title_url;
-use crate::html::{esc, link};
+use crate::html::esc;
 use crate::i18n::Messages;
-use crate::special::changes::list_html;
+use crate::pages::Context;
 
 /// Rows per page, and the most allowed.
 const DEFAULT_LIMIT: u32 = 50;
@@ -115,94 +117,154 @@ fn graph_name(site: &SiteInfo, graph: &str) -> String {
         .map_or_else(|| graph.to_string(), |p| p.name.clone())
 }
 
-/// The source switch (19 §3.5), or nothing when one source contributes.
-fn switch_html(m: &Messages, site: &SiteInfo, title: &str, ask: &Ask, graphs: &[String]) -> String {
+// ---------------------------------------------------------------------------------------
+// The view model (19 §5.10): what `entity/history.html` draws.
+// ---------------------------------------------------------------------------------------
+
+/// A link in a switch or a pager.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Choice {
+    /// The page.
+    pub href: String,
+    /// The text.
+    pub label: String,
+    /// Whether it is the current one.
+    pub current: bool,
+}
+
+/// The source switch (19 §3.5).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Switch {
+    /// The accessible name.
+    pub label: String,
+    /// *All sources*, *Made here*, then each mirror.
+    pub items: Vec<Choice>,
+}
+
+/// The pager: **Newest** when on a later page, **Older** when there is one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Pager {
+    /// The accessible name.
+    pub label: String,
+    /// The first page.
+    pub newest: Option<Choice>,
+    /// The next page.
+    pub older: Option<Choice>,
+}
+
+/// The History tab.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct HistoryModel {
+    /// The source switch, when more than one source contributes.
+    pub switch: Option<Switch>,
+    /// The note that a mirror keeps only its latest state.
+    pub note: Option<String>,
+    /// What the tab says when it has no rows.
+    pub empty: Option<String>,
+    /// The rows as `Special:RecentChanges` draws them.
+    pub list: Option<crate::special::changes::ListModel>,
+    /// The pager, when there is another page.
+    pub pager: Option<Pager>,
+}
+
+fn switch_model(
+    m: &Messages,
+    site: &SiteInfo,
+    title: &str,
+    ask: &Ask,
+    graphs: &[String],
+) -> Option<Switch> {
     if graphs.len() < 2 {
-        return String::new();
+        return None;
     }
-    let mut s = format!(
-        "<nav class=\"ts-search-filter ts-history__switch\" aria-label=\"{}\"><ul>",
-        esc(&m.get("ts-history-switch-label"))
-    );
-    let mut item = |label: String, source: Option<&str>| {
-        let here = ask.source.as_deref() == source;
-        let target = Ask {
+    let item = |label: String, source: Option<&str>| Choice {
+        href: Ask {
             source: source.map(str::to_string),
             limit: ask.limit,
             cursor: None,
-        };
-        let _ = write!(
-            s,
-            "<li>{}</li>",
-            link(
-                &target.href(title, None),
-                &esc(&label),
-                if here { " aria-current=\"page\"" } else { "" }
-            )
-        );
+        }
+        .href(title, None),
+        label,
+        current: ask.source.as_deref() == source,
     };
-    item(m.get("ts-history-all-sources"), None);
+    let mut items = vec![item(m.get("ts-history-all-sources"), None)];
     for g in graphs {
         let label = if g == "local" {
             m.get("ts-history-made-here")
         } else {
             graph_name(site, g)
         };
-        item(label, Some(g));
+        items.push(item(label, Some(g)));
     }
-    s.push_str("</ul></nav>");
-    s
+    Some(Switch {
+        label: m.get("ts-history-switch-label"),
+        items,
+    })
 }
 
-/// The note that a mirror keeps only its latest state (19 §3.5).
-fn latest_only_html(m: &Messages, site: &SiteInfo, provenance: Option<&Provenance>) -> String {
-    let Some(p) = provenance else {
-        return String::new();
-    };
-    let latest: Vec<String> = p
+fn latest_only_model(
+    m: &Messages,
+    site: &SiteInfo,
+    provenance: Option<&Provenance>,
+) -> Option<String> {
+    let latest: Vec<String> = provenance?
         .graphs
         .iter()
         .filter(|g| g.graph.starts_with("mirror/") && g.history.as_deref() == Some("latest"))
         .map(|g| graph_name(site, &g.graph))
         .collect();
     if latest.is_empty() {
-        return String::new();
+        return None;
     }
-    format!(
-        "<aside class=\"ts-history__note\"><p>{}</p></aside>",
-        esc(&m.with("ts-history-latest-only", &[&latest.join(", ")]))
-    )
+    Some(m.with("ts-history-latest-only", &[&latest.join(", ")]))
 }
 
-/// The pager: **Newest** when on a later page, **Older** when there is one.
-fn pager_html(m: &Messages, title: &str, ask: &Ask, next: Option<&str>) -> String {
+fn pager_model(m: &Messages, title: &str, ask: &Ask, next: Option<&str>) -> Option<Pager> {
     if ask.cursor.is_none() && next.is_none() {
-        return String::new();
+        return None;
     }
-    let mut s = format!(
-        "<nav class=\"ts-pager\" aria-label=\"{}\">",
-        esc(&m.get("ts-search-pages-label"))
-    );
-    if ask.cursor.is_some() {
-        let _ = write!(
-            s,
-            "{} ",
-            link(
-                &ask.href(title, None),
-                &esc(&m.get("ts-changes-newest")),
-                ""
-            )
-        );
+    Some(Pager {
+        label: m.get("ts-search-pages-label"),
+        newest: ask.cursor.as_ref().map(|_| Choice {
+            href: ask.href(title, None),
+            label: m.get("ts-changes-newest"),
+            current: false,
+        }),
+        older: next.map(|n| Choice {
+            href: ask.href(title, Some(n)),
+            label: m.get("ts-changes-older"),
+            current: false,
+        }),
+    })
+}
+
+/// The tab's model: the rows read relative to the talk page `here` when there is one.
+fn model(
+    cx: &Context,
+    title: &str,
+    ask: &Ask,
+    provenance: Option<&Provenance>,
+    here: Option<u64>,
+    page: &ActivityPage,
+    switch: bool,
+) -> HistoryModel {
+    let (m, site) = (&cx.m, &cx.site);
+    let graphs = contributing(provenance);
+    HistoryModel {
+        switch: switch
+            .then(|| switch_model(m, site, title, ask, &graphs))
+            .flatten(),
+        note: switch
+            .then(|| latest_only_model(m, site, provenance))
+            .flatten(),
+        empty: page.rows.is_empty().then(|| m.get("ts-history-none")),
+        list: crate::special::changes::list_model_here(m, site, &page.rows, here),
+        pager: if page.rows.is_empty() {
+            None
+        } else {
+            pager_model(m, title, ask, page.next.as_deref())
+        },
     }
-    if let Some(n) = next {
-        s.push_str(&link(
-            &ask.href(title, Some(n)),
-            &esc(&m.get("ts-changes-older")),
-            " rel=\"next\"",
-        ));
-    }
-    s.push_str("</nav>");
-    s
 }
 
 /// The History tab of a talk page or thread (16 §6.1): the rows as [`body`] draws them, read
@@ -210,56 +272,31 @@ fn pager_html(m: &Messages, title: &str, ask: &Ask, next: Option<&str>) -> Strin
 /// discussion is local.
 #[must_use]
 pub fn body_here(
-    m: &Messages,
-    site: &SiteInfo,
+    cx: &Context,
     title: &str,
     ask: &Ask,
     here: Option<u64>,
     page: &ActivityPage,
 ) -> String {
-    let mut s = String::from("<div class=\"ts-history\">");
-    if page.rows.is_empty() {
-        let _ = write!(
-            s,
-            "<p class=\"ts-empty\">{}</p>",
-            esc(&m.get("ts-history-none"))
-        );
-    } else {
-        s.push_str(&crate::special::changes::list_html_here(
-            m, site, &page.rows, here,
-        ));
-        s.push_str(&pager_html(m, title, ask, page.next.as_deref()));
-    }
-    s.push_str("</div>");
-    s
+    cx.draw(
+        "entity/history.html",
+        model(cx, title, ask, None, here, page, false),
+    )
 }
 
 /// The tab's content.
 #[must_use]
 pub fn body(
-    m: &Messages,
-    site: &SiteInfo,
+    cx: &Context,
     title: &str,
     ask: &Ask,
     provenance: Option<&Provenance>,
     page: &ActivityPage,
 ) -> String {
-    let graphs = contributing(provenance);
-    let mut s = String::from("<div class=\"ts-history\">");
-    s.push_str(&switch_html(m, site, title, ask, &graphs));
-    s.push_str(&latest_only_html(m, site, provenance));
-    if page.rows.is_empty() {
-        let _ = write!(
-            s,
-            "<p class=\"ts-empty\">{}</p>",
-            esc(&m.get("ts-history-none"))
-        );
-    } else {
-        s.push_str(&list_html(m, site, &page.rows));
-        s.push_str(&pager_html(m, title, ask, page.next.as_deref()));
-    }
-    s.push_str("</div>");
-    s
+    cx.draw(
+        "entity/history.html",
+        model(cx, title, ask, provenance, None, page, true),
+    )
 }
 
 #[cfg(test)]

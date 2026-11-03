@@ -13,12 +13,18 @@ Log entries whose Source ends in *unconfirmed*: decisions made in code and logge
 | [0018 A33](0018-tenants.md#a33-multi-tenant-round-1-the-assumptions-the-implementation-made) | 2026-10-30 | Multi-tenant round 1: the assumptions the implementation made |
 | [0021 A23](0021-notifications.md#a23-accountability-the-calls-made-building-tier-5) | 2026-10-30 | Accountability: the calls made building tier 5 |
 | [0023 A17](0023-moderation.md#a17-partial-undelete-and-hidden-events-the-calls-made-building-them) | 2026-10-30 | Partial undelete and hidden events: the calls made building them |
+| [0047 A29](0047-special-pages.md#a29-pagerandom-is-derived-from-the-page) | 2026-11-02 | `page_random` is derived from the page |
 | [0051 A8](0051-page-redirects.md#a8-actionmove-the-calls-made-building-it) | 2026-10-30 | `action=move`: the calls made building it |
 | [0056 A27](0056-security-model.md#a27-entities-the-live-attack-and-tiers-78-the-calls-made-building-them) | 2026-10-30 | Entities, the live attack and tiers 7–8: the calls made building them |
 | [0077 A6](0077-special-version.md#a6-licensing-loose-ends-from-building-specialversion) | 2026-10-30 | Licensing: loose ends from building Special:Version |
 | [0085 A2](0085-settings-and-preferences.md#a2-settings-the-calls-made-building-the-backend-slice) | 2026-10-30 | Settings: the calls made building the backend slice |
 | [0086 A9](0086-theming.md#a9-theming-loose-ends-from-building-it) | 2026-10-30 | Theming: loose ends from building it |
+| [0086 A10](0086-theming.md#a10-gruvbox-nord-and-catppuccin-with-type-sets-made-for-them) | 2026-11-01 | Gruvbox, Nord and Catppuccin, with type sets made for them |
+| [0086 A11](0086-theming.md#a11-greenbar-and-cyanotype-original-palettes-with-type-sets-made-for-them) | 2026-11-01 | Greenbar and Cyanotype, original palettes with type sets made for them |
 | [0087 A6](0087-account-registration-and-challenges.md#a6-registration-loose-ends-from-building-the-challenge) | 2026-10-30 | Registration: loose ends from building the challenge |
+| [0097 A3](0097-versioning-and-skins.md#a3-fragments-are-compared-as-normalized-dom) | 2026-10-30 | Fragments are compared as normalized DOM |
+| [0097 A4](0097-versioning-and-skins.md#a4-drawings-are-svg-the-binary-makes) | 2026-10-30 | Drawings are SVG the binary makes |
+| [0097 A6](0097-versioning-and-skins.md#a6-a-part-of-a-later-group-is-carried-as-html-until-that-group-switches) | 2026-10-30 | A part of a later group is carried as HTML until that group switches |
 
 ## Open questions
 
@@ -399,7 +405,7 @@ Every unstruck question in every ADR (24 §8), with its first sentence. Settle o
 | [0096 Q2](0096-adopting-any-mediawiki.md) | Pages or items | Whether the drafted mapping should propose `page` or `item` for a kind of subject by default, or leave every choice open as §5.3 does. |
 | [0096 Q3](0096-adopting-any-mediawiki.md) | Which queries translate | Which subset of `#ask` conditions and printouts, and of `#cargo_query`'s `where`, `join on` and `group by`, the converter expresses in SPARQL, and which result formats it carries to a `{{#query:}}` block. |
 | [0097 Q2](0097-versioning-and-skins.md) | Additive payload changes | Whether the current payload encodings admit fields an older reader ignores, as §4's minor assumes, or whether every payload change is in practice a major until the encodings are made extensible. |
-| [0097 Q4](0097-versioning-and-skins.md) | Skin licences | The default skin is GPL-3.0-or-later with the rest of the repository. |
+| [0097 Q4](0097-versioning-and-skins.md) | Skin licences | Plain and Worksheet are GPL-3.0-or-later with the rest of the repository. |
 | [0097 Q5](0097-versioning-and-skins.md) | Extra view-model fields | Whether a skin may ask for data from a fixed list the binary offers (assessment, protection, short description, edit counts), fetched only when a skin asks for it; deferred until the default skin needs one. |
 | [0099 Q1](0099-status-from-the-code.md) | Trailers | Trailer sections (Crates, API, UI, Storage, …) are left out of the status. |
 | [0099 Q2](0099-status-from-the-code.md) | Tests for non-code sections | A section about crate layout or naming is "tested" by the check that enforces it (`xtask deps` cites 22 §1.2), which `coverage.py` classes as src. |

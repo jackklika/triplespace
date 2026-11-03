@@ -17,10 +17,6 @@
 //! - **Who:** a signed-in viewer, since the form carries their CSRF token; `NewProperty`
 //!   also needs `property-create` (0016 §2), which the API enforces too.
 
-use std::fmt::Write as _;
-
-use askama::Template as _;
-
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use scatter_wikibase_model::id::EntityId;
@@ -29,13 +25,16 @@ use serde_json::{Map, Value, json};
 use triplespace_client::{CacheInfo, ClientError, Incoming, SiteInfo};
 
 use crate::Site;
-use crate::codex::{Action, Button, Field, MessageKind, Weight};
+use crate::codex::{
+    Action, Button, ButtonModel, FieldModel, Message, MessageKind, MessageModel, Weight,
+};
 use crate::entity::{Lookup, entity_href};
 use crate::features::Feature;
 use crate::frame::{Page, title_url};
-use crate::html::{esc, link};
 use crate::i18n::{self, Messages};
+use crate::moderation::{GateModel, link_to};
 use crate::pages::{self, Context, Params, Peer};
+use crate::special::controls::{ControlModel, FieldRow, OptionModel};
 
 /// Which form.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -349,51 +348,73 @@ fn edit_data(kind: Kind, input: &Input, prefills: &[Prefill]) -> Value {
     Value::Object(data)
 }
 
-/// A text field of the form.
-fn field(m: &Messages, name: &str, value: &str, key: &str, help: Option<&str>) -> String {
-    let id = format!("ts-new-{name}");
-    let help = help.map(|k| m.get(k));
-    Field {
-        id: &id,
-        name,
-        kind: "text",
-        value,
-        label: &m.get(key),
+/// `Special:NewItem` or `Special:NewProperty` as Plain's `special/newentity.html` draws it.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct NewEntityPage {
+    /// For a reader, the way to log in; for a user without the right, why not.
+    pub gate: Option<GateModel>,
+    /// The form.
+    pub form: Option<NewEntityForm>,
+}
+
+/// The form.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct NewEntityForm {
+    /// Notices above it: a refusal, an expired token.
+    pub notices: Vec<MessageModel>,
+    /// What the form makes.
+    pub intro: String,
+    /// Where it posts.
+    pub action: String,
+    /// The CSRF token.
+    pub token: String,
+    /// Language, label, description, aliases.
+    pub fields: Vec<FieldModel>,
+    /// A property's data type.
+    pub datatype: Option<FieldRow>,
+    /// The prefilled statements that can be added.
+    pub statements: Option<StatementBoxes>,
+    /// Those that cannot, and why.
+    pub left_out: Vec<MessageModel>,
+    /// **Create**.
+    pub submit: ButtonModel,
+}
+
+/// The prefilled statements, each a ticked box.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct StatementBoxes {
+    /// "Statements".
+    pub legend: String,
+    /// What ticking does.
+    pub help: String,
+    /// One box each.
+    pub boxes: Vec<ControlModel>,
+}
+
+fn field_model(m: &Messages, name: &str, value: &str, key: &str, help: Option<&str>) -> FieldModel {
+    FieldModel {
+        id: format!("ts-new-{name}"),
+        name: name.into(),
+        kind: "text".into(),
+        value: value.into(),
+        label: m.get(key),
         description: None,
-        help: help.as_deref(),
+        help: help.map(|k| m.get(k)),
         required: false,
-        autocomplete: Some("off"),
+        autocomplete: Some("off".into()),
     }
-    .render()
-    .unwrap_or_default()
 }
 
-/// The data type select of `NewProperty`.
-fn datatype_select(m: &Messages, datatypes: &[String], current: &str) -> String {
-    let mut options = String::new();
-    for dt in datatypes {
-        let _ = write!(
-            options,
-            "<option value=\"{}\"{}>{}</option>",
-            esc(dt),
-            if dt == current { " selected" } else { "" },
-            esc(&datatype_name(m, dt))
-        );
-    }
-    format!(
-        "<div class=\"cdx-field\"><div class=\"cdx-label\"><label class=\"cdx-label__label\" for=\"ts-new-datatype\"><span class=\"cdx-label__label__text\">{}</span></label></div><div class=\"cdx-field__control\"><select class=\"cdx-select\" id=\"ts-new-datatype\" name=\"datatype\">{options}</select></div></div>",
-        esc(&m.get("ts-new-datatype"))
-    )
-}
-
-/// The prefilled statements: a ticked box for each that can be added, a warning for each
-/// that cannot.
-fn statements_fieldset(m: &Messages, prefills: &[Prefill]) -> String {
-    if prefills.is_empty() {
-        return String::new();
-    }
-    let mut boxes = String::new();
-    let mut left_out = String::new();
+fn form_model(
+    m: &Messages,
+    kind: Kind,
+    token: &str,
+    input: &Input,
+    prefills: &[Prefill],
+    notices: &[(MessageKind, String)],
+) -> NewEntityForm {
+    let mut boxes = Vec::new();
+    let mut left_out = Vec::new();
     for (i, p) in prefills.iter().enumerate() {
         match &p.statement {
             Ok(_) => {
@@ -401,84 +422,102 @@ fn statements_fieldset(m: &Messages, prefills: &[Prefill]) -> String {
                     || p.property.clone(),
                     |l| m.with("ts-new-statement-property", &[l, &p.property]),
                 );
-                let _ = write!(
-                    boxes,
-                    "<div class=\"cdx-checkbox\"><div class=\"cdx-checkbox__wrapper\"><input class=\"cdx-checkbox__input\" type=\"checkbox\" id=\"ts-new-statement-{i}\" name=\"statement\" value=\"{}\" checked><span class=\"cdx-checkbox__icon\"></span><div class=\"cdx-checkbox__label cdx-label\"><label class=\"cdx-label__label\" for=\"ts-new-statement-{i}\"><span class=\"cdx-label__label__text\">{}</span></label></div></div></div>",
-                    esc(&p.raw),
-                    esc(&m.with("ts-new-statement", &[&property, &p.value]))
-                );
+                boxes.push(ControlModel::Checkbox {
+                    id: Some(format!("ts-new-statement-{i}")),
+                    name: "statement".into(),
+                    value: p.raw.clone(),
+                    checked: true,
+                    label: Some(m.with("ts-new-statement", &[&property, &p.value])),
+                    note: None,
+                    disabled: false,
+                    described_by: None,
+                });
             }
-            Err(why) => left_out.push_str(&pages::message(MessageKind::Warning, why)),
+            Err(why) => left_out.push(Message::block(MessageKind::Warning, why).model()),
         }
     }
-    let mut s = String::new();
-    if !boxes.is_empty() {
-        let _ = write!(
-            s,
-            "<fieldset class=\"cdx-field ts-new-statements\"><legend class=\"cdx-label\"><span class=\"cdx-label__label__text\">{}</span><span class=\"cdx-label__description\">{}</span></legend><div class=\"cdx-field__control\">{boxes}</div></fieldset>",
-            esc(&m.get("ts-new-statements")),
-            esc(&m.get("ts-new-statements-help"))
-        );
-    }
-    s.push_str(&left_out);
-    s
-}
-
-/// The form.
-fn form(m: &Messages, kind: Kind, token: &str, input: &Input, prefills: &[Prefill]) -> String {
-    let mut s = format!(
-        "<p>{}</p><form class=\"ts-form\" method=\"post\" action=\"/w/index.php?title={}\"><input type=\"hidden\" name=\"token\" value=\"{}\">",
-        esc(&m.get(&kind.key("intro"))),
-        title_url(kind.title()),
-        esc(token)
-    );
-    s.push_str(&field(
-        m,
-        "lang",
-        &input.lang,
-        "ts-new-lang",
-        Some("ts-new-lang-help"),
-    ));
-    s.push_str(&field(m, "label", &input.label, "ts-new-label", None));
-    s.push_str(&field(
-        m,
-        "description",
-        &input.description,
-        "ts-new-description",
-        None,
-    ));
-    s.push_str(&field(
-        m,
-        "aliases",
-        &input.aliases,
-        "ts-new-aliases",
-        Some("ts-new-aliases-help"),
-    ));
-    if kind == Kind::Property {
-        s.push_str(&datatype_select(m, &input.datatypes, &input.datatype));
-    }
-    s.push_str(&statements_fieldset(m, prefills));
-    let _ = write!(
-        s,
-        "<div class=\"ts-form__actions\">{}</div></form>",
-        Button {
+    NewEntityForm {
+        notices: notices
+            .iter()
+            .map(|(k, t)| Message::block(*k, t).model())
+            .collect(),
+        intro: m.get(&kind.key("intro")),
+        action: format!("/w/index.php?title={}", title_url(kind.title())),
+        token: token.to_string(),
+        fields: vec![
+            field_model(
+                m,
+                "lang",
+                &input.lang,
+                "ts-new-lang",
+                Some("ts-new-lang-help"),
+            ),
+            field_model(m, "label", &input.label, "ts-new-label", None),
+            field_model(
+                m,
+                "description",
+                &input.description,
+                "ts-new-description",
+                None,
+            ),
+            field_model(
+                m,
+                "aliases",
+                &input.aliases,
+                "ts-new-aliases",
+                Some("ts-new-aliases-help"),
+            ),
+        ],
+        datatype: (kind == Kind::Property).then(|| FieldRow {
+            id: "ts-new-datatype".into(),
+            label: m.get("ts-new-datatype"),
+            class: None,
+            control: ControlModel::Select {
+                id: Some("ts-new-datatype".into()),
+                name: "datatype".into(),
+                options: input
+                    .datatypes
+                    .iter()
+                    .map(|dt| OptionModel {
+                        value: dt.clone(),
+                        label: datatype_name(m, dt),
+                        selected: *dt == input.datatype,
+                    })
+                    .collect(),
+                described_by: None,
+            },
+            help: None,
+            help_id: None,
+        }),
+        statements: (!boxes.is_empty()).then(|| StatementBoxes {
+            legend: m.get("ts-new-statements"),
+            help: m.get("ts-new-statements-help"),
+            boxes,
+        }),
+        left_out,
+        submit: Button {
             label: &m.get(&kind.key("submit")),
             kind: "submit",
             action: Action::Progressive,
             weight: Weight::Primary,
         }
-        .render()
-        .unwrap_or_default()
-    );
-    s
+        .model(),
+    }
 }
 
-/// The page around a body.
-fn page(cx: &Context, headers: &HeaderMap, kind: Kind, status: StatusCode, body: &str) -> Response {
+/// The page, as the skin draws it.
+fn page(
+    cx: &Context,
+    headers: &HeaderMap,
+    kind: Kind,
+    status: StatusCode,
+    model: &NewEntityPage,
+) -> Response {
+    let body = cx.draw("special/newentity.html", model);
     pages::respond(cx, headers, status, |m| Page {
         title: m.get(&kind.key("title")),
         returnto: Some(kind.title().to_string()),
-        body: format!("<div class=\"ts-new-entity\">{body}</div>"),
+        body,
         ..Page::default()
     })
 }
@@ -504,13 +543,19 @@ async fn form_page(
         Ok(p) => p,
         Err(e) => return pages::api_failed(cx, headers, &e),
     };
-    let mut body = String::new();
-    for (k, text) in notices {
-        body.push_str(&pages::message(*k, text));
-    }
-    body.push_str(&form(&cx.m, kind, &token.value.value, input, &prefills));
+    let model = NewEntityPage {
+        gate: None,
+        form: Some(form_model(
+            &cx.m,
+            kind,
+            &token.value.value,
+            input,
+            &prefills,
+            notices,
+        )),
+    };
     pages::with_cookies(
-        page(cx, headers, kind, StatusCode::OK, &body),
+        page(cx, headers, kind, StatusCode::OK, &model),
         &token.set_cookies,
     )
 }
@@ -530,29 +575,32 @@ async fn start(
         return Err(pages::no_page(&cx, headers, kind.title().to_string()));
     }
     if cx.user.is_none() {
-        let mut body = pages::message(MessageKind::Notice, &cx.m.get("ts-new-login"));
-        if cx.features.has(Feature::Login) {
-            let _ = write!(
-                body,
-                "<p>{}</p>",
-                link(
-                    &format!(
-                        "/w/index.php?title=Special:UserLogin&returnto={}",
-                        title_url(kind.title())
-                    ),
-                    &esc(&cx.m.get("ts-login-title")),
-                    ""
-                )
-            );
-        }
-        return Err(page(&cx, headers, kind, StatusCode::OK, &body));
+        let login_href = format!(
+            "/w/index.php?title=Special:UserLogin&returnto={}",
+            title_url(kind.title())
+        );
+        let model = NewEntityPage {
+            gate: Some(GateModel {
+                notice: Message::block(MessageKind::Notice, &cx.m.get("ts-new-login")).model(),
+                login: cx
+                    .features
+                    .has(Feature::Login)
+                    .then(|| link_to(login_href, cx.m.get("ts-login-title"))),
+            }),
+            form: None,
+        };
+        return Err(page(&cx, headers, kind, StatusCode::OK, &model));
     }
     if kind == Kind::Property {
         match site.client().rights(incoming).await {
             Ok(r) if r.iter().any(|x| x == "property-create") => {}
             Ok(_) => {
-                let body = pages::message(MessageKind::Error, &cx.m.get("ts-newproperty-denied"));
-                return Err(page(&cx, headers, kind, StatusCode::FORBIDDEN, &body));
+                let text = cx.m.get("ts-newproperty-denied");
+                let model = NewEntityPage {
+                    gate: Some(GateModel::notice(MessageKind::Error, &text)),
+                    form: None,
+                };
+                return Err(page(&cx, headers, kind, StatusCode::FORBIDDEN, &model));
             }
             Err(e) => return Err(pages::api_failed(&cx, headers, &e)),
         }

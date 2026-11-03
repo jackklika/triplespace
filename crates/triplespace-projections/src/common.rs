@@ -278,6 +278,18 @@ pub fn parse_surrogate_key(key: &str) -> Option<(&str, i64)> {
     Some((t, n.parse().ok()?))
 }
 
+/// A page's `random` (`page_random`, 03 §4.5), as SQL over the statement's `$1` (the
+/// tenant) and `$2` (the page ID): the first 52 bits of the MD5 of `{tenant}:{page_id}`,
+/// as a fraction in [0, 1). It is a function of the page, not a draw, so that a rebuild
+/// projects the same value the write path did (0047 A29). Migration
+/// `0025_page_random.sql` computes the same over existing rows.
+#[macro_export]
+macro_rules! page_random_sql {
+    () => {
+        "(('x' || substr(md5($1::text || ':' || $2::bigint::text), 1, 13))::bit(52)::bigint)::double precision / 4503599627370496.0"
+    };
+}
+
 /// Quotes a string for use inside SQL text.
 #[must_use]
 pub fn quote(s: &str) -> String {

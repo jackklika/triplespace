@@ -1,0 +1,17 @@
+{#- Special:Account (0088 §7; 19 §2.4, §5.10): what the API answered, then either why there
+    is nothing here for a reader not logged in, or the Sign-in methods section: each way to
+    log in with its dates and Remove (disabled, with the note saying why, for the last
+    one), then the issuers still to add. Works without JavaScript. -#}
+{%- import "codex.html" as codex -%}
+{%- import "account.html" as account -%}
+<div class="ts-account">{% if notice %}{{ codex.message(notice) }}{% endif -%}
+{%- if login_needed %}<p>{{ login_needed }}</p>{% if login %}<p><a href="{{ login.href }}">{{ login.label }}</a></p>{% endif %}{% endif -%}
+{%- if methods %}{% set s = methods %}<section class="ts-signin" id="sign-in-methods" aria-labelledby="ts-signin-heading"><h2 id="ts-signin-heading">{{ s.heading }} <span class="ts-signin__private">{{ s.private }}</span></h2><ul class="ts-signin__list">
+{%- if s.password %}<li class="ts-signin__item"><span class="ts-signin__name">{{ s.password }}</span></li>{% endif -%}
+{%- for b in s.bindings %}<li class="ts-signin__item"><span class="ts-signin__name">{{ b.label }}</span> <span class="ts-signin__dates">{{ b.dates }}</span>{% if b.unavailable %} <span class="ts-signin__unavailable">{{ b.unavailable }}</span>{% endif %}<form class="ts-signin__remove" method="post" action="{{ s.action }}"><input type="hidden" name="issuer" value="{{ b.issuer }}"><input type="hidden" name="token" value="{{ s.token }}">
+{%- if s.last %}<button class="cdx-button" type="submit" disabled aria-describedby="ts-signin-last">{{ s.remove.label }}</button>{% else %}{{ codex.button(s.remove) }}{% endif %}</form></li>{% endfor -%}
+</ul>
+{%- if s.note %}{% if s.last %}<p class="ts-signin__last" id="ts-signin-last">{{ s.note }}</p>{% else %}<p class="ts-signin__note">{{ s.note }}</p>{% endif %}{% endif -%}
+{%- if s.add %}{{ account.issuers(s.add) }}{% endif -%}
+</section>{% endif -%}
+</div>

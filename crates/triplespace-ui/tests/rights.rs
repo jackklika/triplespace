@@ -3,6 +3,8 @@
 //! one does for an owner (`alice`), a sysop in no confidential group (`bob`), and a
 //! reader: what each is offered, what each form sends, and how a refusal comes back.
 
+mod common;
+
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
@@ -341,7 +343,7 @@ impl Transport for FakeApi {
 }
 
 async fn send(api: &FakeApi, req: Request<Body>) -> (StatusCode, HeaderMap, String) {
-    let r = triplespace_ui::router(Client::new(api.clone()))
+    let r = common::site_router(Client::new(api.clone()))
         .oneshot(req)
         .await
         .unwrap();

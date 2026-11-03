@@ -11,21 +11,20 @@
 //! form, with what was typed kept. A keyed entity's label is its key (0009 §5), so its
 //! label is not offered.
 
-use std::fmt::Write as _;
-
-use askama::Template as _;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use serde_json::Value;
 use triplespace_client::{CacheInfo, ClientError, Incoming, TermEdit};
 
 use crate::Site;
-use crate::codex::{Action, Button, MessageKind, Weight};
+use crate::codex::{
+    Action, Button, ButtonModel, FieldModel, Message, MessageKind, MessageModel, Weight,
+};
 use crate::entity;
 use crate::features::Feature;
 use crate::frame::{Page, title_url};
-use crate::html::{esc, link};
 use crate::i18n::{self, Messages};
+use crate::moderation::{GateModel, link_to};
 use crate::pages::{self, Context, Params, Peer};
 
 /// The four forms.
@@ -156,57 +155,80 @@ fn is_keyed(id: &str) -> bool {
     id.contains(':')
 }
 
-fn field(m: &Messages, name: &str, value: &str, label_key: &str, help: Option<&str>) -> String {
-    let help = help
-        .map(|k| {
-            format!(
-                "<div class=\"cdx-field__help-text\">{}</div>",
-                esc(&m.get(k))
-            )
-        })
-        .unwrap_or_default();
-    format!(
-        "<div class=\"cdx-field\"><div class=\"cdx-label\"><label class=\"cdx-label__label\" for=\"ts-setterms-{name}\"><span class=\"cdx-label__label__text\">{}</span></label></div><div class=\"cdx-field__control\"><div class=\"cdx-text-input\"><input class=\"cdx-text-input__input\" type=\"text\" id=\"ts-setterms-{name}\" name=\"{name}\" value=\"{}\"></div></div>{help}</div>",
-        esc(&m.get(label_key)),
-        esc(value)
-    )
+/// A term form's page as Plain's `special/setterms.html` draws it.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SetTermsPage {
+    /// For a reader, the way to log in.
+    pub gate: Option<GateModel>,
+    /// A refusal above the form.
+    pub notices: Vec<MessageModel>,
+    /// The form.
+    pub form: Option<TermsForm>,
 }
 
-/// The form; `token` is `None` before an entity is chosen, when it only asks which.
-fn form(m: &Messages, which: Which, input: &Input, token: Option<&str>, keyed: bool) -> String {
-    let mut s = format!(
-        "<p>{}</p><form class=\"ts-form\" method=\"{}\" action=\"/w/index.php?title={}\">",
-        esc(&m.get(&which.key("intro"))),
-        if token.is_some() { "post" } else { "get" },
-        title_url(which.title())
-    );
-    if let Some(t) = token {
-        let _ = write!(
-            s,
-            "<input type=\"hidden\" name=\"token\" value=\"{}\">",
-            esc(t)
-        );
-    } else {
-        let _ = write!(
-            s,
-            "<input type=\"hidden\" name=\"title\" value=\"{}\">",
-            which.title()
-        );
+/// The form: which entity and language, and the terms the page sets.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct TermsForm {
+    /// What the form does.
+    pub intro: String,
+    /// `post` with a token; `get` while it asks which entity.
+    pub method: String,
+    /// Where it goes.
+    pub action: String,
+    /// The CSRF token, once an entity is chosen.
+    pub token: Option<String>,
+    /// The page it goes to by `GET`.
+    pub title: Option<String>,
+    /// The fields.
+    pub fields: Vec<FieldModel>,
+    /// **Save** or **Choose**.
+    pub submit: ButtonModel,
+}
+
+fn field_model(
+    m: &Messages,
+    name: &str,
+    value: &str,
+    label_key: &str,
+    help: Option<&str>,
+) -> FieldModel {
+    FieldModel {
+        id: format!("ts-setterms-{name}"),
+        name: name.into(),
+        kind: "text".into(),
+        value: value.into(),
+        label: m.get(label_key),
+        description: None,
+        help: help.map(|k| m.get(k)),
+        required: false,
+        autocomplete: None,
     }
-    s.push_str(&field(m, "id", &input.id, "ts-setterms-id", None));
-    s.push_str(&field(
-        m,
-        "language",
-        &input.language,
-        "ts-setterms-language",
-        None,
-    ));
+}
+
+/// The form's model, as [`form`] draws it.
+fn form_model(
+    m: &Messages,
+    which: Which,
+    input: &Input,
+    token: Option<&str>,
+    keyed: bool,
+) -> TermsForm {
+    let mut fields = vec![
+        field_model(m, "id", &input.id, "ts-setterms-id", None),
+        field_model(m, "language", &input.language, "ts-setterms-language", None),
+    ];
     if token.is_some() {
         if matches!(which, Which::Label | Which::All) && !keyed {
-            s.push_str(&field(m, "label", &input.label, "ts-setterms-label", None));
+            fields.push(field_model(
+                m,
+                "label",
+                &input.label,
+                "ts-setterms-label",
+                None,
+            ));
         }
         if matches!(which, Which::Description | Which::All) {
-            s.push_str(&field(
+            fields.push(field_model(
                 m,
                 "description",
                 &input.description,
@@ -215,7 +237,7 @@ fn form(m: &Messages, which: Which, input: &Input, token: Option<&str>, keyed: b
             ));
         }
         if matches!(which, Which::Aliases | Which::All) {
-            s.push_str(&field(
+            fields.push(field_model(
                 m,
                 "aliases",
                 &input.aliases,
@@ -224,24 +246,37 @@ fn form(m: &Messages, which: Which, input: &Input, token: Option<&str>, keyed: b
             ));
         }
     }
-    let label = if token.is_some() {
-        m.get("ts-setterms-save")
-    } else {
-        m.get("ts-setterms-choose")
-    };
-    let _ = write!(
-        s,
-        "<div class=\"ts-form__actions\">{}</div></form>",
-        Button {
-            label: &label,
+    TermsForm {
+        intro: m.get(&which.key("intro")),
+        method: if token.is_some() { "post" } else { "get" }.into(),
+        action: format!("/w/index.php?title={}", title_url(which.title())),
+        token: token.map(str::to_string),
+        title: token.is_none().then(|| which.title().to_string()),
+        fields,
+        submit: Button {
+            label: &m.get(if token.is_some() {
+                "ts-setterms-save"
+            } else {
+                "ts-setterms-choose"
+            }),
             kind: "submit",
             action: Action::Progressive,
             weight: Weight::Primary,
         }
-        .render()
-        .unwrap_or_default()
-    );
-    s
+        .model(),
+    }
+}
+
+/// A page of a refusal and the form.
+fn with_form(error: Option<&str>, form: TermsForm) -> SetTermsPage {
+    SetTermsPage {
+        gate: None,
+        notices: error
+            .map(|e| Message::block(MessageKind::Error, e).model())
+            .into_iter()
+            .collect(),
+        form: Some(form),
+    }
 }
 
 fn page(
@@ -249,12 +284,13 @@ fn page(
     headers: &HeaderMap,
     which: Which,
     status: StatusCode,
-    body: &str,
+    model: &SetTermsPage,
 ) -> Response {
+    let body = cx.draw("special/setterms.html", model);
     pages::respond(cx, headers, status, |m| Page {
         title: m.get(&which.key("title")),
         returnto: Some(which.title().to_string()),
-        body: format!("<div class=\"ts-set-terms\">{body}</div>"),
+        body,
         ..Page::default()
     })
 }
@@ -273,22 +309,23 @@ async fn start(
         return Err(pages::no_page(&cx, headers, which.title().to_string()));
     }
     if cx.user.is_none() {
-        let mut body = pages::message(MessageKind::Notice, &cx.m.get("ts-setterms-login"));
-        if cx.features.has(Feature::Login) {
-            let _ = write!(
-                body,
-                "<p>{}</p>",
-                link(
-                    &format!(
-                        "/w/index.php?title=Special:UserLogin&returnto={}",
-                        title_url(which.title())
-                    ),
-                    &esc(&cx.m.get("ts-login-title")),
-                    ""
-                )
-            );
-        }
-        return Err(page(&cx, headers, which, StatusCode::OK, &body));
+        let model = SetTermsPage {
+            gate: Some(GateModel {
+                notice: Message::block(MessageKind::Notice, &cx.m.get("ts-setterms-login")).model(),
+                login: cx.features.has(Feature::Login).then(|| {
+                    link_to(
+                        format!(
+                            "/w/index.php?title=Special:UserLogin&returnto={}",
+                            title_url(which.title())
+                        ),
+                        cx.m.get("ts-login-title"),
+                    )
+                }),
+            }),
+            notices: Vec::new(),
+            form: None,
+        };
+        return Err(page(&cx, headers, which, StatusCode::OK, &model));
     }
     Ok(cx)
 }
@@ -320,14 +357,11 @@ async fn entity_of(
         let entity_type = e["type"].as_str().unwrap_or("item").to_string();
         Ok((e, entity_type))
     } else {
-        let mut body = pages::message(
-            MessageKind::Error,
-            &cx.m.with("ts-setterms-no-entity", &[&input.id]),
-        );
+        let text = cx.m.with("ts-setterms-no-entity", &[&input.id]);
         let mut asked = input.clone();
         asked.id.clear();
-        body.push_str(&form(&cx.m, which, &asked, None, false));
-        Err(page(cx, headers, which, StatusCode::NOT_FOUND, &body))
+        let model = with_form(Some(&text), form_model(&cx.m, which, &asked, None, false));
+        Err(page(cx, headers, which, StatusCode::NOT_FOUND, &model))
     }
 }
 
@@ -348,20 +382,18 @@ async fn edit_page(
     // A page holding the viewer's token is theirs alone.
     cx.inputs.push(token.value.cache);
     cx.inputs.push(CacheInfo::default());
-    let mut body = String::new();
-    let mut status = StatusCode::OK;
-    if let Some((n, s)) = notice {
-        body.push_str(&pages::message(MessageKind::Error, &n));
-        status = s;
-    }
-    body.push_str(&form(
-        &cx.m,
-        which,
-        input,
-        Some(&token.value.value),
-        is_keyed(&input.id),
-    ));
-    pages::with_cookies(page(cx, headers, which, status, &body), &token.set_cookies)
+    let status = notice.as_ref().map_or(StatusCode::OK, |(_, s)| *s);
+    let model = with_form(
+        notice.as_ref().map(|(n, _)| n.as_str()),
+        form_model(
+            &cx.m,
+            which,
+            input,
+            Some(&token.value.value),
+            is_keyed(&input.id),
+        ),
+    );
+    pages::with_cookies(page(cx, headers, which, status, &model), &token.set_cookies)
 }
 
 /// `GET Special:SetLabel` and its siblings.
@@ -380,17 +412,13 @@ pub async fn serve(
     };
     let mut input = Input::of(which, Some(title), params, cx.m.lang());
     if input.id.is_empty() {
-        let body = form(&cx.m, which, &input, None, false);
-        return page(&cx, headers, which, StatusCode::OK, &body);
+        let model = with_form(None, form_model(&cx.m, which, &input, None, false));
+        return page(&cx, headers, which, StatusCode::OK, &model);
     }
     if i18n::valid_code(&input.language).is_none() {
         let e = cx.m.with("ts-new-bad-lang", &[&input.language]);
-        let body = format!(
-            "{}{}",
-            pages::message(MessageKind::Error, &e),
-            form(&cx.m, which, &input, None, false)
-        );
-        return page(&cx, headers, which, StatusCode::BAD_REQUEST, &body);
+        let model = with_form(Some(&e), form_model(&cx.m, which, &input, None, false));
+        return page(&cx, headers, which, StatusCode::BAD_REQUEST, &model);
     }
     let (e, _) = match entity_of(site, &mut cx, headers, &incoming, which, &input).await {
         Ok(e) => e,

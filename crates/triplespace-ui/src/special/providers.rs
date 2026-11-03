@@ -7,9 +7,6 @@
 //! size, queue and lag, and the page repositories) read `GET /provider/{code}/mirror` and
 //! `GET /repo/{name}` (18 §3.2), which the API does not serve yet.
 
-use std::fmt::Write as _;
-
-use askama::Template as _;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use triplespace_client::ProviderInfo;
@@ -17,7 +14,6 @@ use triplespace_client::ProviderInfo;
 use crate::Site;
 use crate::codex::{Chip, ChipKind};
 use crate::frame::Page;
-use crate::html::esc;
 use crate::i18n::Messages;
 use crate::pages::{self, Params, Peer};
 
@@ -30,7 +26,8 @@ pub async fn serve(site: &Site, headers: &HeaderMap, peer: Peer, params: &Params
         Ok(cx) => cx,
         Err(r) => return r,
     };
-    let body = body(&cx.m, &cx.site.providers);
+    let model = model(&cx.m, &cx.site.providers);
+    let body = cx.draw("special/providers.html", &model);
     pages::respond(&cx, headers, StatusCode::OK, |m| Page {
         title: m.get("ts-providers-title"),
         returnto: Some(TITLE.to_string()),
@@ -39,57 +36,68 @@ pub async fn serve(site: &Site, headers: &HeaderMap, peer: Peer, params: &Params
     })
 }
 
-fn body(m: &Messages, providers: &[ProviderInfo]) -> String {
-    let mut s = format!("<p>{}</p>", esc(&m.get("ts-providers-intro")));
-    if providers.is_empty() {
-        let _ = write!(
-            s,
-            "<p class=\"ts-empty\">{}</p>",
-            esc(&m.get("ts-providers-none"))
-        );
-        return s;
+/// `Special:Providers` as Plain's `special/providers.html` draws it.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ProvidersPage {
+    /// What the page lists.
+    pub intro: String,
+    /// Said where there are none.
+    pub nothing: Option<String>,
+    /// The column headings.
+    pub columns: Vec<String>,
+    /// One row per provider.
+    pub rows: Vec<ProviderRow>,
+}
+
+/// One provider.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ProviderRow {
+    /// Its chip.
+    pub chip: crate::codex::ChipModel,
+    /// Its name.
+    pub name: String,
+    /// Its mirror's graph's slug.
+    pub slug: String,
+    /// One line per entity type it mints.
+    pub types: Vec<String>,
+}
+
+fn model(m: &Messages, providers: &[ProviderInfo]) -> ProvidersPage {
+    ProvidersPage {
+        intro: m.get("ts-providers-intro"),
+        nothing: providers.is_empty().then(|| m.get("ts-providers-none")),
+        columns: [
+            "ts-providers-col-provider",
+            "ts-providers-col-graph",
+            "ts-providers-col-types",
+        ]
+        .iter()
+        .map(|k| m.get(k))
+        .collect(),
+        rows: providers
+            .iter()
+            .map(|p| ProviderRow {
+                chip: Chip::new(ChipKind::Provider(p.code.clone()), &p.code).model(),
+                name: p.name.clone(),
+                slug: p.slug.clone(),
+                types: p
+                    .types
+                    .iter()
+                    .map(|t| {
+                        m.with(
+                            "ts-providers-type",
+                            &[
+                                &t.entity_type,
+                                &format!("{}{}", p.code, t.code),
+                                t.namespace.as_deref().unwrap_or_default(),
+                                &t.iri,
+                            ],
+                        )
+                    })
+                    .collect(),
+            })
+            .collect(),
     }
-    let _ = write!(
-        s,
-        "<table class=\"cdx-table__table ts-providers\"><thead><tr><th scope=\"col\">{}</th><th scope=\"col\">{}</th><th scope=\"col\">{}</th></tr></thead><tbody>",
-        esc(&m.get("ts-providers-col-provider")),
-        esc(&m.get("ts-providers-col-graph")),
-        esc(&m.get("ts-providers-col-types")),
-    );
-    for p in providers {
-        let chip = Chip::new(ChipKind::Provider(p.code.clone()), &p.code)
-            .render()
-            .unwrap_or_default();
-        let mut types = String::from("<ul class=\"ts-providers__types\">");
-        for t in &p.types {
-            let namespace = t.namespace.clone().unwrap_or_default();
-            let _ = write!(
-                types,
-                "<li>{}</li>",
-                esc(&m.with(
-                    "ts-providers-type",
-                    &[
-                        &t.entity_type,
-                        &format!("{}{}", p.code, t.code),
-                        &namespace,
-                        &t.iri,
-                    ],
-                ))
-            );
-        }
-        types.push_str("</ul>");
-        if p.types.is_empty() {
-            types = String::new();
-        }
-        let _ = write!(
-            s,
-            "<tr><td>{chip} {}</td><td><code>mirror/{}</code></td><td>{types}</td></tr>",
-            esc(&p.name),
-            esc(&p.slug),
-        );
-    }
-    s.push_str("</tbody></table>");
-    s
 }
 
 #[cfg(test)]
@@ -113,7 +121,14 @@ mod tests {
             }],
             chip: None,
         };
-        let html = body(&m, &[wd]);
+        let plain = crate::skin::Skins::load(None);
+        let plain = plain.get("plain").expect("plain");
+        let body = |p: &[ProviderInfo]| {
+            plain
+                .render("special/providers.html", &m, model(&m, p))
+                .unwrap()
+        };
+        let html = body(&[wd]);
         assert!(
             html.contains("Wikidata</td><td><code>mirror/wikidata</code>"),
             "{html}"
@@ -121,6 +136,6 @@ mod tests {
         assert!(html.contains("WDQ"), "{html}");
         assert!(html.contains("Item"), "{html}");
         assert!(html.contains("http://www.wikidata.org/entity/{upstream_id}"));
-        assert!(body(&m, &[]).contains("ts-empty"));
+        assert!(body(&[]).contains("ts-empty"));
     }
 }

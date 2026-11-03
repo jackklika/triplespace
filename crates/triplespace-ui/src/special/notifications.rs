@@ -7,50 +7,129 @@
 //! The list is what the API lets the viewer see now: an item about a thread they may no
 //! longer read, or a post since hidden, is not there (16 §5.2).
 
-use std::fmt::Write as _;
-
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
+use serde::Serialize;
 use triplespace_client::Notification;
 use triplespace_client::settings::Saved;
 
 use crate::Site;
-use crate::codex::MessageKind;
+use crate::codex::{Message, MessageKind, MessageModel};
+use crate::entity::history::{Choice, Switch};
 use crate::features::Feature;
 use crate::frame::{Page, title_url};
-use crate::html::{esc, link};
 use crate::i18n::Messages;
 use crate::pages::{self, Params, Peer};
 use crate::special::changes::{clock, date};
+use crate::special::watchlist::LoginPage;
 
 const TITLE: &str = "Special:Notifications";
 
 /// How many items a page shows.
 const PER_PAGE: u32 = 50;
 
+// ---------------------------------------------------------------------------------------
+// The view models (19 §5.10): what `special/notifications.html` draws.
+// ---------------------------------------------------------------------------------------
+
+/// A part of an item's sentence: text, or a link in its place.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum Part {
+    /// Text.
+    Text {
+        /// The text.
+        text: String,
+    },
+    /// A link.
+    Link {
+        /// The page.
+        href: String,
+        /// The text.
+        text: String,
+        /// The `class`, for the thread link.
+        class: Option<&'static str>,
+    },
+}
+
+/// **Mark as read** or **Mark all as read**.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MarkForm {
+    /// Where it posts.
+    pub action: String,
+    /// The CSRF token.
+    pub token: String,
+    /// `markread` or `markall`.
+    pub name: String,
+    /// The ID, or `1`.
+    pub value: String,
+    /// Whether to come back to the unread view.
+    pub unread: bool,
+    /// The button.
+    pub label: String,
+}
+
+/// One item.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Item {
+    /// The reason, as the API names it.
+    pub reason: String,
+    /// Whether it is unread.
+    pub unread: bool,
+    /// The sentence.
+    pub sentence: Vec<Part>,
+    /// ISO 8601.
+    pub datetime: String,
+    /// "HH:MM, date".
+    pub time: String,
+    /// The talk page, where the item has one.
+    pub talk: Option<Choice>,
+    /// **Mark as read**, for an unread item.
+    pub mark: Option<MarkForm>,
+}
+
+/// `Special:Notifications`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct NotificationsPage {
+    /// The filters: all, unread.
+    pub filters: Switch,
+    /// **Mark all as read**, when any is unread.
+    pub markall: Option<MarkForm>,
+    /// What the page says when it has no items.
+    pub empty: Option<MessageModel>,
+    /// The items.
+    pub items: Vec<Item>,
+    /// **Older**.
+    pub older: Option<Choice>,
+}
+
 /// One item's sentence, its links in place.
-fn sentence(m: &Messages, n: &Notification) -> String {
+fn sentence(m: &Messages, n: &Notification) -> Vec<Part> {
     let who = match &n.agent {
-        Some(agent) => link(&format!("/wiki/User:{}", title_url(agent)), &esc(agent), ""),
-        None => esc(&m.get("ts-notif-someone")),
+        Some(agent) => Part::Link {
+            href: format!("/wiki/User:{}", title_url(agent)),
+            text: agent.clone(),
+            class: None,
+        },
+        None => Part::Text {
+            text: m.get("ts-notif-someone"),
+        },
     };
     let thread = match (&n.title, &n.subject) {
-        (Some(title), Some(subject)) => {
-            let href = match n.revid {
+        (Some(title), Some(subject)) => Some(Part::Link {
+            href: match n.revid {
                 Some(rev) => format!("/wiki/{}#post-{rev}", title_url(title)),
                 None => format!("/wiki/{}", title_url(title)),
-            };
-            link(
-                &href,
-                &format!("“{}”", esc(subject)),
-                " class=\"ts-notif__thread\"",
-            )
-        }
-        _ => String::new(),
+            },
+            text: format!("“{subject}”"),
+            class: Some("ts-notif__thread"),
+        }),
+        _ => None,
     };
-    let account = n.title.as_deref().map_or_else(String::new, |t| {
-        let name = t.split_once(':').map_or(t, |(_, n)| n);
-        link(&format!("/wiki/{}", title_url(t)), &esc(name), "")
+    let account = n.title.as_deref().map(|t| Part::Link {
+        href: format!("/wiki/{}", title_url(t)),
+        text: t.split_once(':').map_or(t, |(_, n)| n).to_string(),
+        class: None,
     });
     let key = match n.reason.as_str() {
         "talk" => "ts-notif-talk",
@@ -63,36 +142,61 @@ fn sentence(m: &Messages, n: &Notification) -> String {
         "watch" => "ts-notif-watch",
         _ => "ts-notif-other",
     };
-    let page = n.title.as_deref().map_or_else(String::new, |t| {
-        let href = match n.revid {
+    let page = n.title.as_deref().map(|t| Part::Link {
+        href: match n.revid {
             Some(rev) => format!("/w/index.php?title={}&oldid={rev}", title_url(t)),
             None => format!("/wiki/{}", title_url(t)),
-        };
-        link(&href, &esc(t), "")
+        },
+        text: t.to_string(),
+        class: None,
     });
     let second = match n.reason.as_str() {
-        "group-join" => &account,
-        "watch" if n.subject.is_none() => &page,
-        _ => &thread,
+        "group-join" => account,
+        "watch" if n.subject.is_none() => page,
+        _ => thread,
     };
-    esc(&m.get(key)).replace("$1", &who).replace("$2", second)
+    // The message, its `$1` and `$2` replaced by the parts.
+    let text = m.get(key);
+    let mut parts = Vec::new();
+    let mut rest = text.as_str();
+    while let Some(i) = rest.find("$1").into_iter().chain(rest.find("$2")).min() {
+        if i > 0 {
+            parts.push(Part::Text {
+                text: rest[..i].to_string(),
+            });
+        }
+        let which = &rest[i..i + 2];
+        let part = if which == "$1" {
+            Some(&who)
+        } else {
+            second.as_ref()
+        };
+        if let Some(p) = part {
+            parts.push(p.clone());
+        }
+        rest = &rest[i + 2..];
+    }
+    if !rest.is_empty() {
+        parts.push(Part::Text {
+            text: rest.to_string(),
+        });
+    }
+    parts
 }
 
-fn mark_form(token: &str, id: Option<i64>, label: &str, unread_only: bool) -> String {
+fn mark_form(token: &str, id: Option<i64>, label: &str, unread_only: bool) -> MarkForm {
     let (name, value) = match id {
         Some(i) => ("markread", i.to_string()),
         None => ("markall", "1".to_string()),
     };
-    format!(
-        "<form class=\"ts-notif__mark\" method=\"post\" action=\"/w/index.php?title={TITLE}\"><input type=\"hidden\" name=\"wpEditToken\" value=\"{}\"><input type=\"hidden\" name=\"{name}\" value=\"{value}\">{}<button class=\"cdx-button cdx-button--weight-quiet cdx-button--size-small\" type=\"submit\">{}</button></form>",
-        esc(token),
-        if unread_only {
-            "<input type=\"hidden\" name=\"unread\" value=\"1\">"
-        } else {
-            ""
-        },
-        esc(label),
-    )
+    MarkForm {
+        action: format!("/w/index.php?title={TITLE}"),
+        token: token.to_string(),
+        name: name.to_string(),
+        value,
+        unread: unread_only,
+        label: label.to_string(),
+    }
 }
 
 /// `GET Special:Notifications`.
@@ -107,15 +211,17 @@ pub async fn serve(site: &Site, headers: &HeaderMap, peer: Peer, params: &Params
         return pages::no_page(&cx, headers, TITLE.to_string());
     }
     if cx.user.is_none() {
-        let m = &cx.m;
-        let body = format!(
-            "{}<p>{}</p>",
-            pages::message(MessageKind::Notice, &m.get("ts-notifications-login")),
-            link(
-                &format!("/wiki/Special:UserLogin?returnto={TITLE}"),
-                &esc(&m.get("ts-login")),
-                ""
-            )
+        let body = cx.draw(
+            "login.html",
+            LoginPage {
+                notice: Message::block(MessageKind::Notice, &cx.m.get("ts-notifications-login"))
+                    .model(),
+                login: Some(Choice {
+                    href: format!("/wiki/Special:UserLogin?returnto={TITLE}"),
+                    label: cx.m.get("ts-login"),
+                    current: false,
+                }),
+            },
         );
         return pages::respond(&cx, headers, StatusCode::OK, |m| Page {
             title: m.get("ts-notifications-title"),
@@ -149,92 +255,74 @@ pub async fn serve(site: &Site, headers: &HeaderMap, peer: Peer, params: &Params
         n.seen = n.newest_unread.clone();
     }
     let m = &cx.m;
-    let mut body =
-        String::from("<div class=\"ts-notifications\"><div class=\"ts-notifications__bar\">");
-    let filter = |label: &str, href: &str, current: bool| {
-        format!(
-            "<a class=\"ts-notifications__filter\" href=\"{href}\"{}>{}</a>",
-            if current {
-                " aria-current=\"page\""
-            } else {
-                ""
+    let items = &listing.value.items;
+    let body = cx.draw(
+        "special/notifications.html",
+        NotificationsPage {
+            filters: Switch {
+                label: m.get("ts-notifications-filter"),
+                items: vec![
+                    Choice {
+                        href: format!("/wiki/{TITLE}"),
+                        label: m.get("ts-notifications-all"),
+                        current: !unread_only,
+                    },
+                    Choice {
+                        href: format!("/wiki/{TITLE}?unread=1"),
+                        label: m.get("ts-notifications-unread"),
+                        current: unread_only,
+                    },
+                ],
             },
-            esc(label)
-        )
-    };
-    let _ = write!(
-        body,
-        "<nav class=\"ts-notifications__filters\" aria-label=\"{}\">{} {}</nav>",
-        esc(&m.get("ts-notifications-filter")),
-        filter(
-            &m.get("ts-notifications-all"),
-            &format!("/wiki/{TITLE}"),
-            !unread_only
-        ),
-        filter(
-            &m.get("ts-notifications-unread"),
-            &format!("/wiki/{TITLE}?unread=1"),
-            unread_only
-        ),
+            markall: items
+                .iter()
+                .any(|n| !n.read)
+                .then(|| mark_form(&tok, None, &m.get("ts-notifications-markall"), unread_only)),
+            empty: items.is_empty().then(|| {
+                Message::block(
+                    MessageKind::Notice,
+                    &m.get(if unread_only {
+                        "ts-notifications-none-unread"
+                    } else {
+                        "ts-notifications-empty"
+                    }),
+                )
+                .model()
+            }),
+            items: items
+                .iter()
+                .map(|n| Item {
+                    reason: n.reason.clone(),
+                    unread: !n.read,
+                    sentence: sentence(m, n),
+                    datetime: n.timestamp.clone(),
+                    time: format!("{}, {}", clock(&n.timestamp), date(m, &n.timestamp)),
+                    talk: n.talk.as_deref().map(|t| Choice {
+                        href: format!("/wiki/{}", title_url(t)),
+                        label: t.to_string(),
+                        current: false,
+                    }),
+                    mark: (!n.read).then(|| {
+                        mark_form(
+                            &tok,
+                            Some(n.id),
+                            &m.get("ts-notifications-markread"),
+                            unread_only,
+                        )
+                    }),
+                })
+                .collect(),
+            older: listing.value.next.as_ref().map(|next| Choice {
+                href: format!(
+                    "/wiki/{TITLE}?from={}{}",
+                    url_q(next),
+                    if unread_only { "&unread=1" } else { "" }
+                ),
+                label: m.get("ts-notifications-older"),
+                current: false,
+            }),
+        },
     );
-    if listing.value.items.iter().any(|n| !n.read) {
-        body.push_str(&mark_form(
-            &tok,
-            None,
-            &m.get("ts-notifications-markall"),
-            unread_only,
-        ));
-    }
-    body.push_str("</div>");
-    if listing.value.items.is_empty() {
-        let key = if unread_only {
-            "ts-notifications-none-unread"
-        } else {
-            "ts-notifications-empty"
-        };
-        body.push_str(&pages::message(MessageKind::Notice, &m.get(key)));
-    } else {
-        body.push_str("<ul class=\"ts-notifications__list\">");
-        for n in &listing.value.items {
-            let _ = write!(
-                body,
-                "<li class=\"ts-notif ts-notif--{}{}\"><p class=\"ts-notif__text\">{}</p><p class=\"ts-notif__meta\"><time datetime=\"{}\">{}, {}</time>{}</p>{}</li>",
-                esc(&n.reason),
-                if n.read { "" } else { " ts-notif--unread" },
-                sentence(m, n),
-                esc(&n.timestamp),
-                esc(clock(&n.timestamp)),
-                esc(&date(m, &n.timestamp)),
-                n.talk.as_deref().map_or_else(String::new, |t| format!(
-                    " · {}",
-                    link(&format!("/wiki/{}", title_url(t)), &esc(t), "")
-                )),
-                if n.read {
-                    String::new()
-                } else {
-                    mark_form(
-                        &tok,
-                        Some(n.id),
-                        &m.get("ts-notifications-markread"),
-                        unread_only,
-                    )
-                },
-            );
-        }
-        body.push_str("</ul>");
-    }
-    if let Some(next) = &listing.value.next {
-        let mut href = format!("/wiki/{TITLE}?from={}", esc(&url_q(next)));
-        if unread_only {
-            href.push_str("&amp;unread=1");
-        }
-        let _ = write!(
-            body,
-            "<p class=\"ts-notifications__more\"><a href=\"{href}\">{}</a></p>",
-            esc(&m.get("ts-notifications-older"))
-        );
-    }
-    body.push_str("</div>");
     let r = pages::respond(&cx, headers, StatusCode::OK, |m| Page {
         title: m.get("ts-notifications-title"),
         returnto: Some(TITLE.to_string()),
@@ -288,7 +376,7 @@ pub async fn post(site: &Site, headers: &HeaderMap, peer: Peer, params: &Params)
             pages::respond(&cx, headers, StatusCode::BAD_REQUEST, |m| Page {
                 title: m.get("ts-notifications-title"),
                 returnto: Some(TITLE.to_string()),
-                body: pages::message(MessageKind::Error, &text),
+                body: cx.message(MessageKind::Error, &text),
                 ..Page::default()
             })
         }

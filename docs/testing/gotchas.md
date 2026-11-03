@@ -34,8 +34,27 @@ strike what stops being true. Implementation status is not kept here (24 §15: `
   contains the name); match on the binary path (`pkill -f "^/home/.*/triplespace-server"`), and
   start a test server and query it within one call, since background processes die when the call
   ends.
+- The tree tarred into the sandbox leaves out `docs/api/snapshots` (139 MB), but
+  `triplespace-ui`'s `entity` tests and the parity corpus's `wikidata` set read it
+  (`tests/common/fixture_api.rs`): without it seven entity tests panic on a missing file under
+  every renderer. Stage it separately (`tar czf target/snapshots.tgz docs/api/snapshots` on the
+  mount) when running those.
+- Moving `target/` into a fresh copy of the tree (to reuse a build) leaves binaries that
+  bake `env!("CARGO_MANIFEST_DIR")` pointing at the old copy, and Cargo does not rebuild
+  them: `triplespace-ui`'s tests then panic on missing fixtures, and `cargo xtask skin-parity`
+  writes its report under the old path. `cargo clean -p` the crates that use it (`grep -rl
+  'env!("CARGO_MANIFEST_DIR")' crates xtask`) and `xtask`, or build in place.
 - `tools/client_compat.sh` runs `target/debug` binaries: build `-p triplespace-cli -p
   triplespace-server` first, or it runs stale ones.
+- `pkill -f '<pattern>'` inside a longer shell command matches that command's own `bash -c`
+  line and kills it (exit 144, no output). Stop a test server by process name instead
+  (`kill $(pgrep -x triplespace-ser)`; the name is cut to 15 characters).
+- `triplespace instance create` refuses an owner password under 8 characters only after it has
+  written the instance, so a short test password leaves an instance nobody can log in to.
+  Use 8 or more.
+- A test adoption that fails leaves an empty `view`, and an empty `view` passes the rebuild
+  equivalence diff vacuously. Check `adopt`'s stderr and the row counts before trusting
+  `REBUILD-IDENTICAL`.
 
 ## The device bridge and James's checkout
 

@@ -433,7 +433,8 @@ tools/api_check.py --api $LB --tenant library --ids Q1 --wbi-login "Harej bot 2@
 ```
 
 - **Comparison.** `--compare` needs network access to the source wiki. Expect content equal for
-  the sample, `pageid` equal, and `lastrevid` above the source's.
+  the sample, `pageid` and `lastrevid` equal, and each page's history equal to the source's
+  revision by revision (0035 A12; `real-dumps.md` §1.3). Run it before the WBI writes.
 - **New IDs.** New items and properties take numbers above each tenant's own floor, never a
   reused one.
 - **Search.** `wbsearchentities&search=TEXARKANA` on `creditunions` finds Q8 ("MORRIS SHEPPARD
