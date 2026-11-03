@@ -501,6 +501,6 @@ Replaced text ([09](../architecture/09-security-and-moderation.md) §4.5, as it 
 ### A28. A set member named by an entity's page ID is the entity
 
 - **Date:** 2026-11-03
-- **Source:** Direct: Claude, while fixing Special:ProtectedPages' Add a page for items, 2026-11-03; unconfirmed
+- **Source:** Direct: James, confirmed 2026-11-03; Claude's call while fixing Special:ProtectedPages' Add a page for items, 2026-11-03
 - **Change:** extends §13
 - **Summary:** A set's members are page and entity IDs (09 §4.7). `Special:ProtectedPages` adds a member by title, looks it up with `prop=info` and sends `{kind: "page", id}`; for an item that is the entity's page ID, which no document page holds, so the API answered `ts-no-target` and the site, which read a `404` from a save as an unreadable answer, said so. The set routes now read `kind: "page"` with an entity's page ID as that entity, as `pageids=` already does (18 §2.3), and record the entity's ID, so a member is added, found already held, and removed by either ID; and the site's client reads a `404` from a save as a refusal the form shows. The chapter text is 09 §4.7.

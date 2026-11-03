@@ -278,6 +278,6 @@ Replaced text ([16](../architecture/16-logs-feeds-and-notifications.md) §2.3, a
 ### A16. The source's accounts must agree with the tenant's
 
 - **Date:** 2026-11-02
-- **Source:** Direct: Claude, while building the Librarybase full-history adoption check, 2026-11-02; unconfirmed
+- **Source:** Direct: James, confirmed 2026-11-03; Claude's call while building the Librarybase full-history adoption check, 2026-11-02
 - **Change:** extends §5
 - **Summary:** Before it writes anything, the survey pass compares the dump's accounts with the accounts the tenant already has (in practice the owner that `instance create` made). It refuses the job when a source account's name is held by an account under another user ID, or when a source user ID is held under another name, and names each disagreement. Account names are unique on a tenant, as on MediaWiki, and the job leaves an account it finds present as it is, so either case would leave two accounts with one name or the source's account under the wrong name. The Librarybase run of 2026-11-01 met the first case: the owner was created under another user ID with the name of the source's account `Librarybase`, and the two same-named accounts stopped the `addressing` projection at the user page. `--no-accounts` skips the check with the accounts. The chapter text is [07](../architecture/07-actors-and-accounts.md) §2.5.
