@@ -278,6 +278,14 @@ def seed():
     cli("settings", "set", "--tenant", "librarybase", "account.approval", "true")
     C().request("Dave", "dave-secret-1234", "I catalogue my library's sources.")
 
+    # Settings from each place (group 10): the instance's own value, a default for wikis
+    # the wiki inherits, and one locked under `config.template = locks`, so the pages show
+    # every origin chip and the Defaults for wikis section with its locks.
+    cli("settings", "set", "--instance", "query.max_concurrent", "4")
+    cli("settings", "set", "--tenancy", "config.template", "locks")
+    cli("settings", "set", "--default", "dumps.keep", "14")
+    cli("settings", "set", "--default", "--lock", "thread.max_pinned", "5")
+
     st, r = alice.rest("GET", "/activity?limit=3&lang=en")
     facts["rc_next"] = must("activity", (st, r)).get("next")
     rc = alice.api(action="query", list="recentchanges", rcprop="ids|title", rclimit=50)["query"]["recentchanges"]
@@ -525,6 +533,12 @@ def paths(facts, viewer):
         (9, "/wiki/Special:ConfirmAccounts"),
         (10, "/wiki/Special:WikiSettings?tab=visibility"),
         (10, "/wiki/Special:InstanceSettings?tab=tenancy"),
+        # 10a: each section's notice after a save.
+        (10, "/wiki/Special:WikiSettings?saved=site"),
+        (10, "/wiki/Special:WikiSettings?saved=visibility"),
+        (10, "/wiki/Special:InstanceSettings?saved=tenancy"),
+        (10, "/wiki/Special:InstanceSettings?saved=defaults"),
+        (10, "/wiki/Special:WikiSettings?uselang=ar"),
     ]
     out = list(everyone)
     if viewer != "anon":
@@ -557,7 +571,9 @@ def record(clients, facts, out_dir):
               ("alice", "lb-alice", paths(facts, "alice"))]
     # Then the tenant private: an outsider sees the login page and the wiki's name, a
     # member everything.
-    private = [("anon", "lb-private", private_paths()), ("bob", "lb-private-bob", private_paths())]
+    private = [("anon", "lb-private", private_paths()), ("bob", "lb-private-bob", private_paths()),
+               # The owner's Visibility section with the wiki readable by accounts only.
+               ("alice", "lb-private-alice", [(10, "/wiki/Special:WikiSettings")])]
     # Between them, Alice approves Dave's request: the review page with none open, and the
     # notice it shows after a decision (group 9).
     done = [("alice", "lb-alice-done", [(9, "/wiki/Special:ConfirmAccounts"),
@@ -615,8 +631,8 @@ def record(clients, facts, out_dir):
         "_": ["Written by tools/skin_corpus.py from a seeded test instance; do not edit by hand.",
               "The sets are recordings under exchanges/: lb (anonymous), lb-bob (a user reading in",
               "German with dark mode), lb-alice (the owner), lb-alice-done (the owner after",
-              "approving the request the seed files for review), lb-private and lb-private-bob",
-              "(the tenant made private)."],
+              "approving the request the seed files for review), lb-private, lb-private-bob and",
+              "lb-private-alice (the tenant made private)."],
         "cases": cases,
     }, indent=1) + "\n")
     print(f"{len(cases)} cases written", file=sys.stderr)

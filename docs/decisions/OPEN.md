@@ -26,6 +26,7 @@ Log entries whose Source ends in *unconfirmed*: decisions made in code and logge
 | [0097 A3](0097-versioning-and-skins.md#a3-fragments-are-compared-as-normalized-dom) | 2026-10-30 | Fragments are compared as normalized DOM |
 | [0097 A4](0097-versioning-and-skins.md#a4-drawings-are-svg-the-binary-makes) | 2026-10-30 | Drawings are SVG the binary makes |
 | [0097 A6](0097-versioning-and-skins.md#a6-a-part-of-a-later-group-is-carried-as-html-until-that-group-switches) | 2026-10-30 | A part of a later group is carried as HTML until that group switches |
+| [0097 A9](0097-versioning-and-skins.md#a9-a-radio-button-joins-the-controls-and-a-settings-row-carries-where-its-value-comes-from) | 2026-11-02 | A radio button joins the controls, and a settings row carries where its value comes from |
 
 ## Open questions
 

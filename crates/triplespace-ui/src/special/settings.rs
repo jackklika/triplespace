@@ -18,23 +18,24 @@
 //! shows the page again with the reader's input and every reason beside its row.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::fmt::Write as _;
 
-use askama::Template as _;
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::Response;
+use serde::Serialize;
 use serde_json::{Map, Value, json};
 use triplespace_client::settings::{Refusal, Resolved, Saved, Schema, SettingDef, Settings};
 use triplespace_client::{CacheInfo, ClientError, Incoming};
 
 use crate::Site;
-use crate::codex::{Action, Button, MessageKind, Weight};
+use crate::codex::{
+    Action, Button, ButtonModel, ChipModel, Field, FieldModel, Message, MessageKind, MessageModel,
+    Weight,
+};
 use crate::features::Feature;
 use crate::frame::{Page, Tab, title_url};
-use crate::html::esc;
 use crate::i18n::Messages;
 use crate::pages::{self, Context, Params, Peer};
-use crate::special::controls::{self, Control, Kind};
+use crate::special::controls::{self, Control, ControlModel, Kind, ResetModel, SettingRow};
 
 /// Which page.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,32 +117,6 @@ fn group_label(m: &Messages, id: &str, key: &str) -> String {
     } else {
         id.to_string()
     }
-}
-
-/// The origin chip (0085 §4).
-fn origin_chip(m: &Messages, scope: Scope, r: &Resolved) -> String {
-    let (class, text) = match (r.origin.as_str(), scope) {
-        ("locked", _) => ("locked", m.get("ts-settings-origin-locked")),
-        ("tenant", _) => ("own", m.get("ts-settings-origin-tenant")),
-        ("instance", Scope::Wiki) => ("inherited", m.get("ts-settings-origin-instance")),
-        ("instance", Scope::Instance) => ("own", m.get("ts-settings-origin-instance-own")),
-        _ => ("default", m.get("ts-settings-origin-registry")),
-    };
-    let mut s = format!(
-        "<span class=\"ts-chip ts-setting__origin ts-setting__origin--{class}\">{}</span>",
-        esc(&text)
-    );
-    if let Some(c) = &r.capped {
-        let _ = write!(
-            s,
-            " <span class=\"ts-chip ts-setting__origin ts-setting__origin--capped\">{}</span>",
-            esc(&m.with(
-                "ts-settings-origin-capped",
-                &[&controls::as_text(Kind::Line, c)]
-            ))
-        );
-    }
-    s
 }
 
 /// What the page shows in place of an absent value: the registry's description of what
@@ -275,117 +250,260 @@ async fn load(
     })
 }
 
-fn hidden(name: &str, value: &str) -> String {
-    format!(
-        "<input type=\"hidden\" name=\"{}\" value=\"{}\">",
-        esc(name),
-        esc(value)
-    )
+fn value_or_unset(m: &Messages, v: Option<&Value>) -> String {
+    match v {
+        None | Some(Value::Null) => m.get("ts-settings-unset"),
+        Some(Value::String(s)) => s.clone(),
+        Some(v) => v.to_string(),
+    }
 }
 
-fn submit(label: &str) -> String {
+/// `Special:WikiSettings` and `Special:InstanceSettings` as Plain's
+/// `special/settings.html` draws them (19 §5.10): the read-only notice and the sections.
+#[derive(Debug, Clone, Serialize)]
+pub struct SettingsPage {
+    /// Said to a viewer who may change nothing.
+    pub read_only: Option<MessageModel>,
+    /// One per registry group, then Visibility, Tenancy and Defaults for wikis.
+    pub sections: Vec<SettingsSection>,
+}
+
+/// One section: its heading, notices and, where the viewer may change it, its form.
+#[derive(Debug, Clone, Serialize)]
+pub struct SettingsSection {
+    /// The anchor.
+    pub id: String,
+    /// The heading.
+    pub title: String,
+    /// A paragraph under the heading.
+    pub intro: Option<String>,
+    /// The notice after a save.
+    pub saved: Option<MessageModel>,
+    /// What the API refused about the section as a whole.
+    pub errors: Vec<MessageModel>,
+    /// The form around the body, where the viewer may change the section.
+    pub form: Option<SectionForm>,
+    /// The rows.
+    pub body: SectionBody,
+}
+
+/// A section's form: where it posts, the fields that say what it is, the summary and
+/// **Save**.
+#[derive(Debug, Clone, Serialize)]
+pub struct SectionForm {
+    /// The `action`.
+    pub action: String,
+    /// The section.
+    pub section: String,
+    /// The settings' base revision.
+    pub base: u64,
+    /// The CSRF token.
+    pub token: Option<String>,
+    /// The keys the form edits, space-separated.
+    pub keys: String,
+    /// The summary field.
+    pub summary: FieldModel,
+    /// **Save**.
+    pub save: ButtonModel,
+}
+
+/// What a section holds.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum SectionBody {
+    /// Rows of settings (`forms.html`'s `setting`).
+    Rows {
+        /// The rows.
+        rows: Vec<SettingRow>,
+    },
+    /// The tenancy switches, and on a wiki what the instance locks and caps.
+    Switches {
+        /// The switches.
+        switches: Vec<SwitchRow>,
+        /// Headed paragraphs after them.
+        facts: Vec<Fact>,
+    },
+    /// Who may read the wiki, and the form that changes it.
+    Visibility {
+        /// Who may read it now.
+        now: String,
+        /// The form, for a viewer holding a token.
+        form: Option<Box<VisibilityForm>>,
+    },
+}
+
+/// One tenancy switch.
+#[derive(Debug, Clone, Serialize)]
+pub struct SwitchRow {
+    /// The row's element ID.
+    pub row_id: String,
+    /// The label.
+    pub label: String,
+    /// The control the label is for; `None` draws the label as text.
+    pub label_for: Option<String>,
+    /// The switch's name.
+    pub key: String,
+    /// What the form refused about it.
+    pub errors: Vec<MessageModel>,
+    /// The control.
+    pub control: Option<ControlModel>,
+    /// What the switch allows, after the control.
+    pub allowed: Option<String>,
+    /// The value shown, where it is not edited here.
+    pub shown: Option<String>,
+}
+
+/// A heading and its paragraph.
+#[derive(Debug, Clone, Serialize)]
+pub struct Fact {
+    /// The heading.
+    pub heading: String,
+    /// The paragraph.
+    pub text: String,
+}
+
+/// The Visibility form (09 §4.7).
+#[derive(Debug, Clone, Serialize)]
+pub struct VisibilityForm {
+    /// The `action`.
+    pub action: String,
+    /// The CSRF token.
+    pub token: String,
+    /// The fieldset's legend.
+    pub legend: String,
+    /// Anyone, accounts on this wiki, a group.
+    pub options: Vec<ControlModel>,
+    /// The group's label.
+    pub group_label: String,
+    /// The group's select.
+    pub group: ControlModel,
+    /// The group's help.
+    pub group_help: String,
+    /// The warning before the reason.
+    pub warning: MessageModel,
+    /// The reason.
+    pub reason: FieldModel,
+    /// **Save**.
+    pub save: ButtonModel,
+}
+
+fn messages(kind: MessageKind, texts: Option<&Vec<String>>) -> Vec<MessageModel> {
+    texts.map_or_else(Vec::new, |e| {
+        e.iter().map(|t| Message::block(kind, t).model()).collect()
+    })
+}
+
+fn saved_model(m: &Messages, saved: Option<&String>, section: &str) -> Option<MessageModel> {
+    saved
+        .is_some_and(|s| s == section)
+        .then(|| Message::block(MessageKind::Success, &m.get("ts-settings-saved")).model())
+}
+
+fn submit_model(label: &str) -> ButtonModel {
     Button {
         label,
         kind: "submit",
         action: Action::Progressive,
         weight: Weight::Primary,
     }
-    .render()
-    .unwrap_or_default()
+    .model()
 }
 
-/// A **Reset** button: submits the section's form asking for one key only.
-fn reset_button(m: &Messages, value: &str, label: &str) -> String {
-    format!(
-        "<button class=\"cdx-button cdx-button--weight-quiet ts-setting__reset\" type=\"submit\" name=\"reset\" value=\"{}\" aria-label=\"{}\">{}</button>",
-        esc(value),
-        esc(&m.with("ts-settings-reset-label", &[label])),
-        esc(&m.get("ts-settings-reset"))
-    )
+fn section_errors(back: &Returned<'_>, section: &str) -> Vec<MessageModel> {
+    if back.section == section {
+        messages(MessageKind::Error, back.errors.get(""))
+    } else {
+        Vec::new()
+    }
 }
 
-fn errors_html(errors: Option<&Vec<String>>) -> String {
-    errors.map_or_else(String::new, |e| {
-        e.iter()
-            .map(|t| pages::message(MessageKind::Error, t))
-            .collect()
-    })
+/// A section's form, as `form_open` and `form_close` draw it.
+fn form_model(
+    m: &Messages,
+    scope: Scope,
+    section: &str,
+    loaded: &Loaded,
+    keys: &[&str],
+    back: &Returned<'_>,
+) -> SectionForm {
+    let summary = format!("ts-summary-{section}");
+    SectionForm {
+        action: format!("/w/index.php?title={}", title_url(scope.title())),
+        section: section.to_string(),
+        base: loaded.settings.base,
+        token: loaded.token.clone(),
+        keys: keys.join(" "),
+        summary: Field {
+            id: &summary,
+            name: "summary",
+            kind: "text",
+            value: back.text(section, "summary").unwrap_or_default(),
+            label: &m.get("ts-settings-summary"),
+            description: None,
+            help: None,
+            required: false,
+            autocomplete: None,
+        }
+        .model(),
+        save: submit_model(&m.get("ts-settings-save")),
+    }
 }
 
-/// The form's opening: where it posts, which section it is, the base and the token.
-fn form_open(scope: Scope, section: &str, base: u64, token: Option<&str>, keys: &[&str]) -> String {
-    format!(
-        "<form class=\"ts-settings__form\" method=\"post\" action=\"/w/index.php?title={}\">{}{}{}{}",
-        title_url(scope.title()),
-        hidden("section", section),
-        hidden("base", &base.to_string()),
-        token.map(|t| hidden("token", t)).unwrap_or_default(),
-        hidden("keys", &keys.join(" "))
-    )
+fn origin_chips(m: &Messages, scope: Scope, r: &Resolved) -> Vec<ChipModel> {
+    let (class, text) = match (r.origin.as_str(), scope) {
+        ("locked", _) => ("locked", m.get("ts-settings-origin-locked")),
+        ("tenant", _) => ("own", m.get("ts-settings-origin-tenant")),
+        ("instance", Scope::Wiki) => ("inherited", m.get("ts-settings-origin-instance")),
+        ("instance", Scope::Instance) => ("own", m.get("ts-settings-origin-instance-own")),
+        _ => ("default", m.get("ts-settings-origin-registry")),
+    };
+    let mut chips = vec![origin(class, text)];
+    if let Some(c) = &r.capped {
+        chips.push(origin(
+            "capped",
+            m.with(
+                "ts-settings-origin-capped",
+                &[&controls::as_text(Kind::Line, c)],
+            ),
+        ));
+    }
+    chips
 }
 
-/// The summary field and **Save**.
-fn form_close(m: &Messages, section: &str, summary: &str) -> String {
-    format!(
-        "<div class=\"ts-settings__save\"><div class=\"cdx-field\"><div class=\"cdx-label\"><label class=\"cdx-label__label\" for=\"ts-summary-{s}\"><span class=\"cdx-label__label__text\">{}</span></label></div><div class=\"cdx-field__control\"><div class=\"cdx-text-input\"><input class=\"cdx-text-input__input\" type=\"text\" id=\"ts-summary-{s}\" name=\"summary\" value=\"{}\"></div></div></div>{}</div></form>",
-        esc(&m.get("ts-settings-summary")),
-        esc(summary),
-        submit(&m.get("ts-settings-save")),
-        s = esc(section)
-    )
+fn origin(class: &str, text: String) -> ChipModel {
+    ChipModel {
+        classes: format!("ts-chip ts-setting__origin ts-setting__origin--{class}"),
+        text,
+        title: None,
+    }
+}
+
+fn reset_model(m: &Messages, value: &str, label: &str) -> ResetModel {
+    ResetModel {
+        value: value.to_string(),
+        aria_label: m.with("ts-settings-reset-label", &[label]),
+        label: m.get("ts-settings-reset"),
+    }
 }
 
 /// One setting's row.
-fn row(
+fn row_model(
     m: &Messages,
     scope: Scope,
     def: &SettingDef,
     r: &Resolved,
     editable: bool,
     back: &Returned<'_>,
-) -> String {
+) -> SettingRow {
     let id = format!("ts-s-{}", def.key);
     let help_id = format!("{id}-help");
     let kind = Kind::of(&def.ty);
     let name = format!("v.{}", def.key);
     let label_text = label(m, def);
-    let mut s = format!(
-        "<div class=\"ts-setting\" id=\"setting-{}\"><div class=\"ts-setting__head\">",
-        esc(&def.key)
-    );
-    if editable && kind != Kind::ReadOnly {
-        let _ = write!(
-            s,
-            "<label class=\"ts-setting__label\" for=\"{}\">{}</label>",
-            esc(&id),
-            esc(&label_text)
-        );
-    } else {
-        let _ = write!(
-            s,
-            "<span class=\"ts-setting__label\">{}</span>",
-            esc(&label_text)
-        );
-    }
-    let _ = write!(
-        s,
-        " {} <code class=\"ts-setting__key\">{}</code></div>",
-        origin_chip(m, scope, r),
-        esc(&def.key)
-    );
     let help_text = help(m, def);
-    if let Some(h) = &help_text {
-        let _ = write!(
-            s,
-            "<p class=\"ts-setting__help\" id=\"{}\">{}</p>",
-            esc(&help_id),
-            esc(h)
-        );
-    }
-    s.push_str(&errors_html(back.errors.get(&def.key)));
-    s.push_str("<div class=\"ts-setting__value\">");
-    if editable && kind != Kind::ReadOnly {
-        // Input the reader sent back stands in for the value.
+    let edits = editable && kind != Kind::ReadOnly;
+    let (mut control, mut shown, mut reset) = (None, None, None);
+    if edits {
         let typed;
         let value = match back.sent(&def.group) {
             Some(f) if kind == Kind::Boolean => {
@@ -406,68 +524,53 @@ fn row(
                 c.to_string()
             }
         };
-        s.push_str(&controls::render(&Control {
-            id: &id,
-            name: &name,
-            kind,
-            choices: &def.choices,
-            value,
-            empty_choice: (r.value.is_none()).then_some("—"),
-            described_by: help_text.as_ref().map(|_| help_id.as_str()),
-            choice_label: Some(&choice_label),
-        }));
+        control = Some(
+            Control {
+                id: &id,
+                name: &name,
+                kind,
+                choices: &def.choices,
+                value,
+                empty_choice: (r.value.is_none()).then_some("—"),
+                described_by: help_text.as_ref().map(|_| help_id.as_str()),
+                choice_label: Some(&choice_label),
+            }
+            .model(),
+        );
         let own = match scope {
             Scope::Wiki => r.origin == "tenant",
             Scope::Instance => r.origin == "instance",
         };
-        if own {
-            s.push_str(&reset_button(m, &def.key, &label_text));
-        }
+        reset = own.then(|| reset_model(m, &def.key, &label_text));
     } else {
-        let text = match &r.value {
+        shown = Some(match &r.value {
             None => absent(m, def),
             Some(v) => controls::shown(m, kind, Some(v)),
-        };
-        let _ = write!(s, "<span class=\"ts-setting__shown\">{}</span>", esc(&text));
+        });
     }
-    if r.unresolved_default {
-        let _ = write!(
-            s,
-            "<p class=\"ts-setting__note\">{}</p>",
-            esc(&m.get("ts-settings-unresolved-default"))
-        );
+    SettingRow {
+        row_id: format!("setting-{}", def.key),
+        key: def.key.clone(),
+        label: label_text,
+        label_for: edits.then(|| id.clone()),
+        chips: origin_chips(m, scope, r),
+        help_id: Some(help_id),
+        help: help_text,
+        errors: messages(MessageKind::Error, back.errors.get(&def.key)),
+        control,
+        shown,
+        reset,
+        lock: None,
+        shown_chip: None,
+        note: r
+            .unresolved_default
+            .then(|| m.get("ts-settings-unresolved-default")),
     }
-    s.push_str("</div></div>");
-    s
 }
 
-/// The `?saved=` notice of a section.
-fn saved_notice(m: &Messages, saved: Option<&String>, section: &str) -> String {
-    if saved.is_some_and(|s| s == section) {
-        pages::message(MessageKind::Success, &m.get("ts-settings-saved"))
-    } else {
-        String::new()
-    }
-}
-
-/// One registry group's section.
-fn group_section(
-    m: &Messages,
-    scope: Scope,
-    loaded: &Loaded,
-    group: &str,
-    group_title: &str,
-    back: &Returned<'_>,
-    saved: Option<&String>,
-) -> String {
-    let defs: Vec<&SettingDef> = loaded
-        .schema
-        .settings
-        .iter()
-        .filter(|d| d.group == group)
-        .collect();
-    let editable: BTreeSet<&str> = defs
-        .iter()
+/// The keys of a group the viewer may change.
+fn editable_keys<'a>(loaded: &'a Loaded, defs: &[&'a SettingDef]) -> BTreeSet<&'a str> {
+    defs.iter()
         .filter(|d| {
             loaded.token.is_some()
                 && loaded
@@ -477,311 +580,280 @@ fn group_section(
                     .is_some_and(|r| r.can_change)
         })
         .map(|d| d.key.as_str())
+        .collect()
+}
+
+/// One registry group's section.
+fn group_model(
+    m: &Messages,
+    scope: Scope,
+    loaded: &Loaded,
+    group: &str,
+    group_title: &str,
+    back: &Returned<'_>,
+    saved: Option<&String>,
+) -> SettingsSection {
+    let defs: Vec<&SettingDef> = loaded
+        .schema
+        .settings
+        .iter()
+        .filter(|d| d.group == group)
         .collect();
-    let mut s = format!(
-        "<section class=\"ts-settings__section\" id=\"{}\" aria-labelledby=\"{}-title\"><h2 id=\"{}-title\">{}</h2>",
-        esc(group),
-        esc(group),
-        esc(group),
-        esc(group_title)
-    );
-    s.push_str(&saved_notice(m, saved, group));
-    if back.section == group {
-        s.push_str(&errors_html(back.errors.get("")));
-    }
+    let editable = editable_keys(loaded, &defs);
     let keys: Vec<&str> = editable.iter().copied().collect();
-    if !keys.is_empty() {
-        s.push_str(&form_open(
-            scope,
-            group,
-            loaded.settings.base,
-            loaded.token.as_deref(),
-            &keys,
-        ));
+    let rows = defs
+        .iter()
+        .filter_map(|def| {
+            let r = loaded.settings.settings.get(&def.key)?;
+            Some(row_model(
+                m,
+                scope,
+                def,
+                r,
+                editable.contains(def.key.as_str()),
+                back,
+            ))
+        })
+        .collect();
+    SettingsSection {
+        id: group.to_string(),
+        title: group_title.to_string(),
+        intro: None,
+        saved: saved_model(m, saved, group),
+        errors: section_errors(back, group),
+        form: (!keys.is_empty()).then(|| form_model(m, scope, group, loaded, &keys, back)),
+        body: SectionBody::Rows { rows },
     }
-    for def in &defs {
-        let Some(r) = loaded.settings.settings.get(&def.key) else {
-            continue;
-        };
-        s.push_str(&row(
-            m,
-            scope,
-            def,
-            r,
-            editable.contains(def.key.as_str()),
-            back,
-        ));
-    }
-    if keys.is_empty() {
-        s.push_str("</section>");
-    } else {
-        let summary = back.text(group, "summary").unwrap_or_default();
-        s.push_str(&form_close(m, group, summary));
-        s.push_str("</section>");
-    }
-    s
 }
 
 /// The Visibility section (09 §4.7; 0056 §3; 19 §6.3): who may read the wiki at all.
 /// *Anyone*; *Accounts on this wiki* (`user`); *A group*. The tenant ACL behind it needs
 /// `ts-config`, which the page's token stands for; without it the section only reports.
-fn visibility_section(
+fn visibility_model(
     m: &Messages,
     cx: &Context,
     loaded: &Loaded,
     back: &Returned<'_>,
     saved: Option<&String>,
-) -> String {
-    let Some((vis, groups)) = &loaded.visibility else {
-        return String::new();
-    };
-    let mut s = format!(
-        "<section class=\"ts-settings__section\" id=\"{VISIBILITY}\" aria-labelledby=\"{VISIBILITY}-title\"><h2 id=\"{VISIBILITY}-title\">{}</h2>",
-        esc(&m.get("ts-settings-group-visibility")),
-    );
-    s.push_str(&saved_notice(m, saved, VISIBILITY));
-    if back.section == VISIBILITY {
-        s.push_str(&errors_html(back.errors.get("")));
-    }
+) -> Option<SettingsSection> {
+    let (vis, groups) = loaded.visibility.as_ref()?;
     let current = match vis.read_group.as_deref() {
-        None => "anyone".to_string(),
-        Some("user") => "user".to_string(),
-        Some(_) => "group".to_string(),
+        None => "anyone",
+        Some("user") => "user",
+        Some(_) => "group",
     };
-    let chosen = back
-        .text(VISIBILITY, "visibility")
-        .unwrap_or(&current)
-        .to_string();
+    let chosen = back.text(VISIBILITY, "visibility").unwrap_or(current);
     let group_now = back
         .text(VISIBILITY, "group")
         .map(str::to_string)
         .or_else(|| vis.read_group.clone().filter(|g| g != "user"))
         .unwrap_or_default();
-    let _ = write!(
-        s,
-        "<p>{}</p>",
-        esc(&m.with(
-            "ts-settings-visibility-now",
-            &[&match vis.read_group.as_deref() {
-                None => m.get("ts-settings-visibility-anyone"),
-                Some("user") => m.get("ts-settings-visibility-user"),
-                Some(g) => m.with("ts-settings-visibility-a-group", &[g]),
-            }]
-        ))
+    let now = m.with(
+        "ts-settings-visibility-now",
+        &[&match vis.read_group.as_deref() {
+            None => m.get("ts-settings-visibility-anyone"),
+            Some("user") => m.get("ts-settings-visibility-user"),
+            Some(g) => m.with("ts-settings-visibility-a-group", &[g]),
+        }],
     );
-    let Some(token) = loaded.token.as_deref() else {
-        s.push_str("</section>");
-        return s;
-    };
-    let _ = write!(
-        s,
-        "<form method=\"post\" action=\"/wiki/{}\">{}{}<fieldset class=\"ts-settings__visibility\"><legend>{}</legend>",
-        esc(&title_url(Scope::Wiki.title())),
-        hidden("token", token),
-        hidden("section", VISIBILITY),
-        esc(&m.get("ts-settings-visibility-who")),
-    );
-    for (value, key) in [
-        ("anyone", "ts-settings-visibility-anyone"),
-        ("user", "ts-settings-visibility-user"),
-        ("group", "ts-settings-visibility-group"),
-    ] {
-        let _ = write!(
-            s,
-            "<span class=\"cdx-radio\"><input class=\"cdx-radio__input\" type=\"radio\" id=\"ts-vis-{value}\" name=\"visibility\" value=\"{value}\"{}><span class=\"cdx-radio__icon\"></span><label class=\"cdx-radio__label\" for=\"ts-vis-{value}\">{}</label></span>",
-            if chosen == value { " checked" } else { "" },
-            esc(&m.get(key)),
-        );
-    }
-    let group_value = Value::String(group_now);
-    let picker = controls::render(&Control {
-        id: "ts-vis-group-name",
-        name: "group",
-        kind: Kind::Choice,
-        choices: groups,
-        value: Some(&group_value),
-        empty_choice: Some(""),
-        described_by: Some("ts-vis-group-help"),
-        choice_label: None,
+    let form = loaded.token.as_deref().map(|token| {
+        let group_value = Value::String(group_now);
+        Box::new(VisibilityForm {
+            action: format!("/wiki/{}", title_url(Scope::Wiki.title())),
+            token: token.to_string(),
+            legend: m.get("ts-settings-visibility-who"),
+            options: [
+                ("anyone", "ts-settings-visibility-anyone"),
+                ("user", "ts-settings-visibility-user"),
+                ("group", "ts-settings-visibility-group"),
+            ]
+            .into_iter()
+            .map(|(value, key)| ControlModel::Radio {
+                id: Some(format!("ts-vis-{value}")),
+                name: "visibility".into(),
+                value: value.into(),
+                checked: chosen == value,
+                label: m.get(key),
+                described_by: None,
+            })
+            .collect(),
+            group_label: m.get("ts-settings-visibility-which-group"),
+            group: Control {
+                id: "ts-vis-group-name",
+                name: "group",
+                kind: Kind::Choice,
+                choices: groups,
+                value: Some(&group_value),
+                empty_choice: Some(""),
+                described_by: Some("ts-vis-group-help"),
+                choice_label: None,
+            }
+            .model(),
+            group_help: m.with(
+                "ts-settings-visibility-group-help",
+                &[&cx.groups.join(", ")],
+            ),
+            warning: Message::block(
+                MessageKind::Warning,
+                &m.get("ts-settings-visibility-warning"),
+            )
+            .model(),
+            reason: Field {
+                id: "ts-vis-reason",
+                name: "reason",
+                kind: "text",
+                value: back.text(VISIBILITY, "reason").unwrap_or_default(),
+                label: &m.get("ts-settings-visibility-reason"),
+                description: None,
+                help: None,
+                required: false,
+                autocomplete: None,
+            }
+            .model(),
+            save: submit_model(&m.get("ts-settings-save")),
+        })
     });
-    let _ = write!(
-        s,
-        "<div class=\"cdx-field\"><div class=\"cdx-label\"><label class=\"cdx-label__label\" for=\"ts-vis-group-name\"><span class=\"cdx-label__label__text\">{}</span></label></div><div class=\"cdx-field__control\">{picker}</div><div class=\"cdx-field__help-text\" id=\"ts-vis-group-help\">{}</div></div></fieldset>{}<div class=\"cdx-field\"><div class=\"cdx-label\"><label class=\"cdx-label__label\" for=\"ts-vis-reason\"><span class=\"cdx-label__label__text\">{}</span></label></div><div class=\"cdx-field__control\"><div class=\"cdx-text-input\"><input class=\"cdx-text-input__input\" type=\"text\" id=\"ts-vis-reason\" name=\"reason\" value=\"{}\"></div></div></div>{}</form></section>",
-        esc(&m.get("ts-settings-visibility-which-group")),
-        esc(&m.with(
-            "ts-settings-visibility-group-help",
-            &[&cx.groups.join(", ")]
-        )),
-        pages::message(
-            MessageKind::Warning,
-            &m.get("ts-settings-visibility-warning")
-        ),
-        esc(&m.get("ts-settings-visibility-reason")),
-        esc(back.text(VISIBILITY, "reason").unwrap_or_default()),
-        submit(&m.get("ts-settings-save")),
-    );
-    s
+    Some(SettingsSection {
+        id: VISIBILITY.into(),
+        title: m.get("ts-settings-group-visibility"),
+        intro: None,
+        saved: saved_model(m, saved, VISIBILITY),
+        errors: section_errors(back, VISIBILITY),
+        form: None,
+        body: SectionBody::Visibility { now, form },
+    })
 }
 
-fn value_or_unset(m: &Messages, v: Option<&Value>) -> String {
-    match v {
-        None | Some(Value::Null) => m.get("ts-settings-unset"),
-        Some(Value::String(s)) => s.clone(),
-        Some(v) => v.to_string(),
-    }
+/// What a wiki's Tenancy section says the instance locks and caps.
+fn tenancy_facts(m: &Messages, schema: &Schema) -> Vec<Fact> {
+    let mut facts = Vec::new();
+    facts.push(Fact {
+        heading: m.get("ts-settings-tenancy-locked"),
+        text: if schema.locked.is_empty() || schema.template != "locks" {
+            m.get("ts-settings-tenancy-none-locked")
+        } else {
+            schema
+                .locked
+                .iter()
+                .map(|k| k.strip_prefix("site:").unwrap_or(k).to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        },
+    });
+    facts.push(Fact {
+        heading: m.get("ts-settings-tenancy-ceilings"),
+        text: if schema.ceilings.is_empty() {
+            m.get("ts-settings-tenancy-no-ceilings")
+        } else {
+            schema
+                .ceilings
+                .iter()
+                .map(|(k, v)| format!("{k} ≤ {}", value_or_unset(m, Some(v))))
+                .collect::<Vec<_>>()
+                .join(", ")
+        },
+    });
+    facts
 }
 
 /// The tenancy policy: read-only on a wiki, the switches' form at the farm base.
-#[allow(clippy::too_many_lines)] // one section of markup, read top to bottom
-fn tenancy_section(
+fn tenancy_model(
     m: &Messages,
     scope: Scope,
     loaded: &Loaded,
     back: &Returned<'_>,
     saved: Option<&String>,
-) -> String {
+) -> SettingsSection {
     let schema = &loaded.schema;
     let editable = scope == Scope::Instance
         && loaded.token.is_some()
         && may_configure(schema, &loaded.settings);
-    let mut s = format!(
-        "<section class=\"ts-settings__section\" id=\"{TENANCY}\" aria-labelledby=\"{TENANCY}-title\"><h2 id=\"{TENANCY}-title\">{}</h2><p>{}</p>",
-        esc(&m.get("ts-settings-group-tenancy")),
-        esc(&m.get(match scope {
+    let switches = schema
+        .tenancy
+        .iter()
+        .map(|(name, sw)| {
+            let id = format!("ts-t-{name}");
+            let field = format!("t.{name}");
+            let label_key = format!("ts-tenancy-{}", name.replace('.', "-"));
+            let (mut control, mut allowed, mut shown) = (None, None, None);
+            if editable {
+                let typed;
+                let value = match back.text(TENANCY, &field) {
+                    Some(raw) => {
+                        typed = Value::String(raw.to_string());
+                        Some(&typed)
+                    }
+                    _ => sw.value.as_ref(),
+                };
+                let kind = if sw.allowed.choices.is_empty() {
+                    Kind::Line
+                } else {
+                    Kind::Choice
+                };
+                control = Some(
+                    Control {
+                        id: &id,
+                        name: &field,
+                        kind,
+                        choices: &sw.allowed.choices,
+                        value,
+                        empty_choice: sw.value.is_none().then_some("—"),
+                        described_by: None,
+                        choice_label: None,
+                    }
+                    .model(),
+                );
+                allowed.clone_from(&sw.allowed.text);
+            } else {
+                shown = Some(value_or_unset(m, sw.value.as_ref()));
+            }
+            SwitchRow {
+                row_id: format!("switch-{name}"),
+                label: if m.has(&label_key) {
+                    m.get(&label_key)
+                } else {
+                    name.clone()
+                },
+                label_for: editable.then_some(id),
+                key: name.clone(),
+                errors: messages(MessageKind::Error, back.errors.get(name)),
+                control,
+                allowed,
+                shown,
+            }
+        })
+        .collect();
+    let facts = if scope == Scope::Wiki {
+        tenancy_facts(m, schema)
+    } else {
+        Vec::new()
+    };
+    let keys: Vec<&str> = schema.tenancy.keys().map(String::as_str).collect();
+    SettingsSection {
+        id: TENANCY.into(),
+        title: m.get("ts-settings-group-tenancy"),
+        intro: Some(m.get(match scope {
             Scope::Wiki => "ts-settings-tenancy-wiki",
             Scope::Instance => "ts-settings-tenancy-instance",
-        }))
-    );
-    s.push_str(&saved_notice(m, saved, TENANCY));
-    if back.section == TENANCY {
-        s.push_str(&errors_html(back.errors.get("")));
+        })),
+        saved: saved_model(m, saved, TENANCY),
+        errors: section_errors(back, TENANCY),
+        form: editable.then(|| form_model(m, scope, TENANCY, loaded, &keys, back)),
+        body: SectionBody::Switches { switches, facts },
     }
-    let switches: Vec<&str> = schema.tenancy.keys().map(String::as_str).collect();
-    if editable {
-        s.push_str(&form_open(
-            scope,
-            TENANCY,
-            loaded.settings.base,
-            loaded.token.as_deref(),
-            &switches,
-        ));
-    }
-    s.push_str("<dl class=\"ts-settings__switches\">");
-    for (name, sw) in &schema.tenancy {
-        let id = format!("ts-t-{name}");
-        let field = format!("t.{name}");
-        let label_key = format!("ts-tenancy-{}", name.replace('.', "-"));
-        let label_text = if m.has(&label_key) {
-            m.get(&label_key)
-        } else {
-            name.clone()
-        };
-        let _ = write!(s, "<div class=\"ts-setting\" id=\"switch-{}\">", esc(name));
-        if editable {
-            let _ = write!(
-                s,
-                "<dt><label class=\"ts-setting__label\" for=\"{}\">{}</label> <code class=\"ts-setting__key\">{}</code></dt>",
-                esc(&id),
-                esc(&label_text),
-                esc(name)
-            );
-        } else {
-            let _ = write!(
-                s,
-                "<dt><span class=\"ts-setting__label\">{}</span> <code class=\"ts-setting__key\">{}</code></dt>",
-                esc(&label_text),
-                esc(name)
-            );
-        }
-        s.push_str(&errors_html(back.errors.get(name)));
-        s.push_str("<dd>");
-        if editable {
-            let typed;
-            let value = match back.text(TENANCY, &field) {
-                Some(raw) => {
-                    typed = Value::String(raw.to_string());
-                    Some(&typed)
-                }
-                _ => sw.value.as_ref(),
-            };
-            let kind = if sw.allowed.choices.is_empty() {
-                Kind::Line
-            } else {
-                Kind::Choice
-            };
-            s.push_str(&controls::render(&Control {
-                id: &id,
-                name: &field,
-                kind,
-                choices: &sw.allowed.choices,
-                value,
-                empty_choice: sw.value.is_none().then_some("—"),
-                described_by: None,
-                choice_label: None,
-            }));
-            if let Some(t) = &sw.allowed.text {
-                let _ = write!(s, " <span class=\"ts-setting__help\">{}</span>", esc(t));
-            }
-        } else {
-            let _ = write!(
-                s,
-                "<span class=\"ts-setting__shown\">{}</span>",
-                esc(&value_or_unset(m, sw.value.as_ref()))
-            );
-        }
-        s.push_str("</dd></div>");
-    }
-    s.push_str("</dl>");
-    if scope == Scope::Wiki {
-        let _ = write!(
-            s,
-            "<h3>{}</h3><p>{}</p>",
-            esc(&m.get("ts-settings-tenancy-locked")),
-            esc(&if schema.locked.is_empty() || schema.template != "locks" {
-                m.get("ts-settings-tenancy-none-locked")
-            } else {
-                schema
-                    .locked
-                    .iter()
-                    .map(|k| k.strip_prefix("site:").unwrap_or(k).to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            })
-        );
-        let _ = write!(
-            s,
-            "<h3>{}</h3><p>{}</p>",
-            esc(&m.get("ts-settings-tenancy-ceilings")),
-            esc(&if schema.ceilings.is_empty() {
-                m.get("ts-settings-tenancy-no-ceilings")
-            } else {
-                schema
-                    .ceilings
-                    .iter()
-                    .map(|(k, v)| format!("{k} ≤ {}", value_or_unset(m, Some(v))))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            })
-        );
-    }
-    if editable {
-        let summary = back.text(TENANCY, "summary").unwrap_or_default();
-        s.push_str(&form_close(m, TENANCY, summary));
-    }
-    s.push_str("</section>");
-    s
 }
 
 /// A default's control: a boolean is a select of on, off and no default, since a
 /// checkbox cannot say "none"; other types as their own control.
-fn default_control(
+fn default_control_model(
     m: &Messages,
     def: &SettingDef,
     value: Option<&Value>,
     id: &str,
     name: &str,
-) -> String {
+) -> ControlModel {
     let kind = Kind::of(&def.ty);
+    let no_default = m.get("ts-settings-no-default");
     if kind == Kind::Boolean {
         let choices = vec!["true".to_string(), "false".to_string()];
         let as_choice = value
@@ -794,242 +866,186 @@ fn default_control(
                 m.get("ts-settings-off")
             }
         };
-        return controls::render(&Control {
+        return Control {
             id,
             name,
             kind: Kind::Choice,
             choices: &choices,
             value: as_choice.as_ref().or(value.filter(|v| v.is_string())),
-            empty_choice: Some(&m.get("ts-settings-no-default")),
+            empty_choice: Some(&no_default),
             described_by: None,
             choice_label: Some(&label),
-        });
+        }
+        .model();
     }
-    if kind == Kind::Choice {
-        return controls::render(&Control {
-            id,
-            name,
-            kind,
-            choices: &def.choices,
-            value,
-            empty_choice: Some(&m.get("ts-settings-no-default")),
-            described_by: None,
-            choice_label: None,
-        });
-    }
-    controls::render(&Control {
+    Control {
         id,
         name,
         kind,
         choices: &def.choices,
         value,
-        empty_choice: None,
+        empty_choice: (kind == Kind::Choice).then_some(no_default.as_str()),
         described_by: None,
         choice_label: None,
-    })
+    }
+    .model()
 }
 
 /// The instance's defaults for wikis, with their locks (0085 §4).
-#[allow(clippy::too_many_lines)] // one section of markup, read top to bottom
-fn defaults_section(
+fn defaults_model(
     m: &Messages,
     loaded: &Loaded,
     tenant_defs: &[SettingDef],
     back: &Returned<'_>,
     saved: Option<&String>,
-) -> String {
+) -> SettingsSection {
     let schema = &loaded.schema;
     let locks = schema.template == "locks";
     let editable = loaded.token.is_some() && may_configure(schema, &loaded.settings);
-    let mut s = format!(
-        "<section class=\"ts-settings__section\" id=\"{DEFAULTS}\" aria-labelledby=\"{DEFAULTS}-title\"><h2 id=\"{DEFAULTS}-title\">{}</h2><p>{}</p>",
-        esc(&m.get("ts-settings-group-defaults")),
-        esc(&m.get(if locks {
-            "ts-settings-defaults-intro-locks"
-        } else {
-            "ts-settings-defaults-intro"
-        }))
-    );
-    s.push_str(&saved_notice(m, saved, DEFAULTS));
-    if back.section == DEFAULTS {
-        s.push_str(&errors_html(back.errors.get("")));
-    }
     let keys: Vec<&str> = tenant_defs
         .iter()
         .filter(|d| Kind::of(&d.ty) != Kind::ReadOnly)
         .map(|d| d.key.as_str())
         .collect();
-    if editable {
-        s.push_str(&form_open(
-            Scope::Instance,
-            DEFAULTS,
-            loaded.settings.base,
-            loaded.token.as_deref(),
-            &keys,
-        ));
-    }
-    for def in tenant_defs {
-        let Some(ts) = schema.tenant_settings.get(&def.key) else {
-            continue;
-        };
-        let kind = Kind::of(&def.ty);
-        let id = format!("ts-d-{}", def.key);
-        let name = format!("d.{}", def.key);
-        let label_text = label(m, def);
-        let _ = write!(
-            s,
-            "<div class=\"ts-setting\" id=\"default-{}\"><div class=\"ts-setting__head\">",
-            esc(&def.key)
-        );
-        if editable && kind != Kind::ReadOnly {
-            let _ = write!(
-                s,
-                "<label class=\"ts-setting__label\" for=\"{}\">{}</label>",
-                esc(&id),
-                esc(&label_text)
-            );
-        } else {
-            let _ = write!(
-                s,
-                "<span class=\"ts-setting__label\">{}</span>",
-                esc(&label_text)
-            );
-        }
-        let _ = write!(
-            s,
-            " <code class=\"ts-setting__key\">{}</code></div>",
-            esc(&def.key)
-        );
-        s.push_str(&errors_html(back.errors.get(&def.key)));
-        let _ = write!(
-            s,
-            "<p class=\"ts-setting__help\">{}</p>",
-            esc(&m.with(
-                "ts-settings-registry-default",
-                &[&ts
-                    .registry_default
-                    .as_ref()
-                    .map_or_else(|| absent(m, def), |v| controls::shown(m, kind, Some(v)))]
-            ))
-        );
-        s.push_str("<div class=\"ts-setting__value\">");
-        if editable && kind != Kind::ReadOnly {
-            let typed;
-            let value = match back.text(DEFAULTS, &name) {
-                Some(raw) => {
-                    typed = Value::String(raw.to_string());
-                    Some(&typed)
-                }
-                _ => ts.instance_default.as_ref(),
-            };
-            s.push_str(&default_control(m, def, value, &id, &name));
-            if ts.instance_default.is_some() {
-                s.push_str(&reset_button(m, &format!("d.{}", def.key), &label_text));
-            }
-            if locks {
-                let lock_id = format!("ts-l-{}", def.key);
-                let checked = match back.sent(DEFAULTS) {
-                    Some(f) => f.contains_key(&format!("l.{}", def.key)),
-                    None => ts.locked,
+    let rows = tenant_defs
+        .iter()
+        .filter_map(|def| {
+            let ts = schema.tenant_settings.get(&def.key)?;
+            let kind = Kind::of(&def.ty);
+            let id = format!("ts-d-{}", def.key);
+            let name = format!("d.{}", def.key);
+            let label_text = label(m, def);
+            let edits = editable && kind != Kind::ReadOnly;
+            let (mut control, mut shown, mut reset, mut lock, mut shown_chip) =
+                (None, None, None, None, None);
+            if edits {
+                let typed;
+                let value = match back.text(DEFAULTS, &name) {
+                    Some(raw) => {
+                        typed = Value::String(raw.to_string());
+                        Some(&typed)
+                    }
+                    _ => ts.instance_default.as_ref(),
                 };
-                let _ = write!(
-                    s,
-                    " <span class=\"cdx-checkbox cdx-checkbox--inline\"><input class=\"cdx-checkbox__input\" type=\"checkbox\" id=\"{lid}\" name=\"l.{key}\" value=\"1\"{}><span class=\"cdx-checkbox__icon\"></span><label class=\"cdx-checkbox__label\" for=\"{lid}\">{}</label></span>",
-                    if checked { " checked" } else { "" },
-                    esc(&m.get("ts-settings-lock")),
-                    lid = esc(&lock_id),
-                    key = esc(&def.key)
-                );
-            }
-        } else {
-            let _ = write!(
-                s,
-                "<span class=\"ts-setting__shown\">{}</span>",
-                esc(&ts.instance_default.as_ref().map_or_else(
+                control = Some(default_control_model(m, def, value, &id, &name));
+                reset = ts
+                    .instance_default
+                    .is_some()
+                    .then(|| reset_model(m, &format!("d.{}", def.key), &label_text));
+                if locks {
+                    let checked = match back.sent(DEFAULTS) {
+                        Some(f) => f.contains_key(&format!("l.{}", def.key)),
+                        None => ts.locked,
+                    };
+                    lock = Some(ControlModel::Checkbox {
+                        id: Some(format!("ts-l-{}", def.key)),
+                        name: format!("l.{}", def.key),
+                        value: "1".into(),
+                        checked,
+                        label: Some(m.get("ts-settings-lock")),
+                        described_by: None,
+                    });
+                }
+            } else {
+                shown = Some(ts.instance_default.as_ref().map_or_else(
                     || m.get("ts-settings-no-default"),
-                    |v| controls::shown(m, kind, Some(v))
-                ))
-            );
-            if ts.locked {
-                let _ = write!(
-                    s,
-                    " <span class=\"ts-chip ts-setting__origin ts-setting__origin--locked\">{}</span>",
-                    esc(&m.get("ts-settings-origin-locked"))
-                );
+                    |v| controls::shown(m, kind, Some(v)),
+                ));
+                shown_chip = ts
+                    .locked
+                    .then(|| origin("locked", m.get("ts-settings-origin-locked")));
             }
-        }
-        if let Some(n) = ts.inheriting {
-            let _ = write!(
-                s,
-                "<p class=\"ts-setting__note\">{}</p>",
-                esc(&m.with("ts-settings-inheriting", &[&n.to_string()]))
-            );
-        }
-        s.push_str("</div></div>");
+            Some(SettingRow {
+                row_id: format!("default-{}", def.key),
+                key: def.key.clone(),
+                label: label_text,
+                label_for: edits.then_some(id),
+                chips: Vec::new(),
+                help_id: None,
+                help: Some(
+                    m.with(
+                        "ts-settings-registry-default",
+                        &[&ts
+                            .registry_default
+                            .as_ref()
+                            .map_or_else(|| absent(m, def), |v| controls::shown(m, kind, Some(v)))],
+                    ),
+                ),
+                errors: messages(MessageKind::Error, back.errors.get(&def.key)),
+                control,
+                shown,
+                reset,
+                lock,
+                shown_chip,
+                note: ts
+                    .inheriting
+                    .map(|n| m.with("ts-settings-inheriting", &[&n.to_string()])),
+            })
+        })
+        .collect();
+    SettingsSection {
+        id: DEFAULTS.into(),
+        title: m.get("ts-settings-group-defaults"),
+        intro: Some(m.get(if locks {
+            "ts-settings-defaults-intro-locks"
+        } else {
+            "ts-settings-defaults-intro"
+        })),
+        saved: saved_model(m, saved, DEFAULTS),
+        errors: section_errors(back, DEFAULTS),
+        form: editable.then(|| form_model(m, Scope::Instance, DEFAULTS, loaded, &keys, back)),
+        body: SectionBody::Rows { rows },
     }
-    if editable {
-        let summary = back.text(DEFAULTS, "summary").unwrap_or_default();
-        s.push_str(&form_close(m, DEFAULTS, summary));
-    }
-    s.push_str("</section>");
-    s
 }
 
-/// The page's body and its section links.
-fn body(
+/// The page's model and its section links.
+fn page_model(
     cx: &Context,
     scope: Scope,
     loaded: &Loaded,
     tenant_defs: &[SettingDef],
     back: &Returned<'_>,
     saved: Option<&String>,
-) -> (String, Vec<Tab>) {
+) -> (SettingsPage, Vec<Tab>) {
     let m = &cx.m;
     let mut tabs = Vec::new();
-    let mut sections = String::new();
+    let mut sections = Vec::new();
+    let mut tab = |label: String, id: &str| {
+        tabs.push(Tab {
+            label,
+            href: format!("#{id}"),
+            current: false,
+        });
+    };
     for g in &loaded.schema.groups {
         let title = group_label(m, &g.id, &g.label);
-        tabs.push(Tab {
-            label: title.clone(),
-            href: format!("#{}", g.id),
-            current: false,
-        });
-        sections.push_str(&group_section(m, scope, loaded, &g.id, &title, back, saved));
+        tab(title.clone(), &g.id);
+        sections.push(group_model(m, scope, loaded, &g.id, &title, back, saved));
     }
-    if loaded.visibility.is_some() {
-        tabs.push(Tab {
-            label: m.get("ts-settings-group-visibility"),
-            href: format!("#{VISIBILITY}"),
-            current: false,
-        });
-        sections.push_str(&visibility_section(m, cx, loaded, back, saved));
+    if let Some(v) = visibility_model(m, cx, loaded, back, saved) {
+        tab(m.get("ts-settings-group-visibility"), VISIBILITY);
+        sections.push(v);
     }
-    tabs.push(Tab {
-        label: m.get("ts-settings-group-tenancy"),
-        href: format!("#{TENANCY}"),
-        current: false,
-    });
-    sections.push_str(&tenancy_section(m, scope, loaded, back, saved));
+    tab(m.get("ts-settings-group-tenancy"), TENANCY);
+    sections.push(tenancy_model(m, scope, loaded, back, saved));
     if scope == Scope::Instance
         && loaded.schema.template != "none"
         && !loaded.schema.template.is_empty()
     {
-        tabs.push(Tab {
-            label: m.get("ts-settings-group-defaults"),
-            href: format!("#{DEFAULTS}"),
-            current: false,
-        });
-        sections.push_str(&defaults_section(m, loaded, tenant_defs, back, saved));
+        tab(m.get("ts-settings-group-defaults"), DEFAULTS);
+        sections.push(defaults_model(m, loaded, tenant_defs, back, saved));
     }
-    let mut out = String::new();
-    if loaded.token.is_none() {
-        out.push_str(&pages::message(
-            MessageKind::Notice,
-            &m.get("ts-settings-read-only"),
-        ));
-    }
-    out.push_str(&sections);
-    (format!("<div class=\"ts-settings\">{out}</div>"), tabs)
+    let read_only = loaded
+        .token
+        .is_none()
+        .then(|| Message::block(MessageKind::Notice, &m.get("ts-settings-read-only")).model());
+    (
+        SettingsPage {
+            read_only,
+            sections,
+        },
+        tabs,
+    )
 }
 
 /// The tenant settings' definitions, for **Defaults for wikis**: the tenant-scope schema,
@@ -1086,7 +1102,8 @@ async fn render_page(
         Ok(d) => d,
         Err(e) => return pages::api_failed(cx, headers, &e),
     };
-    let (html, tabs) = body(cx, scope, &loaded, &defs, back, saved);
+    let (model, tabs) = page_model(cx, scope, &loaded, &defs, back, saved);
+    let html = cx.draw("special/settings.html", &model);
     let page = pages::respond(cx, headers, status, |m| Page {
         title: m.get(match scope {
             Scope::Wiki => "ts-wikisettings-title",

@@ -67,7 +67,7 @@ struct Corpus {
 /// The migration groups that have switched to the skin (19 §5.10): a case in one of
 /// them must be equal. A group joins when it switches; the cases of the groups still to
 /// come are reported, not failed, while their templates are written.
-const MIGRATED: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9];
+const MIGRATED: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 use triplespace_ui::{Renderer, Site};
 

@@ -1,9 +1,11 @@
 {#- The site's form controls (0097 A7, A8; 19 §5.10): one vocabulary for every form that
     works without JavaScript. `control` draws one control over `special::controls`'
-    `ControlModel`; two layouts place controls: `item`, a `FormItem` of a form that works
-    by GET (a control under its label, a checkbox with its own label, a fieldset), and
-    `setting`, a row of the preferences and settings forms (label, key, help, errors,
-    **Reset**). `described_by` points at a control's help.
+    `ControlModel`; a checkbox's or radio button's own label goes after it, pointing at
+    its ID, or wrapping it where it has none. Two layouts place controls: `item`, a
+    `FormItem` of a form that works by GET (a control under its label, a checkbox with its
+    own label, a fieldset), and `setting`, a row of the preferences and settings forms
+    (label, origin chips, key, help, errors, **Reset**, **Lock**). `described_by` points at
+    a control's help.
 
     {% import "forms.html" as forms %} … {{ forms.control(c) }} {{ forms.item(i) }} -#}
 
@@ -14,10 +16,18 @@
 
 {%- macro control(c) -%}
 {%- if c.kind == "checkbox" -%}
-{%- if c.label -%}
+{%- if c.label and c.id -%}
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="{{ c.id }}" name="{{ c.name }}" value="{{ c.value }}"{% if c.checked %} checked{% endif %}{{ described(c) }}><span class="cdx-checkbox__icon"></span><label class="cdx-checkbox__label" for="{{ c.id }}">{{ c.label }}</label></span>
+{%- elif c.label -%}
 <label class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox"{{ id(c) }} name="{{ c.name }}" value="{{ c.value }}"{% if c.checked %} checked{% endif %}{{ described(c) }}><span class="cdx-checkbox__icon"></span><span class="cdx-checkbox__label">{{ c.label }}</span></label>
 {%- else -%}
 <span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox"{{ id(c) }} name="{{ c.name }}" value="{{ c.value }}"{% if c.checked %} checked{% endif %}{{ described(c) }}><span class="cdx-checkbox__icon"></span></span>
+{%- endif -%}
+{%- elif c.kind == "radio" -%}
+{%- if c.id -%}
+<span class="cdx-radio"><input class="cdx-radio__input" type="radio" id="{{ c.id }}" name="{{ c.name }}" value="{{ c.value }}"{% if c.checked %} checked{% endif %}{{ described(c) }}><span class="cdx-radio__icon"></span><label class="cdx-radio__label" for="{{ c.id }}">{{ c.label }}</label></span>
+{%- else -%}
+<label class="cdx-radio"><input class="cdx-radio__input" type="radio" name="{{ c.name }}" value="{{ c.value }}"{% if c.checked %} checked{% endif %}{{ described(c) }}><span class="cdx-radio__icon"></span><span class="cdx-radio__label">{{ c.label }}</span></label>
 {%- endif -%}
 {%- elif c.kind == "select" -%}
 <select class="cdx-select"{{ id(c) }} name="{{ c.name }}"{{ described(c) }}>{% for o in c.options %}<option value="{{ o.value }}"{% if o.selected %} selected{% endif %}>{{ o.label }}</option>{% endfor %}</select>
@@ -30,13 +40,14 @@
 {%- endif -%}
 {%- endmacro -%}
 
-{#- One row of a settings or preferences form (`SettingRow`): the label and key, the help,
-    the row's errors, then the control or the value shown, **Reset**, and a note. -#}
+{#- One row of a settings or preferences form (`SettingRow`): the label, its origin chips
+    and the key, the help, the row's errors, then the control or the value shown, **Reset**,
+    **Lock** or the locked chip, and a note. -#}
 {%- macro setting(r) -%}
-<div class="ts-setting" id="{{ r.row_id }}"><div class="ts-setting__head">{% if r.label_for %}<label class="ts-setting__label" for="{{ r.label_for }}">{{ r.label }}</label>{% else %}<span class="ts-setting__label">{{ r.label }}</span>{% endif %} <code class="ts-setting__key">{{ r.key }}</code></div>
-{%- if r.help %}<p class="ts-setting__help" id="{{ r.help_id }}">{{ r.help }}</p>{% endif -%}
+<div class="ts-setting" id="{{ r.row_id }}"><div class="ts-setting__head">{% if r.label_for %}<label class="ts-setting__label" for="{{ r.label_for }}">{{ r.label }}</label>{% else %}<span class="ts-setting__label">{{ r.label }}</span>{% endif %}{% for c in r.chips %} {{ codex.chip(c) }}{% endfor %} <code class="ts-setting__key">{{ r.key }}</code></div>
+{%- if r.help %}<p class="ts-setting__help"{% if r.help_id %} id="{{ r.help_id }}"{% endif %}>{{ r.help }}</p>{% endif -%}
 {%- for e in r.errors %}{{ codex.message(e) }}{% endfor -%}
-<div class="ts-setting__value">{% if r.control %}{{ control(r.control) }}{% endif %}{% if r.shown is not none %}<span class="ts-setting__shown">{{ r.shown }}</span>{% endif %}{% if r.reset %}<button class="cdx-button cdx-button--weight-quiet ts-setting__reset" type="submit" name="reset" value="{{ r.reset.value }}" aria-label="{{ r.reset.aria_label }}">{{ r.reset.label }}</button>{% endif %}{% if r.note %}<p class="ts-setting__note">{{ r.note }}</p>{% endif %}</div></div>
+<div class="ts-setting__value">{% if r.control %}{{ control(r.control) }}{% endif %}{% if r.shown is not none %}<span class="ts-setting__shown">{{ r.shown }}</span>{% endif %}{% if r.reset %}<button class="cdx-button cdx-button--weight-quiet ts-setting__reset" type="submit" name="reset" value="{{ r.reset.value }}" aria-label="{{ r.reset.aria_label }}">{{ r.reset.label }}</button>{% endif %}{% if r.lock %} {{ control(r.lock) }}{% endif %}{% if r.shown_chip %} {{ codex.chip(r.shown_chip) }}{% endif %}{% if r.note %}<p class="ts-setting__note">{{ r.note }}</p>{% endif %}</div></div>
 {%- endmacro -%}
 
 {#- One item of a form that works by GET (`FormItem`): a control under its label, which

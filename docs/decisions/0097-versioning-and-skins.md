@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-10-29
-- **Updated:** 2026-11-01 (A8)
+- **Updated:** 2026-11-02 (A9)
 - **Author:** James Hare / Claude Opus
 - **Changes:** [0005](0005-crate-organization.md), [0015](0015-record-format-and-partition-registry.md), [0034](0034-frontend-stack.md), [0057](0057-web-tier.md), [0077](0077-special-version.md), [0086](0086-theming.md), [0095](0095-the-interface-namespace.md)
 - **Uses:** [0012](0012-api-requirements.md), [0028](0028-tenancy-policy.md), [0050](0050-adr-format.md), [0055](0055-templatestyles-templatedata-and-page-properties.md), [0058](0058-packed-record-storage.md), [0085](0085-settings-and-preferences.md)
@@ -231,3 +231,10 @@ Replaced text ([19](../architecture/19-site-ui.md) §5.10, as it stood):
 - **Source:** Direct: James, design discussion of 2026-11-01
 - **Change:** extends §9 and A7
 - **Summary:** Group 9 brought the forms that edit a value of a registry type (preferences now, the wiki's and the instance's settings in group 10, the moderation forms in group 11), whose controls are drawn from the type with no label of their own, a row around each carrying the label, the key, the help, the row's errors and **Reset**. Claude first kept these controls apart from A7's labelled fields of the forms that work by `GET`, since their markup differed and merging them would change Plain's DOM; James: "It's fine to change Plain's DOM at this time unless there are other reasons to keep them apart." There were none, so Plain has one vocabulary of controls, the model `ControlModel` and the macro `control` in `forms.html` (a checkbox, which may carry its own label and value; a select; a number or text input; a text area; a value shown), and two layouts that place them: `item`, a `FormItem` of a `GET` form (a control under the label that wraps it, a checkbox with its label, a fieldset of items), and `setting`, a row of the preferences and settings forms. The typed controls keep the markup of the built-in `controls::render`, which the pages of groups 10 and 11 are compared against until they switch; the `GET` forms' fields, whose groups had switched, changed instead: a text field gains Codex's `cdx-text-input` wrapper, and the classes `ts-changes-form__field` and `ts-changes-form__kinds` became `ts-form-field` and `ts-form-group` (the old names stay in the stylesheet for the built-in pages of groups 11 and 12). The chapter text is 19 §5.10.
+
+### A9. A radio button joins the controls, and a settings row carries where its value comes from
+
+- **Date:** 2026-11-02
+- **Source:** Direct: Claude, while building the settings pages' templates (group 10), 2026-11-02; unconfirmed
+- **Change:** extends A8
+- **Summary:** The wiki's and the instance's settings pages needed three things A8's vocabulary lacked, and each was added to it rather than drawn on the page. A **radio button** (the Visibility section's anyone, accounts on this wiki or a group) is a control of its own. A checkbox's or radio button's **own label** points at the control's ID where it has one, Codex's markup and the settings pages' (the **Lock** checkbox of Defaults for wikis), and wraps the control where it has none, as the `GET` forms' checkboxes do. The **settings row** carries the origin chips after the label (set on this wiki, inherited, locked, capped), **Lock** after the control, the locked chip after a value shown, and a help without an ID where no control points at it. One built-in difference was settled the shared layout's way before the comparison: Defaults for wikis drew a row's errors before its help and every other row after it, and now draws them after. The chapter text is 19 §5.10.

@@ -44,13 +44,17 @@ export TRIPLESPACE_DATABASE_URL="$url"
 echo 'corpus-owner-secret-1234' >"$work/owner.pw"
 "$bin/triplespace" instance create --farm-slug scatter --tenant $tenant --base https://librarybase.org \
 	--key-file "$work/k.key" --provider internetdomains --adopt https://librarybase.org/ \
-	--owner 7 --owner-name Alice --owner-password-file "$work/owner.pw" >/dev/null
+	--owner 2 --owner-name Alice --owner-password-file "$work/owner.pw" >/dev/null
 # Registration is real but cheap (0087 §4), as tools/acl_check.sh sets it.
 "$bin/triplespace" settings set --tenant $tenant challenge.bits 10 >/dev/null
 "$bin/triplespace" settings set --tenant $tenant challenge.max_bits 14 >/dev/null
 # The fixture's revisions are dated a day ago, to stay inside recent changes' 30-day window.
+# Its author Alice is user 7 there, which Librarybase's wikitext slice gives to `Example`;
+# an adoption refuses a source account the tenant holds under another name (0035 A16), so
+# the owner is Alice under user 2, which neither dump uses.
 yesterday="$(date -u -d '1 day ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-1d +%Y-%m-%dT%H:%M:%SZ)"
-sed "s/2026-09-20T14:02:11Z/$yesterday/g" "$fixtures/site-entities.xml" >"$work/site-entities.xml"
+sed -e "s/2026-09-20T14:02:11Z/$yesterday/g" -e 's|<username>Alice</username><id>7</id>|<username>Alice</username><id>2</id>|g' \
+	"$fixtures/site-entities.xml" >"$work/site-entities.xml"
 "$bin/triplespace" adopt --tenant $tenant --dump "$work/site-entities.xml" \
 	--source https://librarybase.org/ --version test --frozen --counters item=6,property=12 >/dev/null
 "$bin/triplespace" adopt --tenant $tenant --dump "$fixtures/librarybase-wikitext.xml.gz" \

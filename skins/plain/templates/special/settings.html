@@ -1,0 +1,37 @@
+{#- Special:WikiSettings and Special:InstanceSettings (0085 §4; 19 §2.8): one section per
+    registry group of `settings.toml`, each row `forms.html`'s `setting`, then Visibility,
+    Tenancy and, on the instance's page, Defaults for wikis. A section the viewer may change
+    is a form of its own, saved with its summary; the links to the sections are the
+    frame's tabs. -#}
+{%- import "codex.html" as codex -%}
+{%- import "forms.html" as forms -%}
+
+{#- The tenancy switches: on the instance's page the form's controls, on a wiki the values
+    and what the instance locks and caps. -#}
+{%- macro switches(b) -%}
+<dl class="ts-settings__switches">{% for w in b.switches %}<div class="ts-setting" id="{{ w.row_id }}"><dt>{% if w.label_for %}<label class="ts-setting__label" for="{{ w.label_for }}">{{ w.label }}</label>{% else %}<span class="ts-setting__label">{{ w.label }}</span>{% endif %} <code class="ts-setting__key">{{ w.key }}</code></dt>
+{%- for e in w.errors %}{{ codex.message(e) }}{% endfor -%}
+<dd>{% if w.control %}{{ forms.control(w.control) }}{% if w.allowed %} <span class="ts-setting__help">{{ w.allowed }}</span>{% endif %}{% else %}<span class="ts-setting__shown">{{ w.shown }}</span>{% endif %}</dd></div>{% endfor %}</dl>
+{%- for f in b.facts %}<h3>{{ f.heading }}</h3><p>{{ f.text }}</p>{% endfor -%}
+{%- endmacro -%}
+
+{#- Who may read the wiki (09 §4.7; 19 §6.3), and for a viewer who may change it, the
+    choice of anyone, accounts on this wiki or a group, with the reason. -#}
+{%- macro visibility(b) -%}
+<p>{{ b.now }}</p>
+{%- if b.form %}{% set v = b.form %}<form method="post" action="{{ v.action }}"><input type="hidden" name="token" value="{{ v.token }}"><input type="hidden" name="section" value="visibility"><fieldset class="ts-settings__visibility"><legend>{{ v.legend }}</legend>{% for o in v.options %}{{ forms.control(o) }}{% endfor -%}
+<div class="cdx-field"><div class="cdx-label"><label class="cdx-label__label" for="{{ v.group.id }}"><span class="cdx-label__label__text">{{ v.group_label }}</span></label></div><div class="cdx-field__control">{{ forms.control(v.group) }}</div><div class="cdx-field__help-text" id="{{ v.group.described_by }}">{{ v.group_help }}</div></div></fieldset>
+{{- codex.message(v.warning) }}{{ codex.field(v.reason) }}{{ codex.button(v.save) }}</form>{% endif -%}
+{%- endmacro -%}
+
+<div class="ts-settings">{% if read_only %}{{ codex.message(read_only) }}{% endif -%}
+{%- for s in sections %}<section class="ts-settings__section" id="{{ s.id }}" aria-labelledby="{{ s.id }}-title"><h2 id="{{ s.id }}-title">{{ s.title }}</h2>
+{%- if s.intro %}<p>{{ s.intro }}</p>{% endif -%}
+{%- if s.saved %}{{ codex.message(s.saved) }}{% endif -%}
+{%- for e in s.errors %}{{ codex.message(e) }}{% endfor -%}
+{%- if s.form %}{% set f = s.form %}<form class="ts-settings__form" method="post" action="{{ f.action }}"><input type="hidden" name="section" value="{{ f.section }}"><input type="hidden" name="base" value="{{ f.base }}">{% if f.token %}<input type="hidden" name="token" value="{{ f.token }}">{% endif %}<input type="hidden" name="keys" value="{{ f.keys }}">{% endif -%}
+{%- if s.body.kind == "rows" %}{% for r in s.body.rows %}{{ forms.setting(r) }}{% endfor -%}
+{%- elif s.body.kind == "switches" %}{{ switches(s.body) }}
+{%- else %}{{ visibility(s.body) }}{% endif -%}
+{%- if s.form %}<div class="ts-settings__save">{{ codex.field(s.form.summary) }}{{ codex.button(s.form.save) }}</div></form>{% endif -%}
+</section>{% endfor %}</div>

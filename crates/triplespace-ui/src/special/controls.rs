@@ -159,8 +159,24 @@ pub enum ControlModel {
         value: String,
         /// Whether it is on.
         checked: bool,
-        /// Its own label, after the box; the checkbox is then a `<label>`.
+        /// Its own label, after the box: a `<label>` pointing at the ID, or wrapping
+        /// the box where it has none.
         label: Option<String>,
+        /// The element describing it.
+        described_by: Option<String>,
+    },
+    /// A radio button with its label, drawn as a labelled checkbox is.
+    Radio {
+        /// The element ID; without one the label wraps the button.
+        id: Option<String>,
+        /// The field's name, shared by its group.
+        name: String,
+        /// The value posted when it is chosen.
+        value: String,
+        /// Whether it is chosen.
+        checked: bool,
+        /// Its label, after the button.
+        label: String,
         /// The element describing it.
         described_by: Option<String>,
     },
@@ -382,6 +398,7 @@ impl FormItem {
         };
         match control {
             ControlModel::Checkbox { name, .. }
+            | ControlModel::Radio { name, .. }
             | ControlModel::Select { name, .. }
             | ControlModel::Input { name, .. }
             | ControlModel::TextArea { name, .. } => Some(name),
@@ -414,8 +431,10 @@ pub struct SettingRow {
     pub label: String,
     /// The control the label is for; `None` draws the label as text.
     pub label_for: Option<String>,
-    /// The help's element ID.
-    pub help_id: String,
+    /// The origin chips after the label (the settings pages').
+    pub chips: Vec<crate::codex::ChipModel>,
+    /// The help's element ID, where a control points at it.
+    pub help_id: Option<String>,
     /// The help.
     pub help: Option<String>,
     /// What the form refused about this row.
@@ -426,6 +445,10 @@ pub struct SettingRow {
     pub shown: Option<String>,
     /// **Reset**.
     pub reset: Option<ResetModel>,
+    /// A checkbox after the control: **Lock** on the instance's defaults for wikis.
+    pub lock: Option<ControlModel>,
+    /// A chip after the value shown: a default that is locked.
+    pub shown_chip: Option<crate::codex::ChipModel>,
     /// A note under the value.
     pub note: Option<String>,
 }

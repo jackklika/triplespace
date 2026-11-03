@@ -203,7 +203,8 @@ fn row_model(m: &Messages, theme: &Theme, key: &str, p: &Pref, back: &Returned<'
         key: key.to_string(),
         label: label_text.clone(),
         label_for: Some(id.clone()),
-        help_id: help_id.clone(),
+        chips: Vec::new(),
+        help_id: Some(help_id.clone()),
         help: has_help.then(|| m.get(&help_key)),
         errors: back
             .errors
@@ -221,6 +222,8 @@ fn row_model(m: &Messages, theme: &Theme, key: &str, p: &Pref, back: &Returned<'
             aria_label: m.with("ts-settings-reset-label", &[&label_text]),
             label: m.get("ts-settings-reset"),
         }),
+        lock: None,
+        shown_chip: None,
         note: None,
     }
 }
