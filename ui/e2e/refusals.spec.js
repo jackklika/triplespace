@@ -39,7 +39,10 @@ async function sendChanged( page, selector, changed ) {
 		}
 		fields[ await input.getAttribute( 'name' ) ] = await input.inputValue();
 	}
-	const r = await page.request.post( action, { form: { ...fields, ...changed }, maxRedirects: 0 } );
+	const r = await page.request.post( action, {
+		form: { ...fields, ...changed },
+		maxRedirects: 0
+	} );
 	await page.setContent( await r.text() );
 	return r.status();
 }

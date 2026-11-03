@@ -172,7 +172,7 @@ pub struct Event {
 pub struct PostModel {
     /// The post ID.
     pub id: u64,
-    /// The depth shown, at most [`MAX_DEPTH`].
+    /// The depth shown, at most `MAX_DEPTH` (6).
     pub depth: usize,
     /// "Replying to X", for a post deeper than the depth shown.
     pub replying_to: Option<String>,

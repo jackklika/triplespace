@@ -2,7 +2,7 @@
 //! templates draw. Everything is computed here, from the entity, its provenance, the
 //! labels looked up and the shapes `scatter-wikibase-shape` picks (0003 §3–5); the
 //! templates place and draw it. A field named `*_html` is HTML the binary built: the
-//! Series chart and the Timeline axis, which are SVG drawn by [`super::chart`]
+//! Series chart and the Timeline axis, which are SVG drawn by `entity::chart`
 //! (0097 A4). Everything else is text the templates escape.
 //!
 //! The models are built by [`super::Render`], region by region, with the footnote

@@ -632,7 +632,7 @@ fn instance_blocks(m: &Messages, v: &Version) -> Vec<Block> {
     ]
 }
 
-/// The page, in the order of 0077 §1, as [`body`] draws it.
+/// The page, in the order of 0077 §1, as `special/version.html` draws it.
 #[must_use]
 pub fn page_model(m: &Messages, v: &Version, local: Option<&Build>) -> VersionPage {
     let mut blocks = vec![credits_block(m, v)];
