@@ -303,13 +303,17 @@ impl<B: Backend<Cx = PgCx>> Projection<B> for PageProjection {
                 } => {
                     rows += cx
                         .execute(
-                            "INSERT INTO view.page (tenant, page_id, ns, title, content_model, latest_offset,
-                               latest_revid, len, latest_at, revisions, reserved)
-                             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 1, false)
+                            concat!(
+                                "INSERT INTO view.page (tenant, page_id, ns, title, content_model, latest_offset,
+                               latest_revid, len, latest_at, revisions, reserved, random)
+                             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 1, false, ",
+                                crate::page_random_sql!(),
+                                ")
                              ON CONFLICT (tenant, page_id) DO UPDATE SET
                                ns = EXCLUDED.ns, title = EXCLUDED.title, content_model = EXCLUDED.content_model,
                                latest_offset = EXCLUDED.latest_offset, latest_revid = EXCLUDED.latest_revid,
-                               len = EXCLUDED.len, latest_at = EXCLUDED.latest_at, revisions = 1, reserved = false",
+                               len = EXCLUDED.len, latest_at = EXCLUDED.latest_at, revisions = 1, reserved = false"
+                            ),
                             &[&tenant, &page_id, ns, title, model, &offset, &revid, &len, &at],
                         )
                         .await

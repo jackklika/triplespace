@@ -14,6 +14,7 @@ Log entries whose Source ends in *unconfirmed*: decisions made in code and logge
 | [0021 A23](0021-notifications.md#a23-accountability-the-calls-made-building-tier-5) | 2026-10-30 | Accountability: the calls made building tier 5 |
 | [0023 A17](0023-moderation.md#a17-partial-undelete-and-hidden-events-the-calls-made-building-them) | 2026-10-30 | Partial undelete and hidden events: the calls made building them |
 | [0035 A16](0035-adopting-a-wikibase.md#a16-the-sources-accounts-must-agree-with-the-tenants) | 2026-11-02 | The source's accounts must agree with the tenant's |
+| [0047 A29](0047-special-pages.md#a29-pagerandom-is-derived-from-the-page) | 2026-11-02 | `page_random` is derived from the page |
 | [0051 A8](0051-page-redirects.md#a8-actionmove-the-calls-made-building-it) | 2026-10-30 | `action=move`: the calls made building it |
 | [0056 A27](0056-security-model.md#a27-entities-the-live-attack-and-tiers-78-the-calls-made-building-them) | 2026-10-30 | Entities, the live attack and tiers 7–8: the calls made building them |
 | [0077 A6](0077-special-version.md#a6-licensing-loose-ends-from-building-specialversion) | 2026-10-30 | Licensing: loose ends from building Special:Version |

@@ -143,7 +143,7 @@ always differ.
 - Edit one entity's JSON inside a copy of the dump, then re-run `adopt` with that copy. Expect exactly
   one reject, and the stored entity must be unchanged.
 
-## Stage 1: adopt Librarybase (current state ✔ 2026-10-06; full history to rerun)
+## Stage 1: adopt Librarybase (current state ✔ 2026-10-06; full history ✔ 2026-11-02, in CI)
 
 ### 1.1 On the source: freeze, then dump
 
@@ -306,8 +306,11 @@ needs from the server is in [`../clients.md`](../clients.md).
 ### 1.5 The same, in CI
 
 `tools/client_compat.sh` does 1.2–1.4 unattended against the Librarybase sample fixture (made from
-the full dump, `tools/README.md`) and the internetdomains fixture, then runs all three client checks;
-any failure fails the run. CI's *Client compatibility* job runs it on every push with the clients
+the full-history dump, `tools/README.md`) and the internetdomains fixture. Before any client
+writes, its `dump` step compares every adopted entity with the fixture itself
+(`api_check.py --compare-dump`): content, page ID, `lastrevid` and every revision's history, the
+offline form of §1.3's `--compare`. Then it runs all three client checks; any failure fails the
+run. CI's *Client compatibility* job runs it on every push with the clients
 pinned in `tools/requirements-compat.txt`. Bumping a pin is a deliberate change whose result goes in
 the results log below and in `docs/clients.md`.
 
@@ -476,12 +479,15 @@ One row per run.
 | 1.2 Librarybase (before) | `librarybase-20261005.xml.gz`, 247,011 entities / 247,055 pages | 51m44s (10m50 user, 11m31 sys) | | | 247,011 | 0 | 0 | | 2026-10-05, `main` before #56. 44.5 SQL statements/entity, `view.identifier` empty (untyped snaks) |
 | 1.2 Librarybase 10k slice | first 10,000 entities | 2m02s → 35s → 34s | | | 10,000 | 0 | 0 | | successive runs: baseline → after 3.1–3.6 → with typed snaks; 44.5 → 17.0 statements/entity |
 | 1.2 Librarybase (after) | same dump | **11m56s** (4m58 user, 1m58 sys) | | | 247,011 | 0 | 0 | **yes**: `rebuild` 10m01s (3m45 user, 1m28 sys), 1,481,456 view rows, diff empty but for pg_dump's `\restrict` token | 2026-10-05/06, after `3d84c87` + #56 + migration 0008. 17.05 statements/entity; `view.identifier` 246,453 rows |
-| 1.2 Librarybase, full history | `librarybase-20261101.xml.gz` (the rebuilt librarybase.org), 247,011 entities, 248,115 revisions | 8m46s (3m00 user, 1m34 sys) | 17 MB | | 248,097 revisions of 247,011 entities | 0 | 0 | | 2026-11-01, Mac, release build. 555 pages with history; 37 document pages; 6 talk pages deferred. The rebuild's `importDump` left every author but `Librarybase` as `imported>Name` (246,450 `imported>Database import`, 1,655 `imported>Harej`), so 1 account and 6 surrogates. Found: surrogates served as `actor:N` with userid N, not as the source shows them; the owner created as a second `Librarybase` stopped `addressing` (0035 A16). Rerun after both fixes |
-| 1.3 api_check, 20 random, full history | | | | | | | | | |
+| 1.2 Librarybase, full history | `librarybase-20261101.xml.gz` (the rebuilt librarybase.org), 247,011 entities, 248,115 revisions | 8m46s (3m00 user, 1m34 sys) | 17 MB | | 248,097 revisions of 247,011 entities | 0 | 0 | | 2026-11-01, Mac, release build. 555 pages with history; 37 document pages; 6 talk pages deferred. The rebuild's `importDump` left every author but `Librarybase` as `imported>Name` (246,450 `imported>Database import`, 1,655 `imported>Harej`), so 1 account and 6 surrogates. Found: surrogates served as `actor:N` with userid N, not as the source shows them; the owner created as a second `Librarybase` stopped `addressing` (0035 A16). Rerun 2026-11-02 with the owner as source user 3: users, IDs and timestamps equal; every summary had `/* adopt */` before the source's (fixed: none on an adopted history revision, 0035 A12); `rebuild` re-projected it, no new adoption needed |
+| 1.3 rebuild equivalence, full history | `librarybase-20261101.xml.gz` | `rebuild` 7m50s (2m30 user, 1m33 sys) | | | | | | **no**: 37 `view.page` rows | 2026-11-02. Every document page's `random` was redrawn (fixed: derived from tenant and page ID, 0047 A29, migration 0025); Main Page, deleted on the site that afternoon, came back not deleted because `rebuild` replayed the tenant's `log` before its `pages` (fixed: a tenant's partitions replay interleaved by append time, as 03 §6.1 says). Rerun after both fixes, migration 0025 applied: the first rebuild restored Main Page's `deleted`, and a second rebuild from that state was **identical** |
+| 1.3 api_check, 2,500 random, full history | `librarybase-20261101.xml.gz` | | | | | 0 failures | | | 2026-11-02, after `rebuild`, against the live librarybase.org: for 2,500 entities, content, `pageid` and `lastrevid` equal to the source's, and every page's history equal revision by revision (revid, parentid, timestamp, user, userid, summary, minor) |
 | 1.3 api_check, 20 random (current state) | | | | | | | | | 2026-10-06: **0 failures**. Content identical to source for 20/20; pageid equal; lastrevid = source + 247,617 (fresh IDs above the floor, 0035 §3); 2 notes for labels shared as a prefix by >50 records, matching the live wiki |
 | 1.4 WBI + owner + rebuild | Q1 | | | | Q250001, P51 | | | **yes**: second rebuild identical with the edits in it | 2026-10-06: WikibaseIntegrator 0.12.15 bot login; fr label set (lastrevid 248238 → 495249); stale baserevid → `editconflict`; P3 statement added and removed; item above floor 250000, property above floor 50; browser tabs and editors work; owner `clientlogin` PASS |
 | 1.4 Pywikibot | Q1 | | | | 1 item | | | | 2026-10-06: **14 passed, 0 failed** (Pywikibot 11.8.0) after server fixes for `thumblimits`/`imagelimits`/`magiclinks`, `generator` version, structured `paraminfo`, `meta=wikibase`, `query+tokens`/`wbsearchentities` params. Stale baserevid surfaces as `OtherPageSaveError` wrapping `editconflict` |
 | 1.4 WikidataIntegrator | Q1 | | | | 1 item | | | | 2026-10-06: **11 passed/info, 0 failed** (WDI 0.9.30) with `setuptools<80`, `BACKOFF_MAX_TRIES=2`, endpoint at `<api>/sparql` (404, continues). `write()` sends no baserevid (info); stale `delete_statement` refused |
+| 1.2 re-adopt, full history | `librarybase-20261101.xml.gz` | | | | adopted 0, unchanged 248,097 | 0 | 0 | | 2026-11-02: idempotent, entity and document-page revisions alike, after the fix that recognises a history revision by its adoption job |
+| 1.5 client_compat.sh, full history | `librarybase-sample.xml.gz` (254 entities, 295 revisions: 200 sampled items, 10 with history, every property, Q1; cut from `librarybase-20261101.xml.gz`) | | | | 254 | 0 | 0 | | 2026-11-02, sandbox, Postgres 16: `dump` 254/254, WBI 0 failures, Pywikibot 23/23, WDI 11/11; `acl_check.sh` 612 checks, 0 findings |
 | 1.5 client_compat.sh | `librarybase-sample.xml.gz` (225 entities, the earlier fixture cut from the 10k slice) | ~90 s incl. adopt | | | 225 | 0 | 0 | | 2026-10-06, Postgres 16: all three checks pass (WBI 0 failures; Pywikibot 14/14; WDI 11/11). The fixture has since been regenerated from the full dump |
 | 2.2 internetdomains | 312,926 entities | | | | | | | | Synced 2026-10-10; measurements not recorded |
 | 2.5 snapshot | | | | | | | | | |

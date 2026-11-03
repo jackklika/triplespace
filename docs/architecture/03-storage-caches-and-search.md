@@ -660,7 +660,7 @@ CREATE INDEX acl_confidential ON view.acl (target) WHERE read_kind = 'confidenti
 - `len integer`: bytes of the latest text, as MediaWiki's `page_len`;
 - `latest_at timestamptz`;
 - `revisions integer`;
-- `random double precision`: drawn at creation, as `page_random`.
+- `random double precision`, as `page_random`: a function of the page, not a draw, so that a rebuild projects the value the write path did (§6.1). It is the first 52 bits of the MD5 of `{tenant}:{page_id}` as a fraction in [0, 1), uniform as MediaWiki's draw is ([0047](../decisions/0047-special-pages.md) A29).
 
 `is_redirect boolean NOT NULL DEFAULT false` is from [0051](../decisions/0051-page-redirects.md) §5, so `prop=info` and `list=allpages&apfilterredir` need no join. **Reserved page IDs** are rows in `view.page` with `latest_offset` null and a `reserved boolean`; the title index includes them so that `create` finds the ID ([0023](../decisions/0023-moderation.md) §10).
 

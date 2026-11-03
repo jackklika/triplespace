@@ -324,8 +324,10 @@ async fn the_web_tier_and_the_embedded_site_serve_the_same_pages() {
         !q6.body.contains("ts-history__switch"),
         "one source: no switch"
     );
+    // The adopted revision shows the source's own summary (none in the fixture), with no
+    // `adopt` before it (0035 A12).
     assert!(
-        q6.body.contains("ts-change--edit") && q6.body.contains(">adopt<"),
+        q6.body.contains("ts-change--edit") && !q6.body.contains(">adopt<"),
         "{}",
         q6.body
     );

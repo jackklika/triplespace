@@ -482,11 +482,16 @@ impl IngestStore for PgIngest {
     }
 
     async fn only_adoptions(&self, cx: &mut PgCx, partition: u64) -> Result<bool, IngestError> {
-        // The activity projection names every change set's operation; the write path
-        // projects inline, so it is current for anything this instance wrote.
+        // The activity projection names every change set's operation and the job that
+        // wrote it; the write path projects inline, so it is current for anything this
+        // instance wrote. A row is an adoption when its operation is `adopt` (a
+        // `--current-only` record) or an adoption job wrote it: a revision adopted with its
+        // history shows the source's summary and names no operation (0035 A12).
         let row = cx.query_one(
-                "SELECT NOT EXISTS (SELECT 1 FROM view.activity WHERE partition = $1 AND kind IN ('edit', 'erased')
-                                    AND (summary_op IS DISTINCT FROM 'adopt'))",
+                "SELECT NOT EXISTS (SELECT 1 FROM view.activity a WHERE a.partition = $1 AND a.kind IN ('edit', 'erased')
+                                    AND a.summary_op IS DISTINCT FROM 'adopt'
+                                    AND NOT EXISTS (SELECT 1 FROM view.job j
+                                                    WHERE j.tenant = a.tenant AND j.job_id = a.job_id AND j.mode = 'adopt'))",
                 &[&partition_to_db(partition)],
             )
             .await

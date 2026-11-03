@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-09-30
-- **Updated:** 2026-10-31 (A28)
+- **Updated:** 2026-11-02 (A29)
 - **Author:** James Hare / Claude Opus
 - **Changes:** [0002](0002-source-graphs-and-mass-ingest.md), [0004](0004-identity-clusters-and-equivalence.md), [0005](0005-crate-organization.md), [0007](0007-actor-identity.md), [0008](0008-namespaces-and-document-pages.md), [0010](0010-site-ui.md), [0013](0013-postgres-storage.md), [0015](0015-record-format-and-partition-registry.md), [0016](0016-permissions-and-access-control.md), [0018](0018-tenants.md), [0023](0023-moderation.md), [0024](0024-subsidiary-accounts.md), [0029](0029-resolver-namespaces.md), [0031](0031-property-constraints.md), [0042](0042-template-expansion-and-parsoid.md), [0046](0046-primary-tenant.md)
 - **Uses:** [0019](0019-discussions.md), [0021](0021-notifications.md), [0028](0028-tenancy-policy.md), [0034](0034-frontend-stack.md), [0038](0038-page-metadata-and-categories.md), [0039](0039-files-and-media.md), [0040](0040-instance-prerogatives.md)
@@ -137,7 +137,7 @@ James's direction, from the design discussion of 2026-09-30:
 
 ### 13. Storage (amends 0013 §5 and §7)
 
-*Changed by A13, A20.*
+*Changed by A13, A20, A29.*
 
 *Current text: [03](../architecture/03-storage-caches-and-search.md) §4.5, §4.10, §5, §6.1.*
 
@@ -519,3 +519,14 @@ Replaced text ([21](../architecture/21-special-pages.md) §3.1, as it stood):
 Replaced text ([21](../architecture/21-special-pages.md) §1.1, as it stood):
 
 > It is embedded by `triplespace-titles`, which already resolves titles in the `Special` namespace ([0008](../decisions/0008-namespaces-and-document-pages.md) §3).
+
+### A29. `page_random` is derived from the page
+
+- **Date:** 2026-11-02
+- **Source:** Direct: Claude, while building rebuild equivalence for the Librarybase full-history adoption, 2026-11-02; unconfirmed
+- **Change:** amends §13
+- **Summary:** `view.page.random` is computed from the page, not drawn: the first 52 bits of the MD5 of `{tenant}:{page_id}`, as a fraction in [0, 1). A log-replayed projection is a function of the log ([03](../architecture/03-storage-caches-and-search.md) §6.1), and a value drawn when the row is created is a new value on every rebuild: the Librarybase rebuild of 2026-11-02 differed from the adopted views in every document page's `random`. The hash is uniform as MediaWiki's draw is, so `Special:Random` and `list=random` pick as evenly; the difference is that the value is reproducible, the same page always sorting to the same place. A source's own `page_random` is not in an XML export, so adoption could not keep it either way. Migration `0025_page_random` recomputes existing rows. The chapter text is [03](../architecture/03-storage-caches-and-search.md) §4.5.
+
+Replaced text ([03](../architecture/03-storage-caches-and-search.md) §4.5, as it stood):
+
+> - `random double precision`: drawn at creation, as `page_random`.

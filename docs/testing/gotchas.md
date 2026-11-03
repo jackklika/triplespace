@@ -46,6 +46,15 @@ strike what stops being true. Implementation status is not kept here (24 §15: `
   'env!("CARGO_MANIFEST_DIR")' crates xtask`) and `xtask`, or build in place.
 - `tools/client_compat.sh` runs `target/debug` binaries: build `-p triplespace-cli -p
   triplespace-server` first, or it runs stale ones.
+- `pkill -f '<pattern>'` inside a longer shell command matches that command's own `bash -c`
+  line and kills it (exit 144, no output). Stop a test server by process name instead
+  (`kill $(pgrep -x triplespace-ser)`; the name is cut to 15 characters).
+- `triplespace instance create` refuses an owner password under 8 characters only after it has
+  written the instance, so a short test password leaves an instance nobody can log in to.
+  Use 8 or more.
+- A test adoption that fails leaves an empty `view`, and an empty `view` passes the rebuild
+  equivalence diff vacuously. Check `adopt`'s stderr and the row counts before trusting
+  `REBUILD-IDENTICAL`.
 
 ## The device bridge and James's checkout
 

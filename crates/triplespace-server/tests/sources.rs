@@ -199,7 +199,7 @@ async fn a_source_is_declared_loaded_and_read_on_its_tenant() {
     .await;
     assert_eq!(
         loaded.len(),
-        244,
+        254,
         "every entity of the sample, as tenant rows"
     );
     assert!(
