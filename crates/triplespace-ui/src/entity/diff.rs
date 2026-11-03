@@ -837,7 +837,7 @@ pub async fn serve(
             return pages::respond(&cx, headers, StatusCode::NOT_FOUND, |m| Page {
                 title: title.clone(),
                 returnto: Some(title.clone()),
-                body: pages::message(
+                body: cx.message(
                     MessageKind::Warning,
                     &m.with("ts-oldid-missing", &[&revid.to_string()]),
                 ),
@@ -948,7 +948,7 @@ pub async fn serve(
             return pages::respond(&cx, headers, StatusCode::BAD_REQUEST, |_| Page {
                 title: title.clone(),
                 returnto: Some(title.clone()),
-                body: pages::message(MessageKind::Error, &info),
+                body: cx.message(MessageKind::Error, &info),
                 ..Page::default()
             });
         }
@@ -958,7 +958,7 @@ pub async fn serve(
         return pages::respond(&cx, headers, StatusCode::NOT_FOUND, |m| Page {
             title: title.clone(),
             returnto: Some(title.clone()),
-            body: pages::message(MessageKind::Warning, &m.get("ts-diff-missing")),
+            body: cx.message(MessageKind::Warning, &m.get("ts-diff-missing")),
             ..Page::default()
         });
     };

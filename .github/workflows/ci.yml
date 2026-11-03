@@ -90,14 +90,8 @@ jobs:
       - run: npm run build
 
   e2e:
-    name: End to end (two web replicas, JavaScript off, axe; ${{ matrix.renderer }})
+    name: End to end (two web replicas, JavaScript off, axe)
     runs-on: ubuntu-latest
-    # Under both renderers while the skin migration runs (19 §5.10): a group switches only
-    # when the suite passes through the skin as well as the built-in rendering.
-    strategy:
-      fail-fast: false
-      matrix:
-        renderer: [builtin, skin]
     services:
       postgres:
         image: postgres:18
@@ -134,8 +128,6 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Suite
         working-directory: ui
-        env:
-          TRIPLESPACE_WEB_RENDERER: ${{ matrix.renderer }}
         run: npm run e2e
 
   clients:

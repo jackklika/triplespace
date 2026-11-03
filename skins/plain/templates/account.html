@@ -2,6 +2,15 @@
     a form. Its names, `data-` attributes and the status region are what the site's script
     reads (`ui/src/challenge`): they are a contract, kept exactly. -#}
 
+{%- import "codex.html" as codex -%}
 {%- macro challenge(c) -%}
 <input type="hidden" name="tschallengeid" value="{{ c.id }}" data-ts-challenge-bits="{{ c.bits }}"><input type="hidden" name="tschallengesolution" value="{{ c.solution }}"><p class="ts-challenge__status" role="status" aria-live="polite" data-ts-challenge-status data-working="{{ c.working }}" data-waiting="{{ c.waiting }}" data-done="{{ c.done }}" data-failed="{{ c.failed }}"></p><noscript><div class="cdx-message cdx-message--block cdx-message--notice"><span class="cdx-message__icon"></span><div class="cdx-message__content">{{ c.nojs }}</div></div></noscript>
+{%- endmacro -%}
+
+{#- The external issuers' buttons (0088 §5; 0097 A6): one form per issuer, posting the
+    token straight to the API's start route. -#}
+{%- macro issuers(x) -%}
+<section class="ts-login__issuers" aria-labelledby="ts-issuers-{{ x.purpose }}"><h2 class="ts-login__issuers-heading" id="ts-issuers-{{ x.purpose }}">{{ x.heading }}</h2>
+{%- for f in x.forms %}<form class="ts-form ts-login__issuer" method="post" action="{{ f.action }}"><input type="hidden" name="purpose" value="{{ x.purpose }}"><input type="hidden" name="{{ x.token_field }}" value="{{ x.token }}"><input type="hidden" name="returnto" value="{{ x.back }}">{{ codex.button(f.button) }}</form>{% endfor -%}
+<p class="ts-login__issuers-note">{{ x.note }}</p></section>
 {%- endmacro -%}

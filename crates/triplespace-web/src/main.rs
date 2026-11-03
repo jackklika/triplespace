@@ -70,11 +70,6 @@ enum Command {
         /// A file holding the forwarder key, as `--forwarder-key-file`.
         #[arg(long)]
         forwarder_key_file: Option<PathBuf>,
-        /// The renderer the pages are drawn with, as `--renderer`: under `compare`, every
-        /// route whose two renderings differ is logged, so a recording is also a crawl of
-        /// the instance for the skin migration's soak (19 §5.10).
-        #[arg(long, env = "TRIPLESPACE_WEB_RENDERER", default_value = "builtin")]
-        renderer: String,
         /// The paths to render, `/wiki/Item:Q6`, `/w/index.php?title=…`.
         #[arg(required = true)]
         paths: Vec<String>,
@@ -101,11 +96,6 @@ struct Serve {
     /// A directory of installed skins beside the shipped ones (`web.skins`, 0097 §8).
     #[arg(long, env = "TRIPLESPACE_WEB_SKINS")]
     skins: Option<PathBuf>,
-    /// Which renderer draws pages until the skin migration is done (`web.renderer`,
-    /// 19 §5.10): `builtin`, `skin`, or `compare`, which renders both, serves the
-    /// built-in result and logs each route that differs.
-    #[arg(long, env = "TRIPLESPACE_WEB_RENDERER", default_value = "builtin")]
-    renderer: String,
 }
 
 fn main() -> Result<()> {
@@ -154,19 +144,14 @@ async fn run() -> Result<()> {
             out,
             cookie,
             forwarder_key_file,
-            renderer,
             paths,
         }) => {
-            let Some(renderer) = triplespace_ui::Renderer::parse(&renderer) else {
-                bail!("--renderer is builtin, skin or compare, not `{renderer}`");
-            };
             record(
                 &api,
                 &host,
                 &out,
                 cookie.as_deref(),
                 forwarder_key_file.as_deref(),
-                renderer,
                 &paths,
             )
             .await
@@ -200,7 +185,6 @@ async fn record(
     out: &std::path::Path,
     cookie: Option<&str>,
     key_file: Option<&std::path::Path>,
-    renderer: triplespace_ui::Renderer,
     paths: &[String],
 ) -> Result<()> {
     use axum::body::Body;
@@ -217,9 +201,7 @@ async fn record(
         if let Some(c) = cookie {
             req = req.header(header::COOKIE, c);
         }
-        let site = triplespace_ui::Site::new(client.clone())
-            .with_build(VERSION_JSON)
-            .with_renderer(renderer);
+        let site = triplespace_ui::Site::new(client.clone()).with_build(VERSION_JSON);
         let r = triplespace_ui::router_for(site)
             .oneshot(req.body(Body::empty()).context("request")?)
             .await
@@ -265,12 +247,6 @@ async fn serve(args: Serve) -> Result<()> {
     let Some(api) = args.api else {
         bail!("--api (or TRIPLESPACE_WEB_API) names the API's base URL");
     };
-    let Some(renderer) = triplespace_ui::Renderer::parse(&args.renderer) else {
-        bail!(
-            "--renderer is builtin, skin or compare, not `{}`",
-            args.renderer
-        );
-    };
     let key = read_key(args.forwarder_key_file.as_deref())?;
     let transport = HttpTransport::new(&api, key)
         .await
@@ -305,8 +281,7 @@ async fn serve(args: Serve) -> Result<()> {
     );
     let site = triplespace_ui::Site::new(client)
         .with_build(VERSION_JSON)
-        .with_skins_dir(args.skins.as_deref())
-        .with_renderer(renderer);
+        .with_skins_dir(args.skins.as_deref());
     axum::serve(
         listener,
         triplespace_ui::router_for(site).into_make_service_with_connect_info::<SocketAddr>(),

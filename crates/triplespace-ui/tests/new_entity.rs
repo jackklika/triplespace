@@ -203,6 +203,12 @@ async fn post(api: &FakeApi, title: &str, who: &str, fields: &[(&str, &str)]) ->
     send(api, req).await
 }
 
+/// A page with its quotation marks spelled as the skin spells them, whichever renderer
+/// drew it.
+fn spelled(html: &str) -> String {
+    html.replace("&#34;", "&quot;")
+}
+
 #[tokio::test]
 async fn a_reader_is_asked_to_log_in() {
     let api = FakeApi::default();
@@ -272,7 +278,8 @@ async fn the_form_with_its_prefills() {
             .contains("values of type Point in time cannot be filled in here yet")
     );
     assert!(a.body.contains("there is no property P99"));
-    assert!(a.body.contains("&#34;nonsense&#34; is left out"));
+    // Either renderer's spelling of a quotation mark (19 §5.10).
+    assert!(spelled(&a.body).contains("&quot;nonsense&quot; is left out"));
     assert_eq!(a.headers[header::CACHE_CONTROL], "private, no-cache");
 }
 
@@ -344,8 +351,8 @@ async fn refusals_show_the_form_again() {
     .await;
     assert_eq!(a.status, StatusCode::OK);
     assert!(
-        a.body
-            .contains("Nothing was created: Item Q1 already has label &#34;Taken&#34;.")
+        spelled(&a.body)
+            .contains("Nothing was created: Item Q1 already has label &quot;Taken&quot;.")
     );
     assert!(a.body.contains("value=\"Taken\""));
     // An expired token: a fresh one, and the form as sent.

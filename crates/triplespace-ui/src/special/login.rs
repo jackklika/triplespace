@@ -30,6 +30,7 @@ use crate::features::Feature;
 use crate::frame::{Page, title_url};
 use crate::i18n::Messages;
 use crate::pages::{self, Context, Peer};
+use crate::special::external::IssuerButtons;
 use crate::special::register::{ChallengeModel, challenge_model};
 
 // ---------------------------------------------------------------------------------------
@@ -62,9 +63,8 @@ pub struct LoginPage {
     pub notice: Option<MessageModel>,
     /// The form.
     pub form: Option<LoginForm>,
-    /// The external issuers' buttons, as `external.rs` draws them until group 12 switches
-    /// (0097 A6).
-    pub issuers_html: Option<String>,
+    /// The external issuers' buttons (0097 A6).
+    pub issuers: Option<IssuerButtons>,
     /// For a viewer already logged in, the way on.
     pub continue_link: Option<Choice>,
     /// The way to create an account, where the wiki takes registrations.
@@ -169,8 +169,8 @@ fn login_form_model(
     }
 }
 
-fn issuers_html(cx: &Context, token: &str, back: &str) -> Option<String> {
-    let html = crate::special::external::buttons(
+fn issuers(cx: &Context, token: &str, back: &str) -> Option<IssuerButtons> {
+    crate::special::external::issuer_buttons(
         &cx.m,
         &cx.site.login_issuers,
         "logintoken",
@@ -179,8 +179,7 @@ fn issuers_html(cx: &Context, token: &str, back: &str) -> Option<String> {
         back,
         "ts-login-external-heading",
         "ts-login-external-button",
-    );
-    (!html.is_empty()).then_some(html)
+    )
 }
 
 fn join_link(cx: &Context, back: &str) -> Option<Choice> {
@@ -214,14 +213,14 @@ fn login_model(
                 username,
                 challenge.as_ref(),
             )),
-            issuers_html: issuers_html(cx, token, back),
+            issuers: issuers(cx, token, back),
             continue_link: None,
             join: join_link(cx, back),
         },
         LoginBody::Already(kind, text) => LoginPage {
             notice: Some(Message::block(*kind, text).model()),
             form: None,
-            issuers_html: None,
+            issuers: None,
             continue_link: Some(link_choice(
                 format!("/wiki/{}", title_url(back)),
                 m.with("ts-login-continue", &[back]),

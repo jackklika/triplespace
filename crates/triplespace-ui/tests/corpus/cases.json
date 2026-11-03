@@ -1,7 +1,7 @@
 {
   "_": [
     "The parity corpus (0097 §16; 19 §5.10): every case is one request the site answers,",
-    "rendered by both renderers and compared as a browser reads them (tests/parity.rs).",
+    "rendered with Worksheet and with Plain and compared as a browser reads them (tests/parity.rs).",
     "`set` names where the API's answers come from: `fixture` and `wikidata` are the fake",
     "API of tests/common/fixture_api.rs; any other name is a recording,",
     "tests/corpus/exchanges/<set>.json, made with `triplespace-web record`; `librarybase` is",
@@ -13,6 +13,8 @@
     "lb-alice and their cases in cases.recorded.json come from tools/skin_corpus.sh."
   ],
   "cases": [
+    {"name": "home-generated", "set": "fixture", "path": "/wiki/Project:Home", "group": 12},
+    {"name": "home-generated-render", "set": "fixture", "path": "/wiki/Project:Home?action=render", "group": 12},
     {"name": "item", "set": "fixture", "path": "/wiki/Item:Q6", "group": 3},
     {"name": "item-user", "set": "fixture", "path": "/wiki/Item:Q6", "viewer": "user", "group": 3},
     {"name": "item-identifiers", "set": "fixture", "path": "/wiki/Item:Q6?tab=identifiers", "group": 3},

@@ -265,7 +265,7 @@ fn refused(
     pages::respond(cx, headers, StatusCode::BAD_REQUEST, |_| Page {
         title: title.to_string(),
         returnto: Some(title.to_string()),
-        body: pages::message(MessageKind::Error, &text),
+        body: cx.message(MessageKind::Error, &text),
         ..Page::default()
     })
 }

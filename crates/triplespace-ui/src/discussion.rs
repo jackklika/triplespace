@@ -830,7 +830,7 @@ async fn talk(
     // The talk page of a subject that does not exist does not exist either (14 §1.3).
     if subject_id.is_none() && talk_id.is_none() && !user_talk {
         return pages::respond(&cx, headers, StatusCode::NOT_FOUND, |m| Page {
-            body: pages::message(MessageKind::Notice, &m.get("ts-talk-no-subject")),
+            body: cx.message(MessageKind::Notice, &m.get("ts-talk-no-subject")),
             tabs: talk_tabs(m, &prefixed, &subject),
             returnto: Some(prefixed.clone()),
             title: prefixed.clone(),

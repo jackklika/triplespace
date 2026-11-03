@@ -8,10 +8,7 @@
 # Needs the binaries built (`cargo build -p triplespace-cli -p triplespace-server
 # -p triplespace-web`; BIN overrides target/debug) and `ui/dist` built before them.
 #
-# The web tier reads its environment, so `TRIPLESPACE_WEB_RENDERER=skin` (or `compare`) runs
-# the suite through that renderer (19 §5.10); CI runs `builtin` and `skin`. `E2E_WORK` names
-# the working directory and keeps it, with `api.log` and `web-*.log`: under `compare`, every
-# route that differed is in the web logs.
+# `E2E_WORK` names the working directory and keeps it, with `api.log` and `web-*.log`.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"

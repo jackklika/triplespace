@@ -1,0 +1,15 @@
+{#- Special:NewItem and Special:NewProperty (0047 §5; 21 §3.1): a form that needs no
+    JavaScript, language, label, description and aliases, a property's data type, and the
+    statements a link prefilled, each a ticked box; or, for a reader, the way to log in. -#}
+{%- import "codex.html" as codex -%}
+{%- import "forms.html" as forms -%}
+<div class="ts-new-entity">
+{%- if gate %}{{ codex.message(gate.notice) }}{% if gate.login %}<p><a href="{{ gate.login.href }}">{{ gate.login.label }}</a></p>{% endif -%}
+{%- else %}{% set f = form %}{% for n in f.notices %}{{ codex.message(n) }}{% endfor -%}
+<p>{{ f.intro }}</p><form class="ts-form" method="post" action="{{ f.action }}"><input type="hidden" name="token" value="{{ f.token }}">
+{%- for x in f.fields %}{{ codex.field(x) }}{% endfor -%}
+{%- if f.datatype %}{{ forms.field(f.datatype) }}{% endif -%}
+{%- if f.statements %}<fieldset class="cdx-field ts-new-statements"><legend class="cdx-label"><span class="cdx-label__label__text">{{ f.statements.legend }}</span><span class="cdx-label__description">{{ f.statements.help }}</span></legend><div class="cdx-field__control">{% for b in f.statements.boxes %}<div class="ts-new-statements__item">{{ forms.control(b) }}</div>{% endfor %}</div></fieldset>{% endif -%}
+{%- for w in f.left_out %}{{ codex.message(w) }}{% endfor -%}
+<div class="ts-form__actions">{{ codex.button(f.submit) }}</div></form>
+{%- endif %}</div>

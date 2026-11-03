@@ -1,43 +1,40 @@
-//! Group 2 of the skin migration (19 §5.10): each Codex component as Plain's macro
-//! (`skins/plain/templates/codex.html`) draws the same markup as the built-in builder
-//! (`triplespace_ui::codex`) over the same inputs, compared as a browser reads them
-//! (0097 §16, A3), and byte for byte but for entity spelling.
+//! Plain's macros (19 §5.2, §5.10) as snapshots: each Codex component as
+//! `skins/plain/templates/codex.html` draws it, the watch control and the form controls.
+//! Until the built-in renderer was removed (2026-11-03; 0097 A12) each macro was held byte
+//! for byte to the builder it replaced, entity spelling aside; the snapshots hold the
+//! markup they drew then, the components' DOM contract of Plain 0.x.
 
-use askama::Template as _;
 use triplespace_ui::codex::{
-    Accordion, Action, Align, Button, Card, Cell, Chip, ChipKind, Column, Field, Message,
-    MessageKind, ProgressBar, SearchInput, Table, Weight,
+    Accordion, Action, Align, Button, Card, CellModel, Chip, ChipKind, ColumnModel, Field, Message,
+    MessageKind, ProgressBar, SearchInput, TableModel, Weight,
 };
 use triplespace_ui::i18n::Messages;
-use triplespace_ui::parity::{Kind, compare};
+use triplespace_ui::inline::{Inline, text};
 use triplespace_ui::skin::Skins;
 
-/// The built-in result with its entities spelled as `html::esc` spells them.
-fn spelled(html: &str) -> String {
-    html.replace("&#38;", "&amp;")
-        .replace("&#60;", "&lt;")
-        .replace("&#62;", "&gt;")
-        .replace("&#34;", "&quot;")
+/// A model as a template value.
+fn json(model: impl serde::Serialize) -> serde_json::Value {
+    serde_json::to_value(model).expect("a model serializes")
 }
 
-fn holds(name: &str, macro_call: &str, model: impl serde::Serialize, builtin: &str) {
+/// Each component drawn by its macro, one after another, each under its call.
+#[test]
+#[allow(clippy::too_many_lines)]
+fn components() {
     let skins = Skins::load(None);
     let plain = skins.get("plain").expect("plain");
     let m = Messages::for_language("en");
-    let source = format!("{{% import \"codex.html\" as codex %}}{{{{ codex.{macro_call} }}}}");
-    let ours = plain
-        .render_str(&source, &m, serde_json::json!({ "x": model }))
-        .unwrap_or_else(|e| panic!("{name}: {e:#}"));
-    assert_eq!(
-        compare(builtin, &ours, Kind::Fragment),
-        None,
-        "{name}:\n--- builtin\n{builtin}\n--- macro\n{ours}"
-    );
-    assert_eq!(ours, spelled(builtin), "{name}: byte for byte");
-}
-
-#[test]
-fn buttons() {
+    let mut out = String::new();
+    let mut draw = |call: &str, model: serde_json::Value| {
+        let source = format!("{{% import \"codex.html\" as codex %}}{{{{ codex.{call} }}}}");
+        let html = plain
+            .render_str(&source, &m, serde_json::json!({ "x": model }))
+            .unwrap_or_else(|e| panic!("{call}: {e:#}"));
+        out.push_str(call);
+        out.push('\n');
+        out.push_str(&html);
+        out.push_str("\n\n");
+    };
     for b in [
         Button::submit("Save <now>"),
         Button {
@@ -52,47 +49,42 @@ fn buttons() {
             ..Button::submit("Delete & forget")
         },
     ] {
-        holds("button", "button(x)", b.model(), &b.render().unwrap());
+        draw("button(x)", json(b.model()));
     }
-}
-
-#[test]
-fn search_inputs() {
-    let s = SearchInput {
-        name: "search",
-        value: "\"><script>",
-        placeholder: "Search items",
-        label: "Search",
-        button: "Go",
-    };
-    holds("search", "search(x)", s.model(), &s.render().unwrap());
-}
-
-#[test]
-fn messages() {
+    draw(
+        "search(x)",
+        json(
+            SearchInput {
+                name: "search",
+                value: "\"><script>",
+                placeholder: "Search items",
+                label: "Search",
+                button: "Go",
+            }
+            .model(),
+        ),
+    );
     for kind in [
         MessageKind::Notice,
         MessageKind::Warning,
         MessageKind::Error,
         MessageKind::Success,
     ] {
-        let m = Message::block(kind, "a & b <c>");
-        holds("message", "message(x)", m.model(), &m.render().unwrap());
-        let inline = Message {
-            inline: true,
-            ..Message::block(kind, "x")
-        };
-        holds(
-            "message",
+        draw(
             "message(x)",
-            inline.model(),
-            &inline.render().unwrap(),
+            json(Message::block(kind, "a & b <c>").model()),
+        );
+        draw(
+            "message(x)",
+            json(
+                Message {
+                    inline: true,
+                    ..Message::block(kind, "x")
+                }
+                .model(),
+            ),
         );
     }
-}
-
-#[test]
-fn chips() {
     for c in [
         Chip::new(ChipKind::Provider("WD\"x".into()), "WDQ65"),
         Chip {
@@ -101,64 +93,53 @@ fn chips() {
         },
         Chip::new(ChipKind::Best, "Best"),
     ] {
-        holds("chip", "chip(x)", c.model(), &c.render().unwrap());
+        draw("chip(x)", json(c.model()));
     }
-}
-
-#[test]
-fn tables() {
-    let t = Table {
+    let table = TableModel {
         header: Some("Header <h>".into()),
         caption: "Labels <all>".into(),
         columns: vec![
-            Column {
-                label: "Language".into(),
-                align: Align::Start,
-            },
-            Column {
-                label: "Count".into(),
-                align: Align::Number,
-            },
-            Column {
-                label: "C".into(),
-                align: Align::Center,
-            },
+            ColumnModel::new("Language".into(), Align::Start),
+            ColumnModel::new("Count".into(), Align::Number),
+            ColumnModel::new("C".into(), Align::Center),
         ],
         rows: vec![
             vec![
-                Cell {
+                CellModel {
                     header: true,
                     lang: Some("de".into()),
-                    ..Cell::html("<b>de</b>".into())
+                    ..CellModel::of(vec![
+                        Inline::code("de"),
+                        Inline::text(" & "),
+                        Inline::link("/wiki/X", "x"),
+                    ])
                 },
-                Cell {
-                    align: Align::Number,
-                    ..Cell::html("3".into())
+                CellModel {
+                    align_class: Align::Number.class().map(str::to_string),
+                    ..CellModel::of(text("3"))
                 },
-                Cell {
-                    align: Align::End,
-                    ..Cell::html("e".into())
+                CellModel {
+                    align_class: Align::End.class().map(str::to_string),
+                    ..CellModel::of(text("e"))
                 },
             ],
             vec![
-                Cell::html("x".into()),
-                Cell::html("y".into()),
-                Cell::html("z".into()),
+                CellModel::text("x"),
+                CellModel::text("y"),
+                CellModel::text("z"),
             ],
         ],
         empty: "None".into(),
     };
-    holds("table", "table(x)", t.model(), &t.render().unwrap());
-    let empty = Table {
-        header: None,
-        rows: vec![],
-        ..t
-    };
-    holds("table", "table(x)", empty.model(), &empty.render().unwrap());
-}
-
-#[test]
-fn accordions_cards_fields_and_progress() {
+    draw("table(x)", json(&table));
+    draw(
+        "table(x)",
+        json(TableModel {
+            header: None,
+            rows: vec![],
+            ..table
+        }),
+    );
     for a in [
         Accordion {
             title: "2 references",
@@ -173,7 +154,7 @@ fn accordions_cards_fields_and_progress() {
             open: true,
         },
     ] {
-        holds("accordion", "accordion(x)", a.model(), &a.render().unwrap());
+        draw("accordion(x)", json(a.model()));
     }
     for c in [
         Card {
@@ -189,7 +170,7 @@ fn accordions_cards_fields_and_progress() {
             href: None,
         },
     ] {
-        holds("card", "card(x)", c.model(), &c.render().unwrap());
+        draw("card(x)", json(c.model()));
     }
     for f in [
         Field {
@@ -215,7 +196,7 @@ fn accordions_cards_fields_and_progress() {
             autocomplete: None,
         },
     ] {
-        holds("field", "field(x)", f.model(), &f.render().unwrap());
+        draw("field(x)", json(f.model()));
     }
     for p in [
         ProgressBar {
@@ -227,8 +208,9 @@ fn accordions_cards_fields_and_progress() {
             inline: false,
         },
     ] {
-        holds("progress", "progress(x)", p.model(), &p.render().unwrap());
+        draw("progress(x)", json(p.model()));
     }
+    insta::assert_snapshot!("components", out);
 }
 
 /// The watch control's template (`watch.html`), as a snapshot: it was held byte for byte
@@ -276,13 +258,15 @@ fn watch_control() {
     insta::assert_snapshot!("watch_control", out);
 }
 
-/// Group 9a (19 §5.10): each form control as `forms.html`'s `control` draws the same
-/// markup as `special::controls::render`, in every kind, with and without help, with no
-/// value, with the reader's own text coming back after an error, and escaped.
+/// Group 9a (19 §5.10): each form control as `forms.html`'s `control` draws it, in every
+/// kind, with and without help, with no value, with the reader's own text coming back after
+/// an error, and escaped. Until group 11 switched this compared the macro with the built-in
+/// `special::controls::render`, byte for byte in all 480 combinations; with that builder
+/// deleted, the snapshot holds the markup it drew.
 #[test]
 fn form_controls() {
     use serde_json::{Value, json};
-    use triplespace_ui::special::controls::{Control, Kind as ControlKind, render};
+    use triplespace_ui::special::controls::{Control, Kind as ControlKind};
 
     let skins = Skins::load(None);
     let plain = skins.get("plain").expect("plain");
@@ -311,6 +295,7 @@ fn form_controls() {
         ControlKind::ReadOnly,
     ];
     let mut checked = 0;
+    let mut out = String::new();
     for kind in kinds {
         for value in &values {
             for described_by in [None, Some("x-help")] {
@@ -326,7 +311,6 @@ fn form_controls() {
                             described_by,
                             choice_label: labelled.then_some(&label as &dyn Fn(&str) -> String),
                         };
-                        let builtin = render(&c);
                         let ours = plain
                             .render_str(
                                 "{% import \"forms.html\" as forms %}{{ forms.control(x) }}",
@@ -337,12 +321,10 @@ fn form_controls() {
                         let what = format!(
                             "{kind:?} {value:?} {described_by:?} {empty_choice:?} {labelled}"
                         );
-                        assert_eq!(
-                            compare(&builtin, &ours, Kind::Fragment),
-                            None,
-                            "{what}:\n--- builtin\n{builtin}\n--- macro\n{ours}"
-                        );
-                        assert_eq!(ours, spelled(&builtin), "{what}: byte for byte");
+                        out.push_str(&what);
+                        out.push('\n');
+                        out.push_str(&ours);
+                        out.push_str("\n\n");
                         checked += 1;
                     }
                 }
@@ -350,4 +332,5 @@ fn form_controls() {
         }
     }
     assert_eq!(checked, 10 * 6 * 2 * 2 * 2);
+    insta::assert_snapshot!("form_controls", out);
 }

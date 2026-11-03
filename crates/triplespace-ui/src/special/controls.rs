@@ -1,5 +1,5 @@
 //! Form controls drawn from a value's type (0085 §4, §5), shared by `Special:WikiSettings`,
-//! `Special:InstanceSettings` and `Special:Preferences`, and the way back: a posted field
+//! `Special:InstanceSettings`, `Special:Preferences` and the moderation forms, and the way back: a posted field
 //! read as a JSON value of that type.
 //!
 //! Every control is Codex's CSS-only markup and works without JavaScript. Lists are a
@@ -7,16 +7,12 @@
 //! empty means "no change" for every type but a list, where it is the empty list: the
 //! row's **Reset** is how a value returns to inheriting.
 //!
-//! The drawing is Plain's `forms.html` (`control`, over [`Control::model`]); [`render`]
-//! draws the same markup for the pages not yet switched, and a test holds the two equal
-//! (19 §5.10). Parsing stays here.
-
-use std::fmt::Write as _;
+//! The drawing is Plain's `forms.html` (`control`, over [`Control::model`], and the
+//! layouts that place controls; 19 §5.10, 0097 A8–A10). Parsing stays here.
 
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::html::esc;
 use crate::i18n::Messages;
 
 /// How a type is edited.
@@ -162,6 +158,10 @@ pub enum ControlModel {
         /// Its own label, after the box: a `<label>` pointing at the ID, or wrapping
         /// the box where it has none.
         label: Option<String>,
+        /// A note at the end of its label: the expiry of a group membership.
+        note: Option<String>,
+        /// Whether the viewer may not change it: shown, not hidden.
+        disabled: bool,
         /// The element describing it.
         described_by: Option<String>,
     },
@@ -201,6 +201,10 @@ pub enum ControlModel {
         input_type: String,
         /// The value as text.
         value: String,
+        /// Whether the form needs it.
+        required: bool,
+        /// The keyboard a phone offers (`numeric` for a revision ID).
+        inputmode: Option<String>,
         /// The element describing it.
         described_by: Option<String>,
     },
@@ -246,6 +250,8 @@ impl Control<'_> {
                 value: "1".into(),
                 checked: self.value == Some(&Value::Bool(true)),
                 label: None,
+                note: None,
+                disabled: false,
                 described_by,
             },
             Kind::Choice => {
@@ -284,6 +290,8 @@ impl Control<'_> {
                 }
                 .into(),
                 value: text,
+                required: false,
+                inputmode: None,
                 described_by,
             },
             Kind::Text | Kind::Lines | Kind::IntegerLines | Kind::Namespaces | Kind::Json => {
@@ -342,6 +350,25 @@ impl FormItem {
                 name: name.to_string(),
                 input_type: "text".into(),
                 value: value.to_string(),
+                required: false,
+                inputmode: None,
+                described_by: None,
+            },
+        }
+    }
+
+    /// A one-line field for a number typed as text: a revision ID.
+    #[must_use]
+    pub fn numeric(label: String, name: &str, value: &str) -> Self {
+        Self::Field {
+            label,
+            control: ControlModel::Input {
+                id: None,
+                name: name.to_string(),
+                input_type: "text".into(),
+                value: value.to_string(),
+                required: false,
+                inputmode: Some("numeric".into()),
                 described_by: None,
             },
         }
@@ -378,6 +405,8 @@ impl FormItem {
                 value: value.to_string(),
                 checked,
                 label: Some(label),
+                note: None,
+                disabled: false,
                 described_by: None,
             },
         }
@@ -405,6 +434,95 @@ impl FormItem {
             ControlModel::ReadOnly { .. } => None,
         }
     }
+}
+
+impl ControlModel {
+    /// An inline checkbox with its own label, pointing at its ID.
+    #[must_use]
+    pub fn check(id: &str, name: &str, checked: bool, label: String) -> Self {
+        Self::Checkbox {
+            id: Some(id.to_string()),
+            name: name.to_string(),
+            value: "1".into(),
+            checked,
+            label: Some(label),
+            note: None,
+            disabled: false,
+            described_by: None,
+        }
+    }
+
+    /// A one-line text input.
+    #[must_use]
+    pub fn text(id: &str, name: &str, value: &str, required: bool) -> Self {
+        Self::Input {
+            id: Some(id.to_string()),
+            name: name.to_string(),
+            input_type: "text".into(),
+            value: value.to_string(),
+            required,
+            inputmode: None,
+            described_by: None,
+        }
+    }
+}
+
+/// A control under its label with its help, as Codex lays out a field (`forms.html`'s
+/// `field`): the layout of a form that works by `POST`, where `item` is one by `GET`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct FieldRow {
+    /// The control's element ID, which the label points at.
+    pub id: String,
+    /// The label.
+    pub label: String,
+    /// A class beside `cdx-field`.
+    pub class: Option<String>,
+    /// The control.
+    pub control: ControlModel,
+    /// The help under it.
+    pub help: Option<String>,
+    /// The help's element ID, where the control points at it.
+    pub help_id: Option<String>,
+}
+
+impl FieldRow {
+    /// A text field with no help.
+    #[must_use]
+    pub fn text(id: &str, name: &str, label: String, value: &str, required: bool) -> Self {
+        Self {
+            id: id.to_string(),
+            label,
+            class: None,
+            control: ControlModel::text(id, name, value, required),
+            help: None,
+            help_id: None,
+        }
+    }
+}
+
+/// A checkbox with its help under it (`forms.html`'s `check`): an option of a form.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CheckRow {
+    /// The class of the element around it.
+    pub class: String,
+    /// The checkbox, carrying its own label.
+    pub control: ControlModel,
+    /// The help.
+    pub help: String,
+}
+
+/// A form that asks by `GET` for the page to go to (`forms.html`'s `ask`): a hidden title,
+/// one field and its button.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AskForm {
+    /// The form's class.
+    pub class: String,
+    /// The special page it goes to.
+    pub title: String,
+    /// The field.
+    pub item: FormItem,
+    /// The button.
+    pub button: crate::codex::ButtonModel,
 }
 
 /// A **Reset** button: submits its form asking to reset one key only.
@@ -451,78 +569,6 @@ pub struct SettingRow {
     pub shown_chip: Option<crate::codex::ChipModel>,
     /// A note under the value.
     pub note: Option<String>,
-}
-
-/// The control's markup; the label is the caller's, pointing at `id`.
-#[must_use]
-pub fn render(c: &Control<'_>) -> String {
-    let id = esc(c.id);
-    let name = esc(c.name);
-    let described = c
-        .described_by
-        .map(|d| format!(" aria-describedby=\"{}\"", esc(d)))
-        .unwrap_or_default();
-    let text = c.value.map(|v| as_text(c.kind, v)).unwrap_or_default();
-    match c.kind {
-        Kind::Boolean => format!(
-            "<span class=\"cdx-checkbox cdx-checkbox--inline\"><input class=\"cdx-checkbox__input\" type=\"checkbox\" id=\"{id}\" name=\"{name}\" value=\"1\"{}{described}><span class=\"cdx-checkbox__icon\"></span></span>",
-            if c.value == Some(&Value::Bool(true)) {
-                " checked"
-            } else {
-                ""
-            }
-        ),
-        Kind::Choice => {
-            let current = c.value.and_then(Value::as_str);
-            let mut s =
-                format!("<select class=\"cdx-select\" id=\"{id}\" name=\"{name}\"{described}>");
-            if let Some(empty) = c.empty_choice {
-                let _ = write!(
-                    s,
-                    "<option value=\"\"{}>{}</option>",
-                    if current.is_none() { " selected" } else { "" },
-                    esc(empty)
-                );
-            }
-            for choice in c.choices {
-                let label = c.choice_label.map_or_else(|| choice.clone(), |f| f(choice));
-                let _ = write!(
-                    s,
-                    "<option value=\"{}\"{}>{}</option>",
-                    esc(choice),
-                    if current == Some(choice.as_str()) {
-                        " selected"
-                    } else {
-                        ""
-                    },
-                    esc(&label)
-                );
-            }
-            s.push_str("</select>");
-            s
-        }
-        Kind::Integer => format!(
-            "<div class=\"cdx-text-input\"><input class=\"cdx-text-input__input\" type=\"number\" step=\"1\" id=\"{id}\" name=\"{name}\" value=\"{}\"{described}></div>",
-            esc(&text)
-        ),
-        Kind::Line => format!(
-            "<div class=\"cdx-text-input\"><input class=\"cdx-text-input__input\" type=\"text\" id=\"{id}\" name=\"{name}\" value=\"{}\"{described}></div>",
-            esc(&text)
-        ),
-        Kind::Text | Kind::Lines | Kind::IntegerLines | Kind::Namespaces | Kind::Json => {
-            let rows = text.lines().count().clamp(2, 12);
-            format!(
-                "<div class=\"cdx-text-area\"><textarea class=\"cdx-text-area__textarea\" id=\"{id}\" name=\"{name}\" rows=\"{rows}\"{}{described}>{}</textarea></div>",
-                if c.kind == Kind::Json {
-                    " spellcheck=\"false\""
-                } else {
-                    ""
-                },
-                esc(&text)
-            )
-        }
-        Kind::ReadOnly => format!("<span id=\"{id}\">{}</span>", esc(&text)),
-    }
 }
 
 /// A posted field read as a value of the kind: `Ok(None)` for "no change" (an empty
@@ -612,33 +658,8 @@ mod tests {
     }
 
     #[test]
-    fn controls_escape_and_select() {
+    fn a_value_shown_reads_as_words() {
         let m = Messages::for_language("en");
-        let choices = vec!["off".to_string(), "on".to_string()];
-        let html = render(&Control {
-            id: "x",
-            name: "v.a\"b",
-            kind: Kind::Choice,
-            choices: &choices,
-            value: Some(&json!("on")),
-            empty_choice: None,
-            described_by: Some("x-help"),
-            choice_label: None,
-        });
-        assert!(html.contains("name=\"v.a&quot;b\""));
-        assert!(html.contains("<option value=\"on\" selected>on</option>"));
-        assert!(html.contains("aria-describedby=\"x-help\""));
-        let html = render(&Control {
-            id: "y",
-            name: "v.y",
-            kind: Kind::Text,
-            choices: &[],
-            value: Some(&json!("</textarea><script>")),
-            empty_choice: None,
-            described_by: None,
-            choice_label: None,
-        });
-        assert!(html.contains("&lt;/textarea&gt;&lt;script&gt;"));
         assert_eq!(
             shown(&m, Kind::Boolean, Some(&json!(true))),
             m.get("ts-settings-on")

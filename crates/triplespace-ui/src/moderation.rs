@@ -34,23 +34,23 @@
 //! see is the ordinary missing page (09 §5.3).
 
 use std::collections::BTreeMap;
-use std::fmt::Write as _;
 
-use askama::Template as _;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
+use serde::Serialize;
 use serde_json::Value;
 use triplespace_client::settings::Saved;
 use triplespace_client::{Incoming, ProtectForm, Protection, Restriction};
 
 use crate::Site;
 use crate::codex::{Action, Button, MessageKind, Weight};
+use crate::codex::{ButtonModel, Message, MessageModel};
+use crate::entity::history::Choice;
 use crate::features::Feature;
 use crate::frame::{Page, title_url};
-use crate::html::{esc, link};
 use crate::i18n::Messages;
 use crate::pages::{self, Context, Params};
-use crate::special::controls::{Control, Kind, render};
+use crate::special::controls::{CheckRow, Control, ControlModel, FieldRow, Kind};
 
 /// What the form shows when it comes back: a notice, and what was typed.
 #[derive(Debug, Default)]
@@ -60,6 +60,306 @@ struct Returned {
     expiry: String,
     reason: String,
     talk: Option<bool>,
+}
+
+/// A page that asks the viewer to log in or says they may not (`moderation/gate.html`).
+#[derive(Debug, Clone, Serialize)]
+pub struct GateModel {
+    /// What it says.
+    pub notice: MessageModel,
+    /// The way to log in, for a reader.
+    pub login: Option<Choice>,
+}
+
+impl GateModel {
+    /// Asking a reader to log in, back to `href`'s page after.
+    #[must_use]
+    pub fn login(m: &Messages, notice_key: &str, href: String) -> Self {
+        Self {
+            notice: Message::block(MessageKind::Notice, &m.get(notice_key)).model(),
+            login: Some(link_to(href, m.get("ts-login"))),
+        }
+    }
+
+    /// A notice alone.
+    #[must_use]
+    pub fn notice(kind: MessageKind, text: &str) -> Self {
+        Self {
+            notice: Message::block(kind, text).model(),
+            login: None,
+        }
+    }
+}
+
+/// A link as a template draws it.
+#[must_use]
+pub fn link_to(href: String, label: String) -> Choice {
+    Choice {
+        href,
+        label,
+        current: false,
+    }
+}
+
+/// The notices a form shows above it.
+fn notices(n: Option<&(MessageKind, String)>) -> Vec<MessageModel> {
+    n.map(|(k, t)| Message::block(*k, t).model())
+        .into_iter()
+        .collect()
+}
+
+/// A primary button.
+fn submit(label: &str, action: Action) -> ButtonModel {
+    Button {
+        label,
+        kind: "submit",
+        action,
+        weight: Weight::Primary,
+    }
+    .model()
+}
+
+/// The reason field the moderation forms share (`reason_field`).
+pub(crate) fn reason_row(m: &Messages, id: &str, value: &str) -> FieldRow {
+    FieldRow::text(id, "reason", m.get("ts-moderation-reason"), value, false)
+}
+
+/// The Protect form (`moderation/protect.html`).
+#[derive(Debug, Clone, Serialize)]
+pub struct ProtectPage {
+    /// The notice it came back with, and the note on a title with no page.
+    pub notices: Vec<MessageModel>,
+    /// The restrictions set on what encloses the title.
+    pub enclosing: Option<Enclosing>,
+    /// Where it posts.
+    pub action: String,
+    /// The CSRF token.
+    pub token: String,
+    /// One per action the title may be restricted on.
+    pub rows: Vec<ProtectRow>,
+    /// The expiry.
+    pub expiry: FieldRow,
+    /// The reason.
+    pub reason: FieldRow,
+    /// **Protect**.
+    pub submit: ButtonModel,
+    /// Back to the page.
+    pub cancel: Choice,
+}
+
+/// The restrictions an enclosing target set.
+#[derive(Debug, Clone, Serialize)]
+pub struct Enclosing {
+    /// The heading.
+    pub heading: String,
+    /// One line each.
+    pub rows: Vec<String>,
+}
+
+/// One action's row of the Protect form.
+#[derive(Debug, Clone, Serialize)]
+pub struct ProtectRow {
+    /// The picker's element ID.
+    pub id: String,
+    /// The action's name.
+    pub label: String,
+    /// The group picker.
+    pub control: ControlModel,
+    /// The help's element ID.
+    pub help_id: String,
+    /// The help.
+    pub help: String,
+    /// When the restriction in force ends, if it does.
+    pub current_expiry: Option<String>,
+    /// **Also the talk page**, on the Read row.
+    pub talk: Option<CheckRow>,
+}
+
+fn enclosing_model(m: &Messages, restrictions: &[Restriction]) -> Option<Enclosing> {
+    let rows: Vec<String> = restrictions
+        .iter()
+        .filter(|r| r.source.is_some())
+        .map(|r| {
+            m.with(
+                "ts-protect-enclosing-row",
+                &[
+                    &action_label(m, &r.kind),
+                    &r.level,
+                    r.source.as_deref().unwrap_or_default(),
+                    &expiry_text(m, &r.expiry),
+                ],
+            )
+        })
+        .collect();
+    (!rows.is_empty()).then(|| Enclosing {
+        heading: m.get("ts-protect-enclosing"),
+        rows,
+    })
+}
+
+/// The Protect form's model, as [`form_html`] draws it.
+#[allow(clippy::too_many_lines)] // one form's model, read top to bottom
+fn protect_model(
+    cx: &Context,
+    title: &str,
+    p: &Protection,
+    groups: &[String],
+    token: &str,
+    back: &Returned,
+) -> ProtectPage {
+    let m = &cx.m;
+    let mut notices = notices(back.notice.as_ref());
+    if !p.exists {
+        notices.push(Message::block(MessageKind::Notice, &m.get("ts-protect-new-title")).model());
+    }
+    let own: BTreeMap<&str, &Restriction> = p
+        .restrictions
+        .iter()
+        .filter(|r| r.source.is_none())
+        .map(|r| (r.kind.as_str(), r))
+        .collect();
+    let lift = m.get("ts-protect-level-all");
+    let rows = p
+        .types
+        .iter()
+        .filter(|kind| !(*kind == "create" && p.exists))
+        .map(|kind| {
+            let id = format!("ts-protect-level-{kind}");
+            let help_id = format!("{id}-help");
+            let current = back
+                .levels
+                .get(kind)
+                .cloned()
+                .or_else(|| own.get(kind.as_str()).map(|r| r.level.clone()))
+                .unwrap_or_default();
+            let value = Value::String(current);
+            let control = Control {
+                id: &id,
+                name: &format!("level-{kind}"),
+                kind: Kind::Choice,
+                choices: groups,
+                value: Some(&value),
+                empty_choice: Some(&lift),
+                described_by: Some(&help_id),
+                choice_label: None,
+            }
+            .model();
+            let help = if kind == "read" {
+                m.with("ts-protect-read-help", &[&cx.groups.join(", ")])
+            } else {
+                m.get(&format!("ts-protect-help-{kind}"))
+            };
+            let talk = (kind == "read").then(|| CheckRow {
+                class: "ts-protect__talk".into(),
+                control: ControlModel::check(
+                    "ts-protect-talk",
+                    "talk",
+                    back.talk
+                        .unwrap_or_else(|| own.get("read").is_none_or(|r| r.talk)),
+                    m.get("ts-protect-talk"),
+                ),
+                help: m.get("ts-protect-talk-help"),
+            });
+            ProtectRow {
+                label: action_label(m, kind),
+                control,
+                help,
+                current_expiry: own
+                    .get(kind.as_str())
+                    .filter(|r| r.expiry != "infinity")
+                    .map(|r| m.with("ts-protect-current-expiry", &[&r.expiry])),
+                talk,
+                id,
+                help_id,
+            }
+        })
+        .collect();
+    let expiry = if back.expiry.is_empty() {
+        "infinite"
+    } else {
+        &back.expiry
+    };
+    let mut expiry_row = FieldRow::text(
+        "ts-protect-expiry",
+        "expiry",
+        m.get("ts-protect-expiry"),
+        expiry,
+        false,
+    );
+    if let ControlModel::Input { described_by, .. } = &mut expiry_row.control {
+        *described_by = Some("ts-protect-expiry-help".into());
+    }
+    expiry_row.help = Some(m.get("ts-protect-expiry-help"));
+    expiry_row.help_id = Some("ts-protect-expiry-help".into());
+    ProtectPage {
+        notices,
+        enclosing: enclosing_model(m, &p.restrictions),
+        action: format!("/w/index.php?title={}&action=protect", title_url(title)),
+        token: token.to_string(),
+        rows,
+        expiry: expiry_row,
+        reason: FieldRow::text(
+            "ts-protect-reason",
+            "reason",
+            m.get("ts-protect-reason"),
+            &back.reason,
+            false,
+        ),
+        submit: submit(&m.get("ts-protect-submit"), Action::Progressive),
+        cancel: link_to(
+            format!("/wiki/{}", title_url(title)),
+            m.get("ts-protect-cancel"),
+        ),
+    }
+}
+
+/// The Delete form (`moderation/delete.html`).
+#[derive(Debug, Clone, Serialize)]
+pub struct DeletePage {
+    /// The notice it came back with, then the warning.
+    pub notices: Vec<MessageModel>,
+    /// Where it posts.
+    pub action: String,
+    /// The CSRF token.
+    pub token: String,
+    /// The reason.
+    pub reason: FieldRow,
+    /// **Also delete the talk page**.
+    pub talk: CheckRow,
+    /// **Delete**.
+    pub submit: ButtonModel,
+    /// Back to the page.
+    pub cancel: Choice,
+}
+
+/// The view of a deleted page (`moderation/deleted.html`).
+#[derive(Debug, Clone, Serialize)]
+pub struct DeletedPage {
+    /// The notice it came back with.
+    pub notices: Vec<MessageModel>,
+    /// Who deleted it, when and why.
+    pub banner: String,
+    /// The deletion log.
+    pub log: Choice,
+    /// The newest deleted revision as the API renders it, for the deletion group.
+    pub content_html: Option<String>,
+    /// Its source, where the API would not render it.
+    pub source: Option<String>,
+    /// The Undelete form.
+    pub undelete: Option<UndeleteForm>,
+}
+
+/// The Undelete form.
+#[derive(Debug, Clone, Serialize)]
+pub struct UndeleteForm {
+    /// Where it posts.
+    pub action: String,
+    /// The CSRF token.
+    pub token: String,
+    /// The reason.
+    pub reason: FieldRow,
+    /// **Undelete**.
+    pub submit: ButtonModel,
 }
 
 /// A message for an API refusal.
@@ -82,36 +382,6 @@ fn refusal_text(m: &Messages, code: &str, info: &str) -> String {
     }
 }
 
-/// The restrictions an enclosing target set, as a list the viewer cannot change here.
-fn enclosing_html(m: &Messages, restrictions: &[Restriction]) -> String {
-    let from_above: Vec<&Restriction> =
-        restrictions.iter().filter(|r| r.source.is_some()).collect();
-    if from_above.is_empty() {
-        return String::new();
-    }
-    let mut s = format!(
-        "<section class=\"ts-protect__enclosing\"><h2>{}</h2><ul>",
-        esc(&m.get("ts-protect-enclosing"))
-    );
-    for r in from_above {
-        let _ = write!(
-            s,
-            "<li>{}</li>",
-            esc(&m.with(
-                "ts-protect-enclosing-row",
-                &[
-                    &action_label(m, &r.kind),
-                    &r.level,
-                    r.source.as_deref().unwrap_or_default(),
-                    &expiry_text(m, &r.expiry),
-                ]
-            ))
-        );
-    }
-    s.push_str("</ul></section>");
-    s
-}
-
 fn action_label(m: &Messages, kind: &str) -> String {
     let key = format!("ts-protect-action-{kind}");
     if m.has(&key) {
@@ -127,139 +397,6 @@ fn expiry_text(m: &Messages, expiry: &str) -> String {
     } else {
         expiry.to_string()
     }
-}
-
-/// The form.
-#[allow(clippy::too_many_lines)]
-fn form_html(
-    cx: &Context,
-    title: &str,
-    p: &Protection,
-    groups: &[String],
-    token: &str,
-    back: &Returned,
-) -> String {
-    let m = &cx.m;
-    let mut s = String::new();
-    if let Some((kind, text)) = &back.notice {
-        s.push_str(&pages::message(*kind, text));
-    }
-    if !p.exists {
-        s.push_str(&pages::message(
-            MessageKind::Notice,
-            &m.get("ts-protect-new-title"),
-        ));
-    }
-    s.push_str(&enclosing_html(m, &p.restrictions));
-    let own: BTreeMap<&str, &Restriction> = p
-        .restrictions
-        .iter()
-        .filter(|r| r.source.is_none())
-        .map(|r| (r.kind.as_str(), r))
-        .collect();
-    let _ = write!(
-        s,
-        "<form class=\"ts-protect\" method=\"post\" action=\"/w/index.php?title={}&amp;action=protect\"><input type=\"hidden\" name=\"token\" value=\"{}\">",
-        esc(&title_url(title)),
-        esc(token)
-    );
-    let lift = m.get("ts-protect-level-all");
-    for kind in &p.types {
-        // Creation is restricted on a title with no page (09 §4.8); a page that exists
-        // has nothing to create.
-        if kind == "create" && p.exists {
-            continue;
-        }
-        let id = format!("ts-protect-level-{kind}");
-        let help_id = format!("{id}-help");
-        let current = back
-            .levels
-            .get(kind)
-            .cloned()
-            .or_else(|| own.get(kind.as_str()).map(|r| r.level.clone()))
-            .unwrap_or_default();
-        let value = Value::String(current.clone());
-        let control = render(&Control {
-            id: &id,
-            name: &format!("level-{kind}"),
-            kind: Kind::Choice,
-            choices: groups,
-            value: Some(&value),
-            empty_choice: Some(&lift),
-            described_by: Some(&help_id),
-            choice_label: None,
-        });
-        let help = if kind == "read" {
-            let mine = cx.groups.join(", ");
-            m.with("ts-protect-read-help", &[&mine])
-        } else {
-            m.get(&format!("ts-protect-help-{kind}"))
-        };
-        let _ = write!(
-            s,
-            "<div class=\"cdx-field ts-protect__row\"><div class=\"cdx-label\"><label class=\"cdx-label__label\" for=\"{id}\"><span class=\"cdx-label__label__text\">{}</span></label></div><div class=\"cdx-field__control\">{control}</div><div class=\"cdx-field__help-text\" id=\"{help_id}\">{}</div>",
-            esc(&action_label(m, kind)),
-            esc(&help),
-        );
-        if let Some(r) = own.get(kind.as_str())
-            && r.expiry != "infinity"
-        {
-            let _ = write!(
-                s,
-                "<div class=\"cdx-field__help-text\">{}</div>",
-                esc(&m.with("ts-protect-current-expiry", &[&r.expiry]))
-            );
-        }
-        if kind == "read" {
-            let checked = back
-                .talk
-                .unwrap_or_else(|| own.get("read").is_none_or(|r| r.talk));
-            let _ = write!(
-                s,
-                "<div class=\"ts-protect__talk\"><span class=\"cdx-checkbox cdx-checkbox--inline\"><input class=\"cdx-checkbox__input\" type=\"checkbox\" id=\"ts-protect-talk\" name=\"talk\" value=\"1\"{}><span class=\"cdx-checkbox__icon\"></span><label class=\"cdx-checkbox__label\" for=\"ts-protect-talk\">{}</label></span><div class=\"cdx-field__help-text\">{}</div></div>",
-                if checked { " checked" } else { "" },
-                esc(&m.get("ts-protect-talk")),
-                esc(&m.get("ts-protect-talk-help")),
-            );
-        }
-        s.push_str("</div>");
-    }
-    let expiry = if back.expiry.is_empty() {
-        "infinite".to_string()
-    } else {
-        back.expiry.clone()
-    };
-    let _ = write!(
-        s,
-        "<div class=\"cdx-field\"><div class=\"cdx-label\"><label class=\"cdx-label__label\" for=\"ts-protect-expiry\"><span class=\"cdx-label__label__text\">{}</span></label></div><div class=\"cdx-field__control\"><div class=\"cdx-text-input\"><input class=\"cdx-text-input__input\" type=\"text\" id=\"ts-protect-expiry\" name=\"expiry\" value=\"{}\" aria-describedby=\"ts-protect-expiry-help\"></div></div><div class=\"cdx-field__help-text\" id=\"ts-protect-expiry-help\">{}</div></div>",
-        esc(&m.get("ts-protect-expiry")),
-        esc(&expiry),
-        esc(&m.get("ts-protect-expiry-help")),
-    );
-    let _ = write!(
-        s,
-        "<div class=\"cdx-field\"><div class=\"cdx-label\"><label class=\"cdx-label__label\" for=\"ts-protect-reason\"><span class=\"cdx-label__label__text\">{}</span></label></div><div class=\"cdx-field__control\"><div class=\"cdx-text-input\"><input class=\"cdx-text-input__input\" type=\"text\" id=\"ts-protect-reason\" name=\"reason\" value=\"{}\"></div></div></div>",
-        esc(&m.get("ts-protect-reason")),
-        esc(&back.reason),
-    );
-    let _ = write!(
-        s,
-        "<div class=\"ts-protect__actions\">{}{}</div></form>",
-        Button {
-            label: &m.get("ts-protect-submit"),
-            kind: "submit",
-            action: Action::Progressive,
-            weight: Weight::Primary,
-        }
-        .render()
-        .unwrap_or_default(),
-        link(
-            &format!("/wiki/{}", title_url(title)),
-            &esc(&m.get("ts-protect-cancel")),
-            " class=\"ts-protect__cancel\""
-        ),
-    );
-    s
 }
 
 /// The groups a restriction may name: the tenant's, implicit ones left out.
@@ -295,18 +432,12 @@ async fn page(
     let m = &cx.m;
     let heading = m.with("ts-protect-title", &[title]);
     if cx.user.is_none() {
-        let body = format!(
-            "{}<p>{}</p>",
-            pages::message(MessageKind::Notice, &m.get("ts-protect-login")),
-            link(
-                &format!(
-                    "/wiki/Special:UserLogin?returnto={}&returntoquery=action%3Dprotect",
-                    title_url(title)
-                ),
-                &esc(&m.get("ts-login")),
-                ""
-            )
+        let href = format!(
+            "/wiki/Special:UserLogin?returnto={}&returntoquery=action%3Dprotect",
+            title_url(title)
         );
+        let model = GateModel::login(m, "ts-protect-login", href.clone());
+        let body = cx.draw("moderation/gate.html", &model);
         return pages::respond(cx, headers, StatusCode::OK, |_| Page {
             title: heading.clone(),
             returnto: Some(title.to_string()),
@@ -315,7 +446,11 @@ async fn page(
         });
     }
     if !cx.holds("protect") {
-        let body = pages::message(MessageKind::Error, &m.get("ts-protect-denied"));
+        let text = m.get("ts-protect-denied");
+        let body = cx.draw(
+            "moderation/gate.html",
+            GateModel::notice(MessageKind::Error, &text),
+        );
         return pages::respond(cx, headers, StatusCode::FORBIDDEN, |_| Page {
             title: heading.clone(),
             returnto: Some(title.to_string()),
@@ -337,17 +472,15 @@ async fn page(
         Ok(g) => g,
         Err(r) => return r,
     };
-    let body = format!(
-        "<div class=\"ts-protect-page\">{}</div>",
-        form_html(
-            cx,
-            &p.value.title,
-            &p.value,
-            &groups,
-            &token.value.value,
-            &back
-        )
+    let model = protect_model(
+        cx,
+        &p.value.title,
+        &p.value,
+        &groups,
+        &token.value.value,
+        &back,
     );
+    let body = cx.draw("moderation/protect.html", &model);
     let r = pages::respond(cx, headers, status, |_| Page {
         title: heading.clone(),
         returnto: Some(title.to_string()),
@@ -532,18 +665,12 @@ pub(crate) fn gate(
 ) -> Option<Response> {
     let m = &cx.m;
     if cx.user.is_none() {
-        let body = format!(
-            "{}<p>{}</p>",
-            pages::message(MessageKind::Notice, &m.get("ts-moderation-login")),
-            link(
-                &format!(
-                    "/wiki/Special:UserLogin?returnto={}&returntoquery=action%3D{action}",
-                    title_url(title)
-                ),
-                &esc(&m.get("ts-login")),
-                ""
-            )
+        let href = format!(
+            "/wiki/Special:UserLogin?returnto={}&returntoquery=action%3D{action}",
+            title_url(title)
         );
+        let model = GateModel::login(m, "ts-moderation-login", href.clone());
+        let body = cx.draw("moderation/gate.html", &model);
         return Some(pages::respond(cx, headers, StatusCode::OK, |_| Page {
             title: heading.to_string(),
             returnto: Some(title.to_string()),
@@ -552,9 +679,10 @@ pub(crate) fn gate(
         }));
     }
     if !cx.holds(right) {
-        let body = pages::message(
-            MessageKind::Error,
-            &m.with("ts-moderation-denied", &[right]),
+        let text = m.with("ts-moderation-denied", &[right]);
+        let body = cx.draw(
+            "moderation/gate.html",
+            GateModel::notice(MessageKind::Error, &text),
         );
         return Some(pages::respond(cx, headers, StatusCode::FORBIDDEN, |_| {
             Page {
@@ -566,14 +694,6 @@ pub(crate) fn gate(
         }));
     }
     None
-}
-
-pub(crate) fn reason_field(m: &Messages, id: &str, value: &str) -> String {
-    format!(
-        "<div class=\"cdx-field\"><div class=\"cdx-label\"><label class=\"cdx-label__label\" for=\"{id}\"><span class=\"cdx-label__label__text\">{}</span></label></div><div class=\"cdx-field__control\"><div class=\"cdx-text-input\"><input class=\"cdx-text-input__input\" type=\"text\" id=\"{id}\" name=\"reason\" value=\"{}\"></div></div></div>",
-        esc(&m.get("ts-moderation-reason")),
-        esc(value),
-    )
 }
 
 /// The Delete form.
@@ -600,41 +720,29 @@ async fn delete_page(
     cx.inputs.push(token.value.cache);
     let m = &cx.m;
     let (reason, talk) = typed.unwrap_or(("", true));
-    let mut body = String::new();
-    if let Some((kind, text)) = notice {
-        body.push_str(&pages::message(kind, &text));
-    }
-    body.push_str(&pages::message(
-        MessageKind::Warning,
-        &m.get("ts-delete-warning"),
-    ));
-    let _ = write!(
-        body,
-        "<form class=\"ts-delete\" method=\"post\" action=\"/w/index.php?title={}&amp;action=delete\"><input type=\"hidden\" name=\"token\" value=\"{}\">{}<div class=\"ts-protect__talk\"><span class=\"cdx-checkbox cdx-checkbox--inline\"><input class=\"cdx-checkbox__input\" type=\"checkbox\" id=\"ts-delete-talk\" name=\"talk\" value=\"1\"{}><span class=\"cdx-checkbox__icon\"></span><label class=\"cdx-checkbox__label\" for=\"ts-delete-talk\">{}</label></span><div class=\"cdx-field__help-text\">{}</div></div><div class=\"ts-protect__actions\">{}{}</div></form>",
-        esc(&title_url(title)),
-        esc(&token.value.value),
-        reason_field(m, "ts-delete-reason", reason),
-        if talk { " checked" } else { "" },
-        esc(&m.get("ts-delete-talk")),
-        esc(&m.get("ts-delete-talk-help")),
-        Button {
-            label: &m.get("ts-delete-submit"),
-            kind: "submit",
-            action: Action::Destructive,
-            weight: Weight::Primary,
-        }
-        .render()
-        .unwrap_or_default(),
-        link(
-            &format!("/wiki/{}", title_url(title)),
-            &esc(&m.get("ts-protect-cancel")),
-            " class=\"ts-protect__cancel\""
+    let mut notices_now = notices(notice.as_ref());
+    notices_now.push(Message::block(MessageKind::Warning, &m.get("ts-delete-warning")).model());
+    let model = DeletePage {
+        notices: notices_now,
+        action: format!("/w/index.php?title={}&action=delete", title_url(title)),
+        token: token.value.value.clone(),
+        reason: reason_row(m, "ts-delete-reason", reason),
+        talk: CheckRow {
+            class: "ts-protect__talk".into(),
+            control: ControlModel::check("ts-delete-talk", "talk", talk, m.get("ts-delete-talk")),
+            help: m.get("ts-delete-talk-help"),
+        },
+        submit: submit(&m.get("ts-delete-submit"), Action::Destructive),
+        cancel: link_to(
+            format!("/wiki/{}", title_url(title)),
+            m.get("ts-protect-cancel"),
         ),
-    );
+    };
+    let body = cx.draw("moderation/delete.html", &model);
     let r = pages::respond(&cx, headers, StatusCode::OK, |_| Page {
         title: heading.clone(),
         returnto: Some(title.to_string()),
-        body: format!("<div class=\"ts-protect-page\">{body}</div>"),
+        body,
         ..Page::default()
     });
     pages::with_cookies(r, &token.set_cookies)
@@ -787,30 +895,24 @@ pub async fn deleted(
     cx.inputs.push(deletion.cache);
     let d = deletion.value?;
     let m = &cx.m;
-    let mut body = String::new();
-    if let Some((kind, text)) = notice {
-        body.push_str(&pages::message(kind, &text));
-    }
     let by =
         d.by.clone()
             .unwrap_or_else(|| m.get("ts-changes-hidden-user"));
-    let mut banner = esc(&m.with("ts-deleted-banner", &[&by, &d.time, &d.reason]));
-    if d.reason.is_empty() {
-        banner = esc(&m.with("ts-deleted-banner-no-reason", &[&by, &d.time]));
-    }
-    let _ = write!(
-        banner,
-        " {}",
-        link(
-            &format!("/wiki/Special:Log?type=delete&page={}", title_url(title)),
-            &esc(&m.get("ts-deleted-log-link")),
-            ""
-        )
-    );
-    let _ = write!(
-        body,
-        "<div class=\"cdx-message cdx-message--block cdx-message--warning ts-deleted__banner\" aria-live=\"polite\"><span class=\"cdx-message__icon\"></span><div class=\"cdx-message__content\">{banner}</div></div>"
-    );
+    let mut model = DeletedPage {
+        notices: notices(notice.as_ref()),
+        banner: if d.reason.is_empty() {
+            m.with("ts-deleted-banner-no-reason", &[&by, &d.time])
+        } else {
+            m.with("ts-deleted-banner", &[&by, &d.time, &d.reason])
+        },
+        log: link_to(
+            format!("/wiki/Special:Log?type=delete&page={}", title_url(title)),
+            m.get("ts-deleted-log-link"),
+        ),
+        content_html: None,
+        source: None,
+        undelete: None,
+    };
     // The deletion group reads the content; others see nothing more.
     let revision = match site.client().deleted_revision(incoming, title).await {
         Ok(r) => r,
@@ -821,21 +923,10 @@ pub async fn deleted(
     if let Some(rev) = &revision.value
         && let Some(text) = &rev.content
     {
-        match site.client().preview(incoming, title, text).await {
-            Ok(parsed) => {
-                let _ = write!(
-                    body,
-                    "<div class=\"ts-document ts-deleted__content\"><div class=\"ts-document__content\">{}</div></div>",
-                    parsed.html
-                );
-            }
-            Err(_) => {
-                let _ = write!(
-                    body,
-                    "<pre class=\"ts-deleted__source\">{}</pre>",
-                    esc(text)
-                );
-            }
+        if let Ok(parsed) = site.client().preview(incoming, title, text).await {
+            model.content_html = Some(parsed.html);
+        } else {
+            model.source = Some(text.clone());
         }
     }
     let mut cookies = Vec::new();
@@ -846,21 +937,13 @@ pub async fn deleted(
         };
         cx.inputs.push(token.value.cache);
         cookies = token.set_cookies;
-        let _ = write!(
-            body,
-            "<form class=\"ts-undelete\" method=\"post\" action=\"/w/index.php?title={}&amp;action=undelete\"><input type=\"hidden\" name=\"token\" value=\"{}\">{}<div class=\"ts-protect__actions\">{}</div></form>",
-            esc(&title_url(title)),
-            esc(&token.value.value),
-            reason_field(m, "ts-undelete-reason", ""),
-            Button {
-                label: &m.get("ts-undelete-submit"),
-                kind: "submit",
-                action: Action::Progressive,
-                weight: Weight::Primary,
-            }
-            .render()
-            .unwrap_or_default(),
-        );
+        let m = &cx.m;
+        model.undelete = Some(UndeleteForm {
+            action: format!("/w/index.php?title={}&action=undelete", title_url(title)),
+            token: token.value.value,
+            reason: reason_row(m, "ts-undelete-reason", ""),
+            submit: submit(&m.get("ts-undelete-submit"), Action::Progressive),
+        });
     }
     // The group has a page to read; everyone else a title with no page, as the API says.
     let status = if member {
@@ -869,10 +952,11 @@ pub async fn deleted(
         StatusCode::NOT_FOUND
     };
     let heading = title.to_string();
+    let body = cx.draw("moderation/deleted.html", &model);
     let r = pages::respond(cx, headers, status, |_| Page {
         title: heading.clone(),
         returnto: Some(title.to_string()),
-        body: format!("<div class=\"ts-deleted\">{body}</div>"),
+        body,
         ..Page::default()
     });
     Some(pages::with_cookies(r, &cookies))

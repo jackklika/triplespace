@@ -169,15 +169,12 @@ http-body-util = "0.1"
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "http2"] }
 # Sealing secrets at rest (0088 §3): XChaCha20-Poly1305
 chacha20poly1305 = "0.11"
-# Server-rendered pages (0034 §2): compiled templates; the built frontend embedded (0034 §8)
-# Without `config`, which reads an askama.toml (there is none) through the unmaintained
-# basic-toml (RUSTSEC-2026-0374); `path = ` templates come with the derive regardless.
 similar = { version = "2.7", default-features = false, features = ["text"] }
-askama = { version = "0.16", default-features = false, features = ["derive", "std", "urlencode"] }
 # Skins (0097 §8): templates parsed when a skin is loaded, rendered with autoescape on, with
 # no access to files, the network or the environment; manifests carry semantic versions.
 minijinja = { version = "3", features = ["serde"] }
 semver = "1"
+# The built frontend embedded (0034 §8)
 rust-embed = { version = "8", features = ["include-exclude"] }
 
 [workspace.lints.rust]

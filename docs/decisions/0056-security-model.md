@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-10-01
-- **Updated:** 2026-10-30 (A27)
+- **Updated:** 2026-11-03 (A28)
 - **Author:** James Hare / Claude Fable
 - **Changes:** [0005](0005-crate-organization.md), [0012](0012-api-requirements.md), [0013](0013-postgres-storage.md), [0014](0014-caches-and-search.md), [0016](0016-permissions-and-access-control.md), [0018](0018-tenants.md), [0021](0021-notifications.md), [0023](0023-moderation.md), [0028](0028-tenancy-policy.md), [0033](0033-backend-stack.md), [0042](0042-template-expansion-and-parsoid.md), [0043](0043-lua-modules.md), [0051](0051-page-redirects.md)
 - **Uses:** [0006](0006-log-integrity-and-erasure.md), [0007](0007-actor-identity.md), [0010](0010-site-ui.md), [0011](0011-logs.md), [0015](0015-record-format-and-partition-registry.md), [0019](0019-discussions.md), [0020](0020-change-feeds.md), [0022](0022-federation.md), [0024](0024-subsidiary-accounts.md), [0025](0025-oauth-server.md), [0030](0030-edit-filters.md), [0032](0032-sparql-update-stream.md), [0039](0039-files-and-media.md), [0040](0040-instance-prerogatives.md), [0045](0045-table-content-model.md), [0046](0046-primary-tenant.md), [0047](0047-special-pages.md), [0049](0049-boards.md), [0052](0052-page-repositories-and-title-inheritance.md), [0053](0053-mirrored-pages.md), [0054](0054-forking-a-mirrored-page.md), [MediaWiki API contract](../api/mediawiki-compat.md)
@@ -100,9 +100,9 @@ James's direction, from the design discussion of 2026-10-01:
 
 ### 13. API and UI (extends 0012 §4; extends 0016 §7; extends 0023 §8 and §9)
 
-*Changed by A16, A25, A26.*
+*Changed by A16, A25, A26, A28.*
 
-*Current text: [18](../architecture/18-api.md) §2.2, §2.3, §3.1, §3.2; [19](../architecture/19-site-ui.md) §1.3, §1.5, §2.8, §6.3, §6.11.*
+*Current text: [09](../architecture/09-security-and-moderation.md) §4.7; [18](../architecture/18-api.md) §2.2, §2.3, §3.1, §3.2; [19](../architecture/19-site-ui.md) §1.3, §1.5, §2.8, §6.3, §6.11.*
 
 ### 14. Storage (extends 0013 §5.6)
 
@@ -497,3 +497,10 @@ Replaced text ([09](../architecture/09-security-and-moderation.md) §4.5, as it 
   - The purge queue is the record until a cache layer exists; nothing consumes it yet, and the exposure after a restriction is the proxy's `s-maxage` window. `visibility_epoch` is in `ops`.
   - The hidden-set cache holds only "nothing hidden" answers, keyed by the ACL frontier.
   - The battery's test tenant runs at `challenge.bits = 8`; registration is capped at six accounts a day per address, so the battery reuses one account across roles; the `protect` oracle is left out of the battery on the strength of 09 §5.3.
+
+### A28. A set member named by an entity's page ID is the entity
+
+- **Date:** 2026-11-03
+- **Source:** Direct: Claude, while fixing Special:ProtectedPages' Add a page for items, 2026-11-03; unconfirmed
+- **Change:** extends §13
+- **Summary:** A set's members are page and entity IDs (09 §4.7). `Special:ProtectedPages` adds a member by title, looks it up with `prop=info` and sends `{kind: "page", id}`; for an item that is the entity's page ID, which no document page holds, so the API answered `ts-no-target` and the site, which read a `404` from a save as an unreadable answer, said so. The set routes now read `kind: "page"` with an entity's page ID as that entity, as `pageids=` already does (18 §2.3), and record the entity's ID, so a member is added, found already held, and removed by either ID; and the site's client reads a `404` from a save as a refusal the form shows. The chapter text is 09 §4.7.

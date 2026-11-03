@@ -17,6 +17,7 @@ Log entries whose Source ends in *unconfirmed*: decisions made in code and logge
 | [0047 A29](0047-special-pages.md#a29-pagerandom-is-derived-from-the-page) | 2026-11-02 | `page_random` is derived from the page |
 | [0051 A8](0051-page-redirects.md#a8-actionmove-the-calls-made-building-it) | 2026-10-30 | `action=move`: the calls made building it |
 | [0056 A27](0056-security-model.md#a27-entities-the-live-attack-and-tiers-78-the-calls-made-building-them) | 2026-10-30 | Entities, the live attack and tiers 7–8: the calls made building them |
+| [0056 A28](0056-security-model.md#a28-a-set-member-named-by-an-entitys-page-id-is-the-entity) | 2026-11-03 | A set member named by an entity's page ID is the entity |
 | [0077 A6](0077-special-version.md#a6-licensing-loose-ends-from-building-specialversion) | 2026-10-30 | Licensing: loose ends from building Special:Version |
 | [0085 A2](0085-settings-and-preferences.md#a2-settings-the-calls-made-building-the-backend-slice) | 2026-10-30 | Settings: the calls made building the backend slice |
 | [0086 A9](0086-theming.md#a9-theming-loose-ends-from-building-it) | 2026-10-30 | Theming: loose ends from building it |
@@ -27,6 +28,9 @@ Log entries whose Source ends in *unconfirmed*: decisions made in code and logge
 | [0097 A4](0097-versioning-and-skins.md#a4-drawings-are-svg-the-binary-makes) | 2026-10-30 | Drawings are SVG the binary makes |
 | [0097 A6](0097-versioning-and-skins.md#a6-a-part-of-a-later-group-is-carried-as-html-until-that-group-switches) | 2026-10-30 | A part of a later group is carried as HTML until that group switches |
 | [0097 A9](0097-versioning-and-skins.md#a9-a-radio-button-joins-the-controls-and-a-settings-row-carries-where-its-value-comes-from) | 2026-11-02 | A radio button joins the controls, and a settings row carries where its value comes from |
+| [0097 A10](0097-versioning-and-skins.md#a10-a-field-and-an-option-join-the-layouts-and-the-moderation-forms-move-onto-them) | 2026-11-03 | A field and an option join the layouts, and the moderation forms move onto them |
+| [0097 A11](0097-versioning-and-skins.md#a11-a-line-of-text-is-parts-and-the-last-groups-forms-move-onto-the-shared-controls) | 2026-11-03 | A line of text is parts, and the last group's forms move onto the shared controls |
+| [0097 A12](0097-versioning-and-skins.md#a12-the-built-in-renderer-is-removed-and-parity-becomes-worksheets-check) | 2026-11-03 | The built-in renderer is removed, and parity becomes Worksheet's check |
 
 ## Open questions
 

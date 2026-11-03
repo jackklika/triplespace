@@ -376,7 +376,7 @@ pub async fn post(site: &Site, headers: &HeaderMap, peer: Peer, params: &Params)
             pages::respond(&cx, headers, StatusCode::BAD_REQUEST, |m| Page {
                 title: m.get("ts-notifications-title"),
                 returnto: Some(TITLE.to_string()),
-                body: pages::message(MessageKind::Error, &text),
+                body: cx.message(MessageKind::Error, &text),
                 ..Page::default()
             })
         }

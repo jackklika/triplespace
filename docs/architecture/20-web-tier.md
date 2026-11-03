@@ -17,7 +17,7 @@ The web tier is the process that renders the site's pages: either `triplespace-s
 
 ### 1.2 Two ways to run the site
 
-*Sources: [0057](../decisions/0057-web-tier.md) §2; [0097](../decisions/0097-versioning-and-skins.md) §8, §16.*
+*Sources: [0057](../decisions/0057-web-tier.md) §2; [0097](../decisions/0097-versioning-and-skins.md) §8.*
 
 - **`triplespace-server` embeds the site.** `server.ui` is `embedded` (the default) or `off`. Embedded, the server serves the web paths of §2.1 itself through `triplespace-ui`, calling its own API router as a `tower::Service` with no network hop. The embedded call carries the original request's headers and connection address unchanged, so the API sees the real client and the in-process path adds no `X-Forwarded-*`. A small instance stays one binary and Postgres ([0033](../decisions/0033-backend-stack.md) §1). This is runtime configuration, not a Cargo feature, so the binary's behaviour is not chosen at build time ([0005](../decisions/0005-crate-organization.md) §3 rule 6).
 - **`triplespace-web` serves the site on its own.** A second binary from the same workspace, configured by the settings below. An HA deployment runs `triplespace-server` with `server.ui = off` behind the edge and `triplespace-web` beside it, each pool sized on its own.
@@ -36,7 +36,6 @@ The web tier is the process that renders the site's pages: either `triplespace-s
 | `web.upstream_host` | `forward` (the default) or, in `development` mode only, `fixed` (§2.2) |
 | `web.assets_from` | Optional: a base URL that serves the hashed assets instead of the binary (§4) |
 | `web.skins` | Optional: a directory of installed skins beside the shipped ones, as `server.skins` ([19](19-site-ui.md) §5.10; [23](23-configuration-and-registry.md) §3.6) |
-| `web.renderer` | `builtin` (the default), `skin` or `compare`, as `server.renderer`, until the skin migration is done ([19](19-site-ui.md) §5.10) |
 
 Secrets come from files, never the command line ([0033](../decisions/0033-backend-stack.md) §12).
 

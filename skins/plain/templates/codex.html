@@ -1,11 +1,11 @@
 {#- Codex components as Plain's macros (19 §5.2, §5.10): each draws Codex's CSS-only markup
-    over a model the binary builds (`triplespace_ui::codex`, each builder's `model()`), so
-    that a Codex markup change is one edit. Until parity, the Rust builder in `codex.rs`
-    draws the same markup for the built-in rendering, and a test holds each macro to its
-    builder. `*_html` fields and a cell's `html` are HTML the binary built from escaped
-    parts; everything else is text the macro escapes.
+    over a model the binary builds (`triplespace_ui::codex`, each component's `model()`),
+    so that a Codex markup change is one edit; `tests/codex_macros.rs` holds each macro's
+    markup as a snapshot. `*_html` fields are HTML the binary built from escaped parts; a table cell is
+    parts, drawn by `inline.html`; everything else is text the macro escapes.
 
     {% import "codex.html" as codex %} … {{ codex.button(b) }} -#}
+{%- import "inline.html" as inline -%}
 
 {%- macro button(b) -%}
 <button type="{{ b.kind }}" class="{{ b.classes }}">{{ b.label }}</button>
@@ -56,9 +56,9 @@
 				<tr>
 					{%- for cell in row %}
 					{%- if cell.header %}
-					<th scope="row"{% if cell.align_class %} class="{{ cell.align_class }}"{% endif %}{% if cell.lang %} lang="{{ cell.lang }}" dir="auto"{% endif %}>{{ cell.html|safe }}</th>
+					<th scope="row"{% if cell.align_class %} class="{{ cell.align_class }}"{% endif %}{% if cell.lang %} lang="{{ cell.lang }}" dir="auto"{% endif %}>{{ inline.parts(cell.content) }}</th>
 					{%- else %}
-					<td{% if cell.align_class %} class="{{ cell.align_class }}"{% endif %}{% if cell.lang %} lang="{{ cell.lang }}" dir="auto"{% endif %}>{{ cell.html|safe }}</td>
+					<td{% if cell.align_class %} class="{{ cell.align_class }}"{% endif %}{% if cell.lang %} lang="{{ cell.lang }}" dir="auto"{% endif %}>{{ inline.parts(cell.content) }}</td>
 					{%- endif %}
 					{%- endfor %}
 				</tr>

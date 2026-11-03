@@ -123,9 +123,9 @@
    "group": 4
   },
   {
-   "name": "lb-domain-wikipedia-org-diff-6081981730183357088-1",
+   "name": "lb-domain-wikipedia-org-diff-4341541992988613049-1",
    "set": "lb",
-   "path": "/wiki/Domain:wikipedia.org?diff=6081981730183357088:1",
+   "path": "/wiki/Domain:wikipedia.org?diff=4341541992988613049:1",
    "group": 4
   },
   {
@@ -174,7 +174,7 @@
    "name": "lb-project-consensus",
    "set": "lb",
    "path": "/wiki/Project:Consensus",
-   "group": 5,
+   "group": 11,
    "status": 404
   },
   {
@@ -439,9 +439,9 @@
    "group": 7
   },
   {
-   "name": "lb-special-recentchanges-limit-3-continue-1793675822012252-7c4486478381468651822",
+   "name": "lb-special-recentchanges-limit-3-continue-1793723850915431-7c1135715011209769946",
    "set": "lb",
-   "path": "/wiki/Special:RecentChanges?limit=3&continue=1793675822012252%7C4486478381468651822%7C5",
+   "path": "/wiki/Special:RecentChanges?limit=3&continue=1793723850915431%7C1135715011209769946%7C10",
    "group": 7
   },
   {
@@ -898,19 +898,19 @@
    "name": "lb-special-protectedpages",
    "set": "lb",
    "path": "/wiki/Special:ProtectedPages",
-   "group": 8
+   "group": 11
   },
   {
    "name": "lb-special-protectedtitles",
    "set": "lb",
    "path": "/wiki/Special:ProtectedTitles",
-   "group": 8
+   "group": 11
   },
   {
    "name": "lb-special-blocklist",
    "set": "lb",
    "path": "/wiki/Special:BlockList",
-   "group": 8
+   "group": 11
   },
   {
    "name": "lb-special-userlogin",
@@ -1059,6 +1059,73 @@
    "group": 11
   },
   {
+   "name": "lb-item-q6-action-delete",
+   "set": "lb",
+   "path": "/wiki/Item:Q6?action=delete",
+   "group": 11
+  },
+  {
+   "name": "lb-project-never-written-action-protect",
+   "set": "lb",
+   "path": "/wiki/Project:Never_written?action=protect",
+   "group": 11
+  },
+  {
+   "name": "lb-project-consensus-action-undelete",
+   "set": "lb",
+   "path": "/wiki/Project:Consensus?action=undelete",
+   "group": 11
+  },
+  {
+   "name": "lb-special-undelete-target-project-home",
+   "set": "lb",
+   "path": "/wiki/Special:Undelete?target=Project:Home",
+   "group": 11,
+   "status": 404
+  },
+  {
+   "name": "lb-special-block-bob",
+   "set": "lb",
+   "path": "/wiki/Special:Block/Bob",
+   "group": 11
+  },
+  {
+   "name": "lb-special-unblock",
+   "set": "lb",
+   "path": "/wiki/Special:Unblock",
+   "group": 11
+  },
+  {
+   "name": "lb-special-movepage",
+   "set": "lb",
+   "path": "/wiki/Special:MovePage",
+   "group": 11
+  },
+  {
+   "name": "lb-special-movepage-project-analytics-orbit",
+   "set": "lb",
+   "path": "/wiki/Special:MovePage/Project:Analytics/Orbit",
+   "group": 11
+  },
+  {
+   "name": "lb-special-userrights",
+   "set": "lb",
+   "path": "/wiki/Special:UserRights",
+   "group": 11
+  },
+  {
+   "name": "lb-special-userrights-nobody",
+   "set": "lb",
+   "path": "/wiki/Special:UserRights/Nobody",
+   "group": 11
+  },
+  {
+   "name": "lb-special-userrights-alice",
+   "set": "lb",
+   "path": "/wiki/Special:UserRights/Alice",
+   "group": 11
+  },
+  {
    "name": "lb-special-version",
    "set": "lb",
    "path": "/wiki/Special:Version",
@@ -1181,6 +1248,140 @@
    "path": "/wiki/Special:Nonsense",
    "group": 12,
    "status": 404
+  },
+  {
+   "name": "lb-special-version-credits",
+   "set": "lb",
+   "path": "/wiki/Special:Version/Credits",
+   "group": 12
+  },
+  {
+   "name": "lb-special-version-license",
+   "set": "lb",
+   "path": "/wiki/Special:Version/License",
+   "group": 12
+  },
+  {
+   "name": "lb-special-version-license-tokio",
+   "set": "lb",
+   "path": "/wiki/Special:Version/License/tokio",
+   "group": 12,
+   "status": 404
+  },
+  {
+   "name": "lb-special-version-license-no-such-component",
+   "set": "lb",
+   "path": "/wiki/Special:Version/License/no-such-component",
+   "group": 12,
+   "status": 404
+  },
+  {
+   "name": "lb-special-version-nothing",
+   "set": "lb",
+   "path": "/wiki/Special:Version/Nothing",
+   "group": 12,
+   "status": 404
+  },
+  {
+   "name": "lb-special-allmessages-prefix-ts-account-filter-modified",
+   "set": "lb",
+   "path": "/wiki/Special:AllMessages?prefix=ts-account&filter=modified",
+   "group": 12
+  },
+  {
+   "name": "lb-special-allmessages-prefix-ts-account-lang-de",
+   "set": "lb",
+   "path": "/wiki/Special:AllMessages?prefix=ts-account&lang=de",
+   "group": 12
+  },
+  {
+   "name": "lb-special-allmessages-limit-20",
+   "set": "lb",
+   "path": "/wiki/Special:AllMessages?limit=20",
+   "group": 12
+  },
+  {
+   "name": "lb-special-comparepages-page1-project-home",
+   "set": "lb",
+   "path": "/wiki/Special:ComparePages?page1=Project:Home",
+   "group": 12,
+   "status": 400
+  },
+  {
+   "name": "lb-special-comparepages-rev1-abc-rev2-1",
+   "set": "lb",
+   "path": "/wiki/Special:ComparePages?rev1=abc&rev2=1",
+   "group": 12,
+   "status": 400
+  },
+  {
+   "name": "lb-special-comparepages-rev1-999999-rev2-248240",
+   "set": "lb",
+   "path": "/wiki/Special:ComparePages?rev1=999999&rev2=248240",
+   "group": 12,
+   "status": 404
+  },
+  {
+   "name": "lb-special-comparepages-rev1-247585-rev2-248240",
+   "set": "lb",
+   "path": "/wiki/Special:ComparePages?rev1=247585&rev2=248240",
+   "group": 12
+  },
+  {
+   "name": "lb-main-page",
+   "set": "lb",
+   "path": "/wiki/Main_Page",
+   "group": 12,
+   "status": 302
+  },
+  {
+   "name": "lb-main-page-action-render",
+   "set": "lb",
+   "path": "/wiki/Main_Page?action=render",
+   "group": 12,
+   "status": 302
+  },
+  {
+   "name": "lb-special-newitem-label-six-lang-en-statement-p3-42-statement-p11-https-example",
+   "set": "lb",
+   "path": "/wiki/Special:NewItem?label=Six&lang=en&statement=P3:42&statement=P11:https://example.org/six",
+   "group": 12
+  },
+  {
+   "name": "lb-special-newitem-statement-p3-many-statement-nonsense-statement-p999-1",
+   "set": "lb",
+   "path": "/wiki/Special:NewItem?statement=P3:many&statement=nonsense&statement=P999:1",
+   "group": 12
+  },
+  {
+   "name": "lb-special-newproperty-datatype-url",
+   "set": "lb",
+   "path": "/wiki/Special:NewProperty?datatype=url",
+   "group": 12
+  },
+  {
+   "name": "lb-special-setlabel-q6-de",
+   "set": "lb",
+   "path": "/wiki/Special:SetLabel/Q6/de",
+   "group": 12
+  },
+  {
+   "name": "lb-special-setlabel-q999999-en",
+   "set": "lb",
+   "path": "/wiki/Special:SetLabel/Q999999/en",
+   "group": 12
+  },
+  {
+   "name": "lb-special-setlabel-q6-not-20a-20language",
+   "set": "lb",
+   "path": "/wiki/Special:SetLabel/Q6/not%20a%20language",
+   "group": 12
+  },
+  {
+   "name": "lb-special-setaliases-q6-en",
+   "set": "lb",
+   "path": "/wiki/Special:SetAliases/Q6/en",
+   "group": 12
   },
   {
    "name": "lb-item-q6-uselang-ar",
@@ -1359,9 +1560,9 @@
    "viewer": "user"
   },
   {
-   "name": "lb-bob-domain-wikipedia-org-diff-6081981730183357088-1",
+   "name": "lb-bob-domain-wikipedia-org-diff-4341541992988613049-1",
    "set": "lb-bob",
-   "path": "/wiki/Domain:wikipedia.org?diff=6081981730183357088:1",
+   "path": "/wiki/Domain:wikipedia.org?diff=4341541992988613049:1",
    "group": 4,
    "viewer": "user"
   },
@@ -1418,7 +1619,7 @@
    "name": "lb-bob-project-consensus",
    "set": "lb-bob",
    "path": "/wiki/Project:Consensus",
-   "group": 5,
+   "group": 11,
    "viewer": "user",
    "status": 404
   },
@@ -1727,9 +1928,9 @@
    "viewer": "user"
   },
   {
-   "name": "lb-bob-special-recentchanges-limit-3-continue-1793675822012252-7c448647838146865",
+   "name": "lb-bob-special-recentchanges-limit-3-continue-1793723850915431-7c113571501120976",
    "set": "lb-bob",
-   "path": "/wiki/Special:RecentChanges?limit=3&continue=1793675822012252%7C4486478381468651822%7C5",
+   "path": "/wiki/Special:RecentChanges?limit=3&continue=1793723850915431%7C1135715011209769946%7C10",
    "group": 7,
    "viewer": "user"
   },
@@ -2261,21 +2462,21 @@
    "name": "lb-bob-special-protectedpages",
    "set": "lb-bob",
    "path": "/wiki/Special:ProtectedPages",
-   "group": 8,
+   "group": 11,
    "viewer": "user"
   },
   {
    "name": "lb-bob-special-protectedtitles",
    "set": "lb-bob",
    "path": "/wiki/Special:ProtectedTitles",
-   "group": 8,
+   "group": 11,
    "viewer": "user"
   },
   {
    "name": "lb-bob-special-blocklist",
    "set": "lb-bob",
    "path": "/wiki/Special:BlockList",
-   "group": 8,
+   "group": 11,
    "viewer": "user"
   },
   {
@@ -2456,6 +2657,89 @@
    "status": 403
   },
   {
+   "name": "lb-bob-item-q6-action-delete",
+   "set": "lb-bob",
+   "path": "/wiki/Item:Q6?action=delete",
+   "group": 11,
+   "viewer": "user",
+   "status": 403
+  },
+  {
+   "name": "lb-bob-project-never-written-action-protect",
+   "set": "lb-bob",
+   "path": "/wiki/Project:Never_written?action=protect",
+   "group": 11,
+   "viewer": "user",
+   "status": 403
+  },
+  {
+   "name": "lb-bob-project-consensus-action-undelete",
+   "set": "lb-bob",
+   "path": "/wiki/Project:Consensus?action=undelete",
+   "group": 11,
+   "viewer": "user",
+   "status": 403
+  },
+  {
+   "name": "lb-bob-special-undelete-target-project-home",
+   "set": "lb-bob",
+   "path": "/wiki/Special:Undelete?target=Project:Home",
+   "group": 11,
+   "viewer": "user",
+   "status": 404
+  },
+  {
+   "name": "lb-bob-special-block-bob",
+   "set": "lb-bob",
+   "path": "/wiki/Special:Block/Bob",
+   "group": 11,
+   "viewer": "user",
+   "status": 403
+  },
+  {
+   "name": "lb-bob-special-unblock",
+   "set": "lb-bob",
+   "path": "/wiki/Special:Unblock",
+   "group": 11,
+   "viewer": "user",
+   "status": 403
+  },
+  {
+   "name": "lb-bob-special-movepage",
+   "set": "lb-bob",
+   "path": "/wiki/Special:MovePage",
+   "group": 11,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-movepage-project-analytics-orbit",
+   "set": "lb-bob",
+   "path": "/wiki/Special:MovePage/Project:Analytics/Orbit",
+   "group": 11,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-userrights",
+   "set": "lb-bob",
+   "path": "/wiki/Special:UserRights",
+   "group": 11,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-userrights-nobody",
+   "set": "lb-bob",
+   "path": "/wiki/Special:UserRights/Nobody",
+   "group": 11,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-userrights-alice",
+   "set": "lb-bob",
+   "path": "/wiki/Special:UserRights/Alice",
+   "group": 11,
+   "viewer": "user"
+  },
+  {
    "name": "lb-bob-special-version",
    "set": "lb-bob",
    "path": "/wiki/Special:Version",
@@ -2598,6 +2882,163 @@
    "group": 12,
    "viewer": "user",
    "status": 404
+  },
+  {
+   "name": "lb-bob-special-version-credits",
+   "set": "lb-bob",
+   "path": "/wiki/Special:Version/Credits",
+   "group": 12,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-version-license",
+   "set": "lb-bob",
+   "path": "/wiki/Special:Version/License",
+   "group": 12,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-version-license-tokio",
+   "set": "lb-bob",
+   "path": "/wiki/Special:Version/License/tokio",
+   "group": 12,
+   "viewer": "user",
+   "status": 404
+  },
+  {
+   "name": "lb-bob-special-version-license-no-such-component",
+   "set": "lb-bob",
+   "path": "/wiki/Special:Version/License/no-such-component",
+   "group": 12,
+   "viewer": "user",
+   "status": 404
+  },
+  {
+   "name": "lb-bob-special-version-nothing",
+   "set": "lb-bob",
+   "path": "/wiki/Special:Version/Nothing",
+   "group": 12,
+   "viewer": "user",
+   "status": 404
+  },
+  {
+   "name": "lb-bob-special-allmessages-prefix-ts-account-filter-modified",
+   "set": "lb-bob",
+   "path": "/wiki/Special:AllMessages?prefix=ts-account&filter=modified",
+   "group": 12,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-allmessages-prefix-ts-account-lang-de",
+   "set": "lb-bob",
+   "path": "/wiki/Special:AllMessages?prefix=ts-account&lang=de",
+   "group": 12,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-allmessages-limit-20",
+   "set": "lb-bob",
+   "path": "/wiki/Special:AllMessages?limit=20",
+   "group": 12,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-comparepages-page1-project-home",
+   "set": "lb-bob",
+   "path": "/wiki/Special:ComparePages?page1=Project:Home",
+   "group": 12,
+   "viewer": "user",
+   "status": 400
+  },
+  {
+   "name": "lb-bob-special-comparepages-rev1-abc-rev2-1",
+   "set": "lb-bob",
+   "path": "/wiki/Special:ComparePages?rev1=abc&rev2=1",
+   "group": 12,
+   "viewer": "user",
+   "status": 400
+  },
+  {
+   "name": "lb-bob-special-comparepages-rev1-999999-rev2-248240",
+   "set": "lb-bob",
+   "path": "/wiki/Special:ComparePages?rev1=999999&rev2=248240",
+   "group": 12,
+   "viewer": "user",
+   "status": 404
+  },
+  {
+   "name": "lb-bob-special-comparepages-rev1-247585-rev2-248240",
+   "set": "lb-bob",
+   "path": "/wiki/Special:ComparePages?rev1=247585&rev2=248240",
+   "group": 12,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-main-page",
+   "set": "lb-bob",
+   "path": "/wiki/Main_Page",
+   "group": 12,
+   "viewer": "user",
+   "status": 302
+  },
+  {
+   "name": "lb-bob-main-page-action-render",
+   "set": "lb-bob",
+   "path": "/wiki/Main_Page?action=render",
+   "group": 12,
+   "viewer": "user",
+   "status": 302
+  },
+  {
+   "name": "lb-bob-special-newitem-label-six-lang-en-statement-p3-42-statement-p11-https-exa",
+   "set": "lb-bob",
+   "path": "/wiki/Special:NewItem?label=Six&lang=en&statement=P3:42&statement=P11:https://example.org/six",
+   "group": 12,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-newitem-statement-p3-many-statement-nonsense-statement-p999-1",
+   "set": "lb-bob",
+   "path": "/wiki/Special:NewItem?statement=P3:many&statement=nonsense&statement=P999:1",
+   "group": 12,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-newproperty-datatype-url",
+   "set": "lb-bob",
+   "path": "/wiki/Special:NewProperty?datatype=url",
+   "group": 12,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-setlabel-q6-de",
+   "set": "lb-bob",
+   "path": "/wiki/Special:SetLabel/Q6/de",
+   "group": 12,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-bob-special-setlabel-q999999-en",
+   "set": "lb-bob",
+   "path": "/wiki/Special:SetLabel/Q999999/en",
+   "group": 12,
+   "viewer": "user",
+   "status": 404
+  },
+  {
+   "name": "lb-bob-special-setlabel-q6-not-20a-20language",
+   "set": "lb-bob",
+   "path": "/wiki/Special:SetLabel/Q6/not%20a%20language",
+   "group": 12,
+   "viewer": "user",
+   "status": 400
+  },
+  {
+   "name": "lb-bob-special-setaliases-q6-en",
+   "set": "lb-bob",
+   "path": "/wiki/Special:SetAliases/Q6/en",
+   "group": 12,
+   "viewer": "user"
   },
   {
    "name": "lb-bob-item-q6-uselang-ar",
@@ -2832,9 +3273,9 @@
    "viewer": "user"
   },
   {
-   "name": "lb-alice-domain-wikipedia-org-diff-6081981730183357088-1",
+   "name": "lb-alice-domain-wikipedia-org-diff-4341541992988613049-1",
    "set": "lb-alice",
-   "path": "/wiki/Domain:wikipedia.org?diff=6081981730183357088:1",
+   "path": "/wiki/Domain:wikipedia.org?diff=4341541992988613049:1",
    "group": 4,
    "viewer": "user"
   },
@@ -2891,7 +3332,7 @@
    "name": "lb-alice-project-consensus",
    "set": "lb-alice",
    "path": "/wiki/Project:Consensus",
-   "group": 5,
+   "group": 11,
    "viewer": "user"
   },
   {
@@ -3199,9 +3640,9 @@
    "viewer": "user"
   },
   {
-   "name": "lb-alice-special-recentchanges-limit-3-continue-1793675822012252-7c4486478381468",
+   "name": "lb-alice-special-recentchanges-limit-3-continue-1793723850915431-7c1135715011209",
    "set": "lb-alice",
-   "path": "/wiki/Special:RecentChanges?limit=3&continue=1793675822012252%7C4486478381468651822%7C5",
+   "path": "/wiki/Special:RecentChanges?limit=3&continue=1793723850915431%7C1135715011209769946%7C10",
    "group": 7,
    "viewer": "user"
   },
@@ -3733,21 +4174,21 @@
    "name": "lb-alice-special-protectedpages",
    "set": "lb-alice",
    "path": "/wiki/Special:ProtectedPages",
-   "group": 8,
+   "group": 11,
    "viewer": "user"
   },
   {
    "name": "lb-alice-special-protectedtitles",
    "set": "lb-alice",
    "path": "/wiki/Special:ProtectedTitles",
-   "group": 8,
+   "group": 11,
    "viewer": "user"
   },
   {
    "name": "lb-alice-special-blocklist",
    "set": "lb-alice",
    "path": "/wiki/Special:BlockList",
-   "group": 8,
+   "group": 11,
    "viewer": "user"
   },
   {
@@ -3920,6 +4361,84 @@
    "viewer": "user"
   },
   {
+   "name": "lb-alice-item-q6-action-delete",
+   "set": "lb-alice",
+   "path": "/wiki/Item:Q6?action=delete",
+   "group": 11,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-project-never-written-action-protect",
+   "set": "lb-alice",
+   "path": "/wiki/Project:Never_written?action=protect",
+   "group": 11,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-project-consensus-action-undelete",
+   "set": "lb-alice",
+   "path": "/wiki/Project:Consensus?action=undelete",
+   "group": 11,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-undelete-target-project-home",
+   "set": "lb-alice",
+   "path": "/wiki/Special:Undelete?target=Project:Home",
+   "group": 11,
+   "viewer": "user",
+   "status": 404
+  },
+  {
+   "name": "lb-alice-special-block-bob",
+   "set": "lb-alice",
+   "path": "/wiki/Special:Block/Bob",
+   "group": 11,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-unblock",
+   "set": "lb-alice",
+   "path": "/wiki/Special:Unblock",
+   "group": 11,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-movepage",
+   "set": "lb-alice",
+   "path": "/wiki/Special:MovePage",
+   "group": 11,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-movepage-project-analytics-orbit",
+   "set": "lb-alice",
+   "path": "/wiki/Special:MovePage/Project:Analytics/Orbit",
+   "group": 11,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-userrights",
+   "set": "lb-alice",
+   "path": "/wiki/Special:UserRights",
+   "group": 11,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-userrights-nobody",
+   "set": "lb-alice",
+   "path": "/wiki/Special:UserRights/Nobody",
+   "group": 11,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-userrights-alice",
+   "set": "lb-alice",
+   "path": "/wiki/Special:UserRights/Alice",
+   "group": 11,
+   "viewer": "user"
+  },
+  {
    "name": "lb-alice-special-version",
    "set": "lb-alice",
    "path": "/wiki/Special:Version",
@@ -4062,6 +4581,163 @@
    "group": 12,
    "viewer": "user",
    "status": 404
+  },
+  {
+   "name": "lb-alice-special-version-credits",
+   "set": "lb-alice",
+   "path": "/wiki/Special:Version/Credits",
+   "group": 12,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-version-license",
+   "set": "lb-alice",
+   "path": "/wiki/Special:Version/License",
+   "group": 12,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-version-license-tokio",
+   "set": "lb-alice",
+   "path": "/wiki/Special:Version/License/tokio",
+   "group": 12,
+   "viewer": "user",
+   "status": 404
+  },
+  {
+   "name": "lb-alice-special-version-license-no-such-component",
+   "set": "lb-alice",
+   "path": "/wiki/Special:Version/License/no-such-component",
+   "group": 12,
+   "viewer": "user",
+   "status": 404
+  },
+  {
+   "name": "lb-alice-special-version-nothing",
+   "set": "lb-alice",
+   "path": "/wiki/Special:Version/Nothing",
+   "group": 12,
+   "viewer": "user",
+   "status": 404
+  },
+  {
+   "name": "lb-alice-special-allmessages-prefix-ts-account-filter-modified",
+   "set": "lb-alice",
+   "path": "/wiki/Special:AllMessages?prefix=ts-account&filter=modified",
+   "group": 12,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-allmessages-prefix-ts-account-lang-de",
+   "set": "lb-alice",
+   "path": "/wiki/Special:AllMessages?prefix=ts-account&lang=de",
+   "group": 12,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-allmessages-limit-20",
+   "set": "lb-alice",
+   "path": "/wiki/Special:AllMessages?limit=20",
+   "group": 12,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-comparepages-page1-project-home",
+   "set": "lb-alice",
+   "path": "/wiki/Special:ComparePages?page1=Project:Home",
+   "group": 12,
+   "viewer": "user",
+   "status": 400
+  },
+  {
+   "name": "lb-alice-special-comparepages-rev1-abc-rev2-1",
+   "set": "lb-alice",
+   "path": "/wiki/Special:ComparePages?rev1=abc&rev2=1",
+   "group": 12,
+   "viewer": "user",
+   "status": 400
+  },
+  {
+   "name": "lb-alice-special-comparepages-rev1-999999-rev2-248240",
+   "set": "lb-alice",
+   "path": "/wiki/Special:ComparePages?rev1=999999&rev2=248240",
+   "group": 12,
+   "viewer": "user",
+   "status": 404
+  },
+  {
+   "name": "lb-alice-special-comparepages-rev1-247585-rev2-248240",
+   "set": "lb-alice",
+   "path": "/wiki/Special:ComparePages?rev1=247585&rev2=248240",
+   "group": 12,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-main-page",
+   "set": "lb-alice",
+   "path": "/wiki/Main_Page",
+   "group": 12,
+   "viewer": "user",
+   "status": 302
+  },
+  {
+   "name": "lb-alice-main-page-action-render",
+   "set": "lb-alice",
+   "path": "/wiki/Main_Page?action=render",
+   "group": 12,
+   "viewer": "user",
+   "status": 302
+  },
+  {
+   "name": "lb-alice-special-newitem-label-six-lang-en-statement-p3-42-statement-p11-https-e",
+   "set": "lb-alice",
+   "path": "/wiki/Special:NewItem?label=Six&lang=en&statement=P3:42&statement=P11:https://example.org/six",
+   "group": 12,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-newitem-statement-p3-many-statement-nonsense-statement-p999-1",
+   "set": "lb-alice",
+   "path": "/wiki/Special:NewItem?statement=P3:many&statement=nonsense&statement=P999:1",
+   "group": 12,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-newproperty-datatype-url",
+   "set": "lb-alice",
+   "path": "/wiki/Special:NewProperty?datatype=url",
+   "group": 12,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-setlabel-q6-de",
+   "set": "lb-alice",
+   "path": "/wiki/Special:SetLabel/Q6/de",
+   "group": 12,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-setlabel-q999999-en",
+   "set": "lb-alice",
+   "path": "/wiki/Special:SetLabel/Q999999/en",
+   "group": 12,
+   "viewer": "user",
+   "status": 404
+  },
+  {
+   "name": "lb-alice-special-setlabel-q6-not-20a-20language",
+   "set": "lb-alice",
+   "path": "/wiki/Special:SetLabel/Q6/not%20a%20language",
+   "group": 12,
+   "viewer": "user",
+   "status": 400
+  },
+  {
+   "name": "lb-alice-special-setaliases-q6-en",
+   "set": "lb-alice",
+   "path": "/wiki/Special:SetAliases/Q6/en",
+   "group": 12,
+   "viewer": "user"
   },
   {
    "name": "lb-alice-item-q6-uselang-ar",
@@ -4218,6 +4894,41 @@
    "viewer": "user"
   },
   {
+   "name": "lb-alice-item-q6-action-protect-done-1",
+   "set": "lb-alice",
+   "path": "/wiki/Item:Q6?action=protect&done=1",
+   "group": 11,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-block-done-1-user-carol",
+   "set": "lb-alice",
+   "path": "/wiki/Special:Block?done=1&user=Carol",
+   "group": 11,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-userrights-bob-done-1",
+   "set": "lb-alice",
+   "path": "/wiki/Special:UserRights/Bob?done=1",
+   "group": 11,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-protectedpages-done-created",
+   "set": "lb-alice",
+   "path": "/wiki/Special:ProtectedPages?done=created",
+   "group": 11,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-alice-special-protectedpages-uselang-ar",
+   "set": "lb-alice",
+   "path": "/wiki/Special:ProtectedPages?uselang=ar",
+   "group": 11,
+   "viewer": "user"
+  },
+  {
    "name": "lb-alice-done-special-confirmaccounts",
    "set": "lb-alice-done",
    "path": "/wiki/Special:ConfirmAccounts",
@@ -4300,6 +5011,13 @@
    "status": 404
   },
   {
+   "name": "lb-private-special-protectedpages",
+   "set": "lb-private",
+   "path": "/wiki/Special:ProtectedPages",
+   "group": 11,
+   "status": 404
+  },
+  {
    "name": "lb-private-bob-project-home",
    "set": "lb-private-bob",
    "path": "/wiki/Project:Home",
@@ -4371,10 +5089,24 @@
    "status": 404
   },
   {
+   "name": "lb-private-bob-special-protectedpages",
+   "set": "lb-private-bob",
+   "path": "/wiki/Special:ProtectedPages",
+   "group": 11,
+   "viewer": "user"
+  },
+  {
    "name": "lb-private-alice-special-wikisettings",
    "set": "lb-private-alice",
    "path": "/wiki/Special:WikiSettings",
    "group": 10,
+   "viewer": "user"
+  },
+  {
+   "name": "lb-private-alice-special-protectedpages",
+   "set": "lb-private-alice",
+   "path": "/wiki/Special:ProtectedPages",
+   "group": 11,
    "viewer": "user"
   }
  ]

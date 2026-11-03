@@ -1,15 +1,104 @@
 [
   {
     "method": "GET",
+    "path_and_query": "/w/api.php?action=query&list=protectedpages%7Cprotectedtitles&prtype=edit%7Cmove%7Cread%7Ccreate&prlimit=500&ptlimit=500&format=json&formatversion=2",
+    "credentialed": true,
+    "status": 200,
+    "headers": {
+      "cache-control": "private, no-cache",
+      "content-length": "254",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Tue, 03 Nov 2026 16:40:12 GMT",
+      "etag": "\"3b6c324b8fc028cd312f959bb84282c0\"",
+      "vary": "Accept, Accept-Language"
+    },
+    "json": {
+      "batchcomplete": true,
+      "query": {
+        "protectedpages": [
+          {
+            "expiry": "infinity",
+            "level": "sysop",
+            "ns": 120,
+            "pageid": 26,
+            "title": "Item:Q6",
+            "type": "edit"
+          },
+          {
+            "expiry": "infinity",
+            "level": "sysop",
+            "ns": 120,
+            "pageid": 26,
+            "title": "Item:Q6",
+            "type": "move"
+          }
+        ],
+        "protectedtitles": []
+      }
+    }
+  },
+  {
+    "method": "GET",
+    "path_and_query": "/w/api.php?action=query&list=protectedsets&format=json&formatversion=2",
+    "credentialed": true,
+    "status": 200,
+    "headers": {
+      "cache-control": "private, no-cache",
+      "content-length": "356",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Tue, 03 Nov 2026 16:40:12 GMT",
+      "etag": "\"02fefb3cb24dbbf1fa3c2496eb4746d8\"",
+      "vary": "Accept, Accept-Language"
+    },
+    "json": {
+      "batchcomplete": true,
+      "query": {
+        "protectedsets": [
+          {
+            "id": 247198,
+            "members": [
+              {
+                "ns": 4,
+                "pageid": 247192,
+                "title": "librarybase:Analytics/Orb"
+              }
+            ],
+            "name": "Reference desk",
+            "protection": [
+              {
+                "expiry": "infinity",
+                "level": "autopatrolled",
+                "type": "edit"
+              }
+            ]
+          },
+          {
+            "id": 247199,
+            "members": [],
+            "name": "Drafts",
+            "protection": [
+              {
+                "expiry": "infinity",
+                "level": "propertycreator",
+                "type": "read"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "method": "GET",
     "path_and_query": "/w/api.php?action=query&meta=notifications&notprop=count%7CseenTime%7Clist&notfilter=!read&notlimit=1&notgroupbysection=1&format=json&formatversion=2",
     "credentialed": true,
     "status": 200,
     "headers": {
       "cache-control": "private, no-cache",
-      "content-length": "796",
+      "content-length": "794",
       "content-type": "application/json; charset=utf-8",
-      "date": "Tue, 03 Nov 2026 03:18:52 GMT",
-      "etag": "\"4d16c96dc682a0eb67a38d0176a7e820\"",
+      "date": "Tue, 03 Nov 2026 16:40:12 GMT",
+      "etag": "\"990aa27d4eec064e1d341db3a24e0e18\"",
       "vary": "Accept, Accept-Language"
     },
     "json": {
@@ -17,7 +106,7 @@
       "query": {
         "notifications": {
           "alert": {
-            "continue": "1793675820|11",
+            "continue": "1793723849|9",
             "count": "5",
             "list": [
               {
@@ -26,15 +115,15 @@
                   "name": "Bob"
                 },
                 "category": "ts-reply",
-                "id": 11,
+                "id": 9,
                 "revid": 248273,
                 "section": "alert",
                 "timestamp": {
-                  "mw": "20261103031700",
-                  "unix": "1793675820",
-                  "utciso8601": "2026-11-03T03:17:00Z",
-                  "utcmw": "20261103031700",
-                  "utcunix": "1793675820"
+                  "mw": "20261103163729",
+                  "unix": "1793723849",
+                  "utciso8601": "2026-11-03T16:37:29Z",
+                  "utcmw": "20261103163729",
+                  "utcunix": "1793723849"
                 },
                 "title": {
                   "full": "Thread:2026-11-03/Is five a city?",
@@ -56,14 +145,14 @@
               }
             ],
             "rawcount": 5,
-            "seenTime": "2026-11-03T03:18:44Z"
+            "seenTime": "2026-11-03T16:40:01Z"
           },
           "count": "5",
           "message": {
             "count": "0",
             "list": [],
             "rawcount": 0,
-            "seenTime": "2026-11-03T03:18:44Z"
+            "seenTime": "2026-11-03T16:40:01Z"
           },
           "rawcount": 5
         }
@@ -79,8 +168,8 @@
       "cache-control": "private, no-cache",
       "content-length": "89037",
       "content-type": "application/json; charset=utf-8",
-      "date": "Tue, 03 Nov 2026 03:18:52 GMT",
-      "etag": "\"ea11cfe7533058ae027c1f419315dbf2\"",
+      "date": "Tue, 03 Nov 2026 16:40:12 GMT",
+      "etag": "\"b35841063fb906fabc839d25277c9221\"",
       "vary": "Accept, Accept-Language"
     },
     "json": {
@@ -146,7 +235,7 @@
             "4": 250,
             "5": 300
           },
-          "time": "2026-11-03T03:18:52Z",
+          "time": "2026-11-03T16:40:11Z",
           "timeoffset": 0,
           "timezone": "UTC",
           "uploadsenabled": false,
@@ -583,7 +672,7 @@
           "api_version": 6,
           "at_farm": true,
           "build": {
-            "commit": "f391c6b004a879219af1aaf4047cb49080f4c2df",
+            "commit": "614327b21b50eafd42023c8e210bff54f2b3b1e7",
             "modified": true,
             "version": "0.0.1"
           },
@@ -628,7 +717,7 @@
             ]
           },
           "farm": "scatter",
-          "farm_code": "edgdue4p3qpbwxokn43qo6fiae",
+          "farm_code": "qy5lcrhd6pygzivl5eerupvdx4",
           "grants": [
             "basic",
             "highvolume",
@@ -648,7 +737,7 @@
           "interface": {
             "messages": {}
           },
-          "issuer": "6ilnuy2tt7myitrkuy6f64h3cp",
+          "issuer": "pep52en4doftudxz5zaztpvbao",
           "login": [],
           "primary": "librarybase",
           "providers": [
@@ -3208,7 +3297,7 @@
       "cache-control": "private, no-cache",
       "content-length": "3236",
       "content-type": "application/json; charset=utf-8",
-      "date": "Tue, 03 Nov 2026 03:18:52 GMT",
+      "date": "Tue, 03 Nov 2026 16:40:12 GMT",
       "etag": "\"ff228b9187bcdb1adfd1dd689ac4ab3e\"",
       "vary": "Accept, Accept-Language"
     },
@@ -3471,15 +3560,15 @@
       "cache-control": "private, no-cache",
       "content-length": "93",
       "content-type": "application/json; charset=utf-8",
-      "date": "Tue, 03 Nov 2026 03:18:52 GMT",
-      "etag": "\"718e1af3c86d747a7f2b711ee1440119\"",
+      "date": "Tue, 03 Nov 2026 16:40:12 GMT",
+      "etag": "\"ebca6a4c08053ce80a8d74af286e883c\"",
       "vary": "Accept, Accept-Language"
     },
     "json": {
       "batchcomplete": true,
       "query": {
         "tokens": {
-          "csrftoken": "CR_0ZypxAqUtZpxQhsI-3xbnCWgoEE_I+\\"
+          "csrftoken": "ITN6FlOEy-Lv8FNcAZcdnDoxbrbhc6Pl+\\"
         }
       }
     }
@@ -3493,7 +3582,7 @@
       "cache-control": "private, no-cache",
       "content-length": "2051",
       "content-type": "application/json; charset=utf-8",
-      "date": "Tue, 03 Nov 2026 03:18:52 GMT",
+      "date": "Tue, 03 Nov 2026 16:40:11 GMT",
       "etag": "\"cf7ba073fd883d221c033869836e16ff\"",
       "vary": "Accept, Accept-Language"
     },
@@ -3632,6 +3721,28 @@
   },
   {
     "method": "GET",
+    "path_and_query": "/w/rest.php/triplespace/v0/acl/empty-groups",
+    "credentialed": true,
+    "status": 200,
+    "headers": {
+      "cache-control": "private, no-cache",
+      "content-length": "57",
+      "content-type": "application/json; charset=utf-8",
+      "date": "Tue, 03 Nov 2026 16:40:12 GMT",
+      "etag": "\"7d2e80cb2e677e36ba0d82df92df964f\"",
+      "vary": "Accept, Accept-Language"
+    },
+    "json": {
+      "groups": [
+        {
+          "group": "propertycreator",
+          "restrictions": 1
+        }
+      ]
+    }
+  },
+  {
+    "method": "GET",
     "path_and_query": "/w/rest.php/triplespace/v0/acl/tenant/librarybase",
     "credentialed": true,
     "status": 200,
@@ -3639,7 +3750,7 @@
       "cache-control": "private, no-cache",
       "content-length": "193",
       "content-type": "application/json; charset=utf-8",
-      "date": "Tue, 03 Nov 2026 03:18:52 GMT",
+      "date": "Tue, 03 Nov 2026 16:40:11 GMT",
       "etag": "\"bc2d7cf79d1bbbc2940e44c79c4d114c\"",
       "vary": "Accept, Accept-Language"
     },
@@ -3671,8 +3782,8 @@
       "cache-control": "private, no-cache",
       "content-length": "11448",
       "content-type": "application/json; charset=utf-8",
-      "date": "Tue, 03 Nov 2026 03:18:52 GMT",
-      "etag": "\"39d4a62e92557c5748e08fe8f7dcab63\"",
+      "date": "Tue, 03 Nov 2026 16:40:11 GMT",
+      "etag": "\"37d99cbf295352bd888e02b76735d875\"",
       "vary": "Accept, Accept-Language"
     },
     "json": {
@@ -3684,7 +3795,7 @@
           "origin": "tenant",
           "record": {
             "offset": 10,
-            "partition": "0x36cee24f8985bfcf"
+            "partition": "0x796df06982f85dce"
           },
           "value": true
         },
@@ -3728,7 +3839,7 @@
           "origin": "tenant",
           "record": {
             "offset": 8,
-            "partition": "0x36cee24f8985bfcf"
+            "partition": "0x796df06982f85dce"
           },
           "value": 10
         },
@@ -3737,7 +3848,7 @@
           "origin": "tenant",
           "record": {
             "offset": 9,
-            "partition": "0x36cee24f8985bfcf"
+            "partition": "0x796df06982f85dce"
           },
           "value": 14
         },
@@ -4465,7 +4576,7 @@
       "cache-control": "private, no-cache",
       "content-length": "61382",
       "content-type": "application/json; charset=utf-8",
-      "date": "Tue, 03 Nov 2026 03:18:52 GMT",
+      "date": "Tue, 03 Nov 2026 16:40:11 GMT",
       "etag": "\"25beb6d5ba2af771a19087595b3fa368\"",
       "vary": "Accept, Accept-Language"
     },

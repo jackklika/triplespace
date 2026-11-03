@@ -19,17 +19,17 @@
 //! - [`features`]: what the site offers, from what it has built and what the API serves;
 //!   nothing links to a feature that is not offered.
 //! - [`appearance`]: the Appearance menu and the reader's choices on `<html>` (0085 §6).
-//! - [`frame`]: the page frame of 0010 §2, with the [`codex`] builder's components.
+//! - [`frame`]: the page frame of 0010 §2, drawn by the skin, and [`codex`], the Codex
+//!   components' models.
 //! - [`skin`]: the skins (0097 §8), Plain and Worksheet embedded and the operator's
-//!   installed, and the renderer that draws a page through one; [`Renderer`] says which
-//!   renderer a deployment runs until the migration of 19 §5.10 is done.
+//!   installed, and the renderer that draws a page through one.
 //! - [`theme`]: a stylesheet per palette, with its light, dark and high-contrast
 //!   variants, and one per type set, with its typefaces and text sizes (0086 §5).
 //! - [`assets`]: the built frontend (`ui/dist`), embedded, and its manifest.
 //! - [`i18n`]: interface messages from `i18n/` (0034 §9).
 //! - [`html`]: escaping, for the pieces too small for a template.
 //! - [`parity`]: two renderings of a page compared as a browser reads them, for the
-//!   skin migration (0097 §16).
+//!   check that Worksheet is Plain with its stylesheets (0097 §16, A12).
 
 #![forbid(unsafe_code)]
 
@@ -44,6 +44,7 @@ pub mod frame;
 pub mod home;
 pub mod html;
 pub mod i18n;
+pub mod inline;
 pub mod moderation;
 pub mod pages;
 pub mod parity;
@@ -71,54 +72,23 @@ pub(crate) fn hex(bytes: &[u8]) -> String {
 /// The lowest `api_version` this build of the site works with (0057 §9).
 pub const MIN_API_VERSION: u32 = 1;
 
-/// Which renderer draws a page (19 §5.10): the built-in rendering, the skin, or both
-/// with the built-in result served and each route that differs logged. Deployment
-/// configuration `server.renderer` and `web.renderer`, for the groups not yet switched;
-/// removed with the last of them.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Renderer {
-    /// The built-in rendering: `askama` templates and the string builders.
-    #[default]
-    Builtin,
-    /// The skin.
-    Skin,
-    /// Both; the built-in result is served, and a route whose results differ is logged
-    /// with the request that showed it.
-    Compare,
-}
-
-impl Renderer {
-    /// `builtin`, `skin` or `compare`.
-    #[must_use]
-    pub fn parse(s: &str) -> Option<Self> {
-        match s {
-            "builtin" => Some(Self::Builtin),
-            "skin" => Some(Self::Skin),
-            "compare" => Some(Self::Compare),
-            _ => None,
-        }
-    }
-}
-
-/// The site's state: its client of the API, the skins it has and which renderer draws
-/// pages, and, in the web tier, the tier's own build. Cheap to clone.
+/// The site's state: its client of the API, the skins it has, and, in the web tier, the
+/// tier's own build. Cheap to clone.
 #[derive(Clone, Debug)]
 pub struct Site {
     client: Client,
     build: Option<std::sync::Arc<triplespace_client::version::Build>>,
     skins: std::sync::Arc<skin::Skins>,
-    renderer: Renderer,
 }
 
 impl Site {
-    /// The site over a client, with the shipped skins and the built-in renderer.
+    /// The site over a client, with the shipped skins.
     #[must_use]
     pub fn new(client: Client) -> Self {
         Self {
             client,
             build: None,
             skins: std::sync::Arc::new(skin::Skins::load(None)),
-            renderer: Renderer::default(),
         }
     }
 
@@ -136,23 +106,10 @@ impl Site {
         self
     }
 
-    /// The site with a renderer (`server.renderer`, `web.renderer`).
-    #[must_use]
-    pub fn with_renderer(mut self, renderer: Renderer) -> Self {
-        self.renderer = renderer;
-        self
-    }
-
     /// The skins.
     #[must_use]
     pub fn skins(&self) -> &skin::Skins {
         &self.skins
-    }
-
-    /// The renderer.
-    #[must_use]
-    pub fn renderer(&self) -> Renderer {
-        self.renderer
     }
 
     /// The site of a separate web tier, whose own build `Special:Version` shows beside
@@ -192,7 +149,7 @@ pub fn router_with_build(client: Client, version_json: &str) -> Router {
     router_for(Site::new(client).with_build(version_json))
 }
 
-/// The router over a site configured by hand: the skins directory and the renderer.
+/// The router over a site configured by hand: the skins directory and the build.
 pub fn router_for(site: Site) -> Router {
     Router::new()
         .route("/", get(pages::root))

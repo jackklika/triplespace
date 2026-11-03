@@ -1,0 +1,14 @@
+{#- The read-only pages about the wiki (0047 §9; 21 §6.1): Special:NamespaceInfo,
+    ListGroupRights, ListDatatypes and MyLanguageFallbackChain. -#}
+{%- if nothing %}<p class="ts-empty">{{ nothing }}</p>
+{%- else -%}
+{%- if intro %}<p>{{ intro }}</p>{% endif -%}
+{%- set b = body -%}
+{%- if b.kind == "chain" %}<ol class="ts-fallbackchain">{% for l in b.langs %}<li><code lang="{{ l[0] }}">{{ l[0] }}</code>{% if l[1] %} – {{ l[1] }}{% endif %}</li>{% endfor %}</ol>
+{%- else %}<table class="cdx-table__table {% if b.kind == "namespaces" %}ts-namespaceinfo{% elif b.kind == "groups" %}ts-listgrouprights{% else %}ts-listdatatypes{% endif %}"><thead><tr>{% for c in columns %}<th scope="col">{{ c }}</th>{% endfor %}</tr></thead><tbody>
+{%- if b.kind == "namespaces" %}{% for n in b.rows %}<tr><td>{{ n.id }}</td><td>{% if n.main %}<i>{{ n.name }}</i>{% else %}{{ n.name }}{% endif %}</td><td>{{ n.canonical }}</td><td>{{ n.aliases }}</td><td>{% if n.notes %}<ul class="ts-namespaceinfo__notes">{% for t in n.notes %}<li>{{ t }}</li>{% endfor %}</ul>{% endif %}</td></tr>{% endfor %}
+{%- elif b.kind == "groups" %}{% for g in b.rows %}<tr><td><code>{{ g.name }}</code>{% if g.note %} {{ g.note }}{% endif %}</td><td>{% if g.no_rights %}<i>{{ g.no_rights }}</i>{% else %}<ul class="ts-listgrouprights__rights">{% for r in g.rights %}<li><code>{{ r }}</code></li>{% endfor %}</ul>{% endif %}</td></tr>{% endfor %}
+{%- else %}{% for d in b.rows %}<tr><td>{{ d[0] }}</td><td><code>{{ d[1] }}</code></td><td><code>{{ d[2] }}</code></td></tr>{% endfor %}{% endif -%}
+</tbody></table>{% endif -%}
+{%- if outro %}<p>{{ outro }}</p>{% endif -%}
+{%- endif -%}

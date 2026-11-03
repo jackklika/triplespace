@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Seeds a test instance with the states the site's pages draw, then records the API
-exchanges of every page as three viewers, for the skin migration's parity corpus
+exchanges of every page as three viewers, for the skins' parity corpus
 (`crates/triplespace-ui/tests/corpus/`; 19 §5.10). `tools/skin_corpus.sh` brings the
 instance up and runs this.
 
@@ -286,6 +286,21 @@ def seed():
     cli("settings", "set", "--default", "dumps.keep", "14")
     cli("settings", "set", "--default", "--lock", "thread.max_pinned", "5")
 
+    # Sets (group 11): one restricting edits, with a member, and one whose read restriction
+    # names a group with no member, which Special:ProtectedPages reports to the owner.
+    orb = alice.page_id("Project:Analytics/Orb")
+    must("set", alice.rest("POST", "/acl/set", {"name": "Reference desk",
+                                                "restrictions": {"edit": {"group": "autopatrolled"}},
+                                                "members": [{"kind": "page", "id": orb}], "token": alice.token()}))
+    # Only a member may set a confidential restriction (09 §4.5): Alice joins, sets it, leaves.
+    must("join", alice.post(action="userrights", user="Alice", add="propertycreator", reason="Drafts",
+                            token=alice.token("userrights")))
+    must("set", alice.rest("POST", "/acl/set", {"name": "Drafts",
+                                                "restrictions": {"read": {"group": "propertycreator"}},
+                                                "members": [], "token": alice.token()}))
+    must("leave", alice.post(action="userrights", user="Alice", remove="propertycreator", reason="Done",
+                             token=alice.token("userrights")))
+
     st, r = alice.rest("GET", "/activity?limit=3&lang=en")
     facts["rc_next"] = must("activity", (st, r)).get("next")
     rc = alice.api(action="query", list="recentchanges", rcprop="ids|title", rclimit=50)["query"]["recentchanges"]
@@ -330,7 +345,7 @@ def paths(facts, viewer):
         (5, "/wiki/Project:Sandbox"),
         (5, "/wiki/Project:Analytics/Orbit"),
         (5, "/wiki/Project:Analytics/Orb"),
-        (5, "/wiki/Project:Consensus"),
+        (11, "/wiki/Project:Consensus"),
         (5, "/wiki/Project:Home?action=history"),
         (5, f"/wiki/Project:Home?oldid={r0}"),
         (5, f"/wiki/Project:Home?diff={r1}&oldid={r0}"),
@@ -458,9 +473,9 @@ def paths(facts, viewer):
         (8, "/wiki/Special:Redirect/file/3"),
         (8, "/wiki/Special:TalkPage"),
         (8, "/wiki/Special:MyContributions"),
-        (8, "/wiki/Special:ProtectedPages"),
-        (8, "/wiki/Special:ProtectedTitles"),
-        (8, "/wiki/Special:BlockList"),
+        (11, "/wiki/Special:ProtectedPages"),
+        (11, "/wiki/Special:ProtectedTitles"),
+        (11, "/wiki/Special:BlockList"),
         # Group 9: accounts.
         (9, "/wiki/Special:UserLogin"),
         (9, "/wiki/Special:UserLogin?returnto=Item:Q6"),
@@ -490,6 +505,21 @@ def paths(facts, viewer):
         (11, "/wiki/Item:Q6?action=protect"),
         (11, "/wiki/Project:About?action=delete"),
         (11, "/wiki/Project:About?action=protect"),
+        # 11a–11c: an entity's Delete form, a free title's Protect form, the Undelete form
+        # of a deleted page and Special:Undelete for a title with no deletion, a block for
+        # an account not blocked, Unblock asking for a name, each form asking for a page or
+        # a name, an account that is none, and the viewer's own rights.
+        (11, "/wiki/Item:Q6?action=delete"),
+        (11, "/wiki/Project:Never_written?action=protect"),
+        (11, "/wiki/Project:Consensus?action=undelete"),
+        (11, "/wiki/Special:Undelete?target=Project:Home"),
+        (11, "/wiki/Special:Block/Bob"),
+        (11, "/wiki/Special:Unblock"),
+        (11, "/wiki/Special:MovePage"),
+        (11, "/wiki/Special:MovePage/Project:Analytics/Orbit"),
+        (11, "/wiki/Special:UserRights"),
+        (11, "/wiki/Special:UserRights/Nobody"),
+        (11, "/wiki/Special:UserRights/Alice"),
         # Group 12: the rest.
         (12, "/wiki/Special:Version"),
         (12, "/wiki/Special:NewItem"),
@@ -511,6 +541,32 @@ def paths(facts, viewer):
         (12, "/wiki/Special:MyTalk"),
         (12, "/wiki/Special:EditPage/Project:Home"),
         (12, "/wiki/Special:Nonsense"),
+        # 12a–12d: Version's subpages and a missing one; AllMessages by filter, language and
+        # page; ComparePages with one side, a revision that is no number, one that is none,
+        # and two revisions; the generated main page, whole and rendered; NewItem's
+        # statement prefills, kept, refused and malformed; SetLabel in a language, for an
+        # entity that is none, and in a language that is none.
+        (12, "/wiki/Special:Version/Credits"),
+        (12, "/wiki/Special:Version/License"),
+        (12, "/wiki/Special:Version/License/tokio"),
+        (12, "/wiki/Special:Version/License/no-such-component"),
+        (12, "/wiki/Special:Version/Nothing"),
+        (12, "/wiki/Special:AllMessages?prefix=ts-account&filter=modified"),
+        (12, "/wiki/Special:AllMessages?prefix=ts-account&lang=de"),
+        (12, "/wiki/Special:AllMessages?limit=20"),
+        (12, "/wiki/Special:ComparePages?page1=Project:Home"),
+        (12, "/wiki/Special:ComparePages?rev1=abc&rev2=1"),
+        (12, f"/wiki/Special:ComparePages?rev1=999999&rev2={r1}"),
+        (12, f"/wiki/Special:ComparePages?rev1={r0}&rev2={r1}"),
+        (12, "/wiki/Main_Page"),
+        (12, "/wiki/Main_Page?action=render"),
+        (12, "/wiki/Special:NewItem?label=Six&lang=en&statement=P3:42&statement=P11:https://example.org/six"),
+        (12, "/wiki/Special:NewItem?statement=P3:many&statement=nonsense&statement=P999:1"),
+        (12, "/wiki/Special:NewProperty?datatype=url"),
+        (12, "/wiki/Special:SetLabel/Q6/de"),
+        (12, "/wiki/Special:SetLabel/Q999999/en"),
+        (12, "/wiki/Special:SetLabel/Q6/not%20a%20language"),
+        (12, "/wiki/Special:SetAliases/Q6/en"),
         # Languages: right to left, and a fallback chain, on a page of each kind.
         (3, "/wiki/Item:Q6?uselang=ar"),
         (5, "/wiki/Project:Home?uselang=ar"),
@@ -539,6 +595,12 @@ def paths(facts, viewer):
         (10, "/wiki/Special:InstanceSettings?saved=tenancy"),
         (10, "/wiki/Special:InstanceSettings?saved=defaults"),
         (10, "/wiki/Special:WikiSettings?uselang=ar"),
+        # 11: each form's notice after it is done.
+        (11, "/wiki/Item:Q6?action=protect&done=1"),
+        (11, "/wiki/Special:Block?done=1&user=Carol"),
+        (11, "/wiki/Special:UserRights/Bob?done=1"),
+        (11, "/wiki/Special:ProtectedPages?done=created"),
+        (11, "/wiki/Special:ProtectedPages?uselang=ar"),
     ]
     out = list(everyone)
     if viewer != "anon":
@@ -561,19 +623,20 @@ def private_paths():
         (9, "/wiki/Special:CreateAccount"),
         (12, "/wiki/Special:Version"),
         (1, "/wiki/Nothing_here"),
+        (11, "/wiki/Special:ProtectedPages"),
     ]
 
 
 def record(clients, facts, out_dir):
     cases = []
-    differing = []
     public = [("anon", "lb", paths(facts, "anon")), ("bob", "lb-bob", paths(facts, "bob")),
               ("alice", "lb-alice", paths(facts, "alice"))]
     # Then the tenant private: an outsider sees the login page and the wiki's name, a
     # member everything.
     private = [("anon", "lb-private", private_paths()), ("bob", "lb-private-bob", private_paths()),
                # The owner's Visibility section with the wiki readable by accounts only.
-               ("alice", "lb-private-alice", [(10, "/wiki/Special:WikiSettings")])]
+               ("alice", "lb-private-alice", [(10, "/wiki/Special:WikiSettings"),
+                                              (11, "/wiki/Special:ProtectedPages")])]
     # Between them, Alice approves Dave's request: the review page with none open, and the
     # notice it shows after a decision (group 9).
     done = [("alice", "lb-alice-done", [(9, "/wiki/Special:ConfirmAccounts"),
@@ -607,11 +670,6 @@ def record(clients, facts, out_dir):
         r = subprocess.run(cmd, capture_output=True, text=True, check=False)
         if r.returncode != 0:
             raise RuntimeError(f"record {set_name}: {r.stderr}")
-        # Under TRIPLESPACE_WEB_RENDERER=compare the recording is also the soak's crawl
-        # (19 §5.10): every route whose renderings differ is a line of the web tier's log.
-        for line in r.stderr.splitlines():
-            if "compare:" in line:
-                differing.append(f"{set_name}: {line}")
         statuses = {}
         for line in r.stderr.splitlines():
             m = re.match(r"(\d{3}) [A-Za-z ]+ (/\S+)$", line)
@@ -636,9 +694,6 @@ def record(clients, facts, out_dir):
         "cases": cases,
     }, indent=1) + "\n")
     print(f"{len(cases)} cases written", file=sys.stderr)
-    if os.environ.get("TRIPLESPACE_WEB_RENDERER") == "compare":
-        for line in differing:
-            print(line, file=sys.stderr)
         print(f"compare: {len(differing)} routes differ", file=sys.stderr)
 
 

@@ -48,6 +48,7 @@ use crate::features::Feature;
 use crate::frame::{Page, title_url};
 use crate::i18n::Messages;
 use crate::pages::{self, Context, Peer};
+use crate::special::external::IssuerButtons;
 
 const TITLE: &str = "Special:CreateAccount";
 const REVIEW: &str = "Special:ConfirmAccounts";
@@ -216,9 +217,8 @@ pub struct CreateAccountPage {
     pub form: Option<CreateForm>,
     /// The pending identity's form.
     pub pending: Option<PendingForm>,
-    /// The external issuers' buttons, as `external.rs` draws them until group 12 switches
-    /// (0097 A6).
-    pub issuers_html: Option<String>,
+    /// The external issuers' buttons (0097 A6).
+    pub issuers: Option<IssuerButtons>,
 }
 
 /// One open request on `Special:ConfirmAccounts`.
@@ -266,7 +266,7 @@ enum CreateBody {
     /// The creation form, with the issuers' buttons where they apply.
     Create {
         state: FormState,
-        issuers_html: Option<String>,
+        issuers: Option<IssuerButtons>,
     },
     /// The pending identity's form.
     Pending {
@@ -395,22 +395,19 @@ fn create_model(
         link: None,
         form: None,
         pending: None,
-        issuers_html: None,
+        issuers: None,
     };
     match body {
         CreateBody::Text(texts, link) => {
             page.texts.clone_from(texts);
             page.link.clone_from(link);
         }
-        CreateBody::Create {
-            state,
-            issuers_html,
-        } => {
+        CreateBody::Create { state, issuers } => {
             if state.approval {
                 page.texts.push(m.get("ts-createaccount-reviewed"));
             }
             page.form = Some(create_form_model(m, state));
-            page.issuers_html.clone_from(issuers_html);
+            page.issuers.clone_from(issuers);
         }
         CreateBody::Pending {
             label,
@@ -558,10 +555,10 @@ async fn fresh(
     };
     // The issuers' buttons carry the login token of the session the form's token is
     // bound to: a second session would replace the first in the browser.
-    let issuers_html =
+    let issuers =
         (cx.user.is_none() && !cx.site.login_issuers.is_empty() && !f.login_token.is_empty())
             .then(|| {
-                crate::special::external::buttons(
+                crate::special::external::issuer_buttons(
                     &cx.m,
                     &cx.site.login_issuers,
                     "logintoken",
@@ -572,11 +569,8 @@ async fn fresh(
                     "ts-createaccount-external-button",
                 )
             })
-            .filter(|h| !h.is_empty());
-    let body = CreateBody::Create {
-        state,
-        issuers_html,
-    };
+            .flatten();
+    let body = CreateBody::Create { state, issuers };
     pages::with_cookies(page(cx, headers, status, notice, &body, back), &cookies)
 }
 
@@ -889,7 +883,7 @@ pub async fn post(
             Some(notice),
             &CreateBody::Create {
                 state,
-                issuers_html: None,
+                issuers: None,
             },
             &back,
         )
@@ -1222,7 +1216,7 @@ mod tests {
             None,
             &CreateBody::Create {
                 state: state(true, Some(("optional", "Hi"))),
-                issuers_html: None,
+                issuers: None,
             },
         );
         assert_eq!(p.texts, vec![m.get("ts-createaccount-reviewed")]);
@@ -1235,7 +1229,7 @@ mod tests {
             None,
             &CreateBody::Create {
                 state: state(false, Some(("required", ""))),
-                issuers_html: None,
+                issuers: None,
             },
         );
         assert!(p.texts.is_empty());
@@ -1369,7 +1363,7 @@ mod tests {
                 approval: true,
                 for_another: false,
             },
-            issuers_html: None,
+            issuers: None,
         };
         let html = plain("special/createaccount.html", create_model(&m, None, &body));
         assert!(html.contains(&format!("name=\"{HONEYPOT}\"")));

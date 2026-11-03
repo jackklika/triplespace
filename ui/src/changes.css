@@ -24,8 +24,8 @@
 
 /* The row kinds take a row of their own; the selects and the button share the next.
  * `ts-form-group` and `ts-form-field` are Plain's `forms.html` items (0097 A8); the
- * `ts-changes-form__` names are the built-in drawing's, kept until groups 11 and 12 of the
- * skin migration switch (19 §5.10). */
+ * `ts-changes-form__` names are the built-in drawing's, kept until group 12 of the skin
+ * migration switches (19 §5.10). */
 
 .ts-form-group,
 .ts-changes-form__kinds {

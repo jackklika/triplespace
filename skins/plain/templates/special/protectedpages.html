@@ -1,0 +1,30 @@
+{#- Special:ProtectedPages (09 §4.5; 0056 §13; 19 §6.3): the restrictions in force, the
+    sets with their members and, for a holder of `protect`, the forms that manage them, and
+    for a holder of `userrights` the groups restrictions name that have no member. The
+    tabs are the frame's. -#}
+{%- import "codex.html" as codex -%}
+{%- import "forms.html" as forms -%}
+{%- macro hidden(name, value) %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endmacro -%}
+{%- set action = "/wiki/Special:ProtectedPages" -%}
+<div class="ts-protectedpages">{% for n in notices %}{{ codex.message(n) }}{% endfor -%}
+<section id="pages"><h2>{{ pages.heading }}</h2>
+{%- if pages.nothing %}<p class="ts-empty">{{ pages.nothing }}</p>
+{%- else %}<table class="cdx-table__table ts-protectedpages__table"><thead><tr>{% for c in pages.columns %}<th>{{ c }}</th>{% endfor %}</tr></thead><tbody>
+{%- for r in pages.rows %}<tr><td><a href="{{ r.page.href }}">{{ r.page.label }}</a></td><td>{{ r.action }}</td><td>{{ r.group }}</td><td>{{ r.expiry }}</td></tr>{% endfor %}</tbody></table>{% endif %}</section>
+{%- set t = sets.token -%}
+<section id="sets"><h2>{{ sets.heading }}</h2><p>{{ sets.help }}</p>
+{%- if sets.nothing %}<p class="ts-empty">{{ sets.nothing }}</p>{% endif -%}
+{%- for s in sets.sets %}<section class="ts-set" id="set-{{ s.id }}"><h3>{{ s.name }}</h3><p class="ts-set__restrictions">{{ s.restrictions }}</p>
+{%- if s.no_members %}<p class="ts-empty">{{ s.no_members }}</p>
+{%- else %}<ul class="ts-set__members">{% for mb in s.members %}<li><a href="{{ mb.page.href }}">{{ mb.page.label }}</a>{% if mb.remove %} <form class="ts-set__remove" method="post" action="{{ action }}">{{ hidden("token", t) }}{{ hidden("do", "remove-member") }}{{ hidden("set", s.id) }}{{ hidden("page", mb.page_id) }}{{ codex.button(mb.remove) }}</form>{% endif %}</li>{% endfor %}</ul>{% endif -%}
+{%- if s.manage %}{% set g = s.manage -%}
+<form class="ts-set__add" method="post" action="{{ action }}">{{ hidden("token", t) }}{{ hidden("do", "add-member") }}{{ hidden("set", s.id) }}{{ codex.field(g.member) }}{{ codex.button(g.add) }}</form>
+<form class="ts-set__change" method="post" action="{{ action }}"><h4>{{ g.change_heading }}</h4>{{ hidden("token", t) }}{{ hidden("do", "change") }}{{ hidden("set", s.id) }}{{ codex.field(g.name) }}{{ forms.field(g.read) }}{{ forms.field(g.edit) }}{{ codex.button(g.change) }}</form>
+<form class="ts-set__retire" method="post" action="{{ action }}">{{ hidden("token", t) }}{{ hidden("do", "retire") }}{{ hidden("set", s.id) }}{{ codex.button(g.retire) }}</form>
+{%- endif %}</section>{% endfor -%}
+{%- if sets.new %}{% set n = sets.new %}<form class="ts-set__new" method="post" action="{{ action }}"><h3>{{ n.heading }}</h3>{{ hidden("token", t) }}{{ hidden("do", "create") }}{{ codex.field(n.name) }}{{ forms.field(n.read) }}{{ forms.field(n.edit) }}{{ codex.button(n.create) }}</form>{% endif -%}
+</section>
+{%- if empty %}<section id="empty-groups"><h2>{{ empty.heading }}</h2><p>{{ empty.help }}</p>
+{%- if empty.nothing %}<p class="ts-empty">{{ empty.nothing }}</p>
+{%- else %}<ul>{% for r in empty.rows %}<li>{{ r }}</li>{% endfor %}</ul>{% endif %}</section>{% endif -%}
+</div>

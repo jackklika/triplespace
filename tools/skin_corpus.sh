@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Records the parity corpus of the skin migration (19 §5.10): a test instance on the server's
+# Records the skins' parity corpus (19 §5.10): a test instance on the server's
 # fixtures (the e2e entities, Librarybase's own wikitext pages, the internetdomains sample),
 # seeded by `tools/skin_corpus.py` with a week's worth of activity, then every page the site
 # serves recorded as three viewers into `crates/triplespace-ui/tests/corpus/exchanges/` with

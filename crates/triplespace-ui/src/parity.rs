@@ -1,4 +1,4 @@
-//! Comparing two renderings of a page (0097 §16; 19 §5.10): both are parsed as a browser
+//! Comparing two renderings of a page (0097 §16, A3; 19 §5.10): both are parsed as a browser
 //! would read them and written back in one canonical form, so that two results are equal
 //! when a browser would build the same DOM from them, and a difference is reported as the
 //! path of the first node that differs.
@@ -7,11 +7,10 @@
 //! name, or a text node. Whitespace-only text is dropped and runs of whitespace are
 //! collapsed, except under `pre`, `textarea` and `script`/`style`, where a browser keeps
 //! them. Comments are kept, since the output is meant to be identical, not merely
-//! equivalent. Entity spelling is not a difference: the built-in renderer already writes
-//! `&#60;` in its `askama` templates and `&lt;` in its string builders.
+//! equivalent. Entity spelling is not a difference: `&#60;` and `&lt;` are one character.
 //!
-//! The parity harness (`tests/parity.rs`, `cargo xtask skin-parity`) and the `compare`
-//! renderer use this.
+//! The skins' parity check (`tests/parity.rs`, `cargo xtask skin-parity`) and the tests
+//! that hold a template to the markup it replaced use this.
 
 use std::fmt::Write as _;
 

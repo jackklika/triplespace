@@ -1,0 +1,4 @@
+{#- A moderation page's answer to a viewer who may not use it (09 §6.3): a reader is asked to
+    log in, a user without the right is told so. -#}
+{%- import "codex.html" as codex -%}
+{{ codex.message(notice) }}{% if login %}<p><a href="{{ login.href }}">{{ login.label }}</a></p>{% endif %}

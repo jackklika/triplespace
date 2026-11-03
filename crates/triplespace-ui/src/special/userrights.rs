@@ -18,21 +18,23 @@
 //! form (`permissiondenied` naming the group, `ts-last-owner`, `badvalue`, `badtoken`).
 
 use std::collections::BTreeMap;
-use std::fmt::Write as _;
 
-use askama::Template as _;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use triplespace_client::settings::Saved;
 use triplespace_client::{GroupInfo, Incoming, RightsForm, UserGroups};
 
 use crate::Site;
-use crate::codex::{Action, Button, Field, MessageKind, Weight};
+use crate::codex::{
+    Action, Button, ButtonModel, FieldModel, Message, MessageKind, MessageModel, Weight,
+};
+use crate::entity::history::Choice;
 use crate::features::Feature;
 use crate::frame::{Page, title_url};
-use crate::html::{esc, link};
 use crate::i18n::Messages;
+use crate::moderation::{GateModel, link_to};
 use crate::pages::{self, Context, Params, Peer};
+use crate::special::controls::ControlModel;
 
 const TITLE: &str = "Special:UserRights";
 
@@ -45,42 +47,116 @@ fn subject_of(title: &str) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
+/// `Special:UserRights` as Plain's `special/userrights.html` draws it: the form asking
+/// for a name, or an account's groups.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct UserRightsPage {
+    /// The notice it came back with, and a block in force.
+    pub notices: Vec<MessageModel>,
+    /// The form asking for a name.
+    pub ask: Option<AskName>,
+    /// The account's groups.
+    pub form: Option<GroupsForm>,
+}
+
+/// The form asking for a name.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AskName {
+    /// The name.
+    pub user: FieldModel,
+    /// **Go**.
+    pub go: ButtonModel,
+}
+
+/// An account's groups and the fields under them.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct GroupsForm {
+    /// Where it posts.
+    pub action: String,
+    /// The `userrights` token.
+    pub token: String,
+    /// "Groups of …".
+    pub legend: String,
+    /// One per group the wiki has.
+    pub groups: Vec<GroupRow>,
+    /// Said where the viewer may change none of them.
+    pub nothing: Option<MessageModel>,
+    /// The expiry.
+    pub expiry: FieldModel,
+    /// The reason.
+    pub reason: FieldModel,
+    /// **Save**.
+    pub save: ButtonModel,
+    /// The account's contributions.
+    pub contributions: Choice,
+}
+
+/// One group: its checkbox, and whether the account was in it when the page was drawn.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct GroupRow {
+    /// The group.
+    pub name: String,
+    /// `1` for a member, `0` otherwise.
+    pub was: u8,
+    /// The checkbox, disabled where the viewer may not change it.
+    pub control: ControlModel,
+}
+
+fn text_field(
+    m: &Messages,
+    id: &str,
+    name: &str,
+    value: &str,
+    label: &str,
+    help: &str,
+    required: bool,
+) -> FieldModel {
+    FieldModel {
+        id: id.into(),
+        name: name.into(),
+        kind: "text".into(),
+        value: value.into(),
+        label: m.get(label),
+        description: None,
+        help: Some(m.get(help)),
+        required,
+        autocomplete: Some("off".into()),
+    }
+}
+
 /// The page asking for a name.
 fn ask_page(cx: &Context, headers: &HeaderMap, notice: Option<(MessageKind, String)>) -> Response {
     let m = &cx.m;
-    let mut body = String::new();
-    if let Some((kind, text)) = notice {
-        body.push_str(&pages::message(kind, &text));
-    }
-    let _ = write!(
-        body,
-        "<form class=\"ts-userrights__ask\" method=\"get\" action=\"/w/index.php\"><input type=\"hidden\" name=\"title\" value=\"{TITLE}\">{}{}</form>",
-        Field {
-            id: "ts-userrights-user",
-            name: "user",
-            kind: "text",
-            value: "",
-            label: &m.get("ts-userrights-user"),
-            description: None,
-            help: Some(&m.get("ts-userrights-user-help")),
-            required: true,
-            autocomplete: Some("off"),
-        }
-        .render()
-        .unwrap_or_default(),
-        Button {
-            label: &m.get("ts-userrights-go"),
-            kind: "submit",
-            action: Action::Progressive,
-            weight: Weight::Primary,
-        }
-        .render()
-        .unwrap_or_default()
-    );
+    let model = UserRightsPage {
+        notices: notice
+            .into_iter()
+            .map(|(k, t)| Message::block(k, &t).model())
+            .collect(),
+        ask: Some(AskName {
+            user: text_field(
+                m,
+                "ts-userrights-user",
+                "user",
+                "",
+                "ts-userrights-user",
+                "ts-userrights-user-help",
+                true,
+            ),
+            go: Button {
+                label: &m.get("ts-userrights-go"),
+                kind: "submit",
+                action: Action::Progressive,
+                weight: Weight::Primary,
+            }
+            .model(),
+        }),
+        form: None,
+    };
+    let body = cx.draw("special/userrights.html", &model);
     pages::respond(cx, headers, StatusCode::OK, |m| Page {
         title: m.get("ts-userrights-title"),
         returnto: Some(TITLE.to_string()),
-        body: format!("<div class=\"ts-userrights\">{body}</div>"),
+        body,
         ..Page::default()
     })
 }
@@ -111,9 +187,9 @@ fn refusal_text(m: &Messages, code: &str, info: &str) -> String {
     }
 }
 
-/// The group checkboxes and the fields under them.
-#[allow(clippy::too_many_arguments, clippy::too_many_lines)] // one form, read top to bottom
-fn form_html(
+/// The groups form's model, as [`form_html`] draws it.
+#[allow(clippy::too_many_lines)] // one form's model, read top to bottom
+fn groups_model(
     m: &Messages,
     user: &UserGroups,
     groups: &[GroupInfo],
@@ -121,7 +197,7 @@ fn form_html(
     own: bool,
     token: &str,
     back: &Returned,
-) -> String {
+) -> GroupsForm {
     let [add, remove, add_self, remove_self] = changeable;
     let (may_add, may_remove) = if own {
         (add_self, remove_self)
@@ -133,49 +209,44 @@ fn form_html(
         .iter()
         .map(|(g, e)| (g.as_str(), e.as_str()))
         .collect();
-    let mut s = format!(
-        "<form class=\"ts-userrights__groups\" method=\"post\" action=\"/w/index.php?title={}\"><input type=\"hidden\" name=\"token\" value=\"{}\"><fieldset class=\"ts-userrights__set\"><legend>{}</legend>",
-        esc(&title_url(&format!("{TITLE}/{}", user.name))),
-        esc(token),
-        esc(&m.with("ts-userrights-groups-of", &[&user.name])),
-    );
-    let mut any_enabled = false;
-    for g in groups.iter().filter(|g| !g.implicit && g.name != "*") {
-        let member = current.contains_key(g.name.as_str());
-        let enabled = if member {
-            may_remove.contains(&g.name)
-        } else {
-            may_add.contains(&g.name)
-        };
-        any_enabled |= enabled;
-        let id = format!("ts-ur-{}", g.name);
-        let expiry = current
-            .get(g.name.as_str())
-            .filter(|e| **e != "infinity")
-            .map(|e| {
-                format!(
-                    " <span class=\"ts-userrights__expiry\">{}</span>",
-                    esc(&m.with("ts-userrights-until", &[e]))
-                )
-            })
-            .unwrap_or_default();
-        let _ = write!(
-            s,
-            "<div class=\"ts-userrights__group\"><input type=\"hidden\" name=\"was-{name}\" value=\"{was}\"><span class=\"cdx-checkbox\"><input class=\"cdx-checkbox__input\" type=\"checkbox\" id=\"{id}\" name=\"group-{name}\" value=\"1\"{checked}{disabled}><span class=\"cdx-checkbox__icon\"></span><label class=\"cdx-checkbox__label\" for=\"{id}\">{label}{expiry}</label></span></div>",
-            name = esc(&g.name),
-            was = u8::from(member),
-            checked = if member { " checked" } else { "" },
-            disabled = if enabled { "" } else { " disabled" },
-            label = esc(&g.name),
-        );
-    }
-    s.push_str("</fieldset>");
-    if !any_enabled {
-        s.push_str(&pages::message(
-            MessageKind::Notice,
-            &m.get("ts-userrights-nothing-changeable"),
-        ));
-    }
+    let rows: Vec<GroupRow> = groups
+        .iter()
+        .filter(|g| !g.implicit && g.name != "*")
+        .map(|g| {
+            let member = current.contains_key(g.name.as_str());
+            let enabled = if member {
+                may_remove.contains(&g.name)
+            } else {
+                may_add.contains(&g.name)
+            };
+            GroupRow {
+                name: g.name.clone(),
+                was: u8::from(member),
+                control: ControlModel::Checkbox {
+                    id: Some(format!("ts-ur-{}", g.name)),
+                    name: format!("group-{}", g.name),
+                    value: "1".into(),
+                    checked: member,
+                    label: Some(g.name.clone()),
+                    note: current
+                        .get(g.name.as_str())
+                        .filter(|e| **e != "infinity")
+                        .map(|e| m.with("ts-userrights-until", &[e])),
+                    disabled: !enabled,
+                    described_by: None,
+                },
+            }
+        })
+        .collect();
+    let any_enabled = rows.iter().any(|r| {
+        matches!(
+            r.control,
+            ControlModel::Checkbox {
+                disabled: false,
+                ..
+            }
+        )
+    });
     let expiry = back.expiry.clone().unwrap_or_else(|| {
         if own {
             m.get("ts-userrights-self-expiry")
@@ -183,49 +254,55 @@ fn form_html(
             "infinite".to_string()
         }
     });
-    let _ = write!(
-        s,
-        "{}{}<div class=\"ts-userrights__actions\">{}</div></form>",
-        Field {
-            id: "ts-userrights-expiry",
-            name: "expiry",
-            kind: "text",
-            value: &expiry,
-            label: &m.get("ts-userrights-expiry"),
-            description: None,
-            help: Some(&m.get(if own {
+    GroupsForm {
+        action: format!(
+            "/w/index.php?title={}",
+            title_url(&format!("{TITLE}/{}", user.name))
+        ),
+        token: token.to_string(),
+        legend: m.with("ts-userrights-groups-of", &[&user.name]),
+        groups: rows,
+        nothing: (!any_enabled).then(|| {
+            Message::block(
+                MessageKind::Notice,
+                &m.get("ts-userrights-nothing-changeable"),
+            )
+            .model()
+        }),
+        expiry: text_field(
+            m,
+            "ts-userrights-expiry",
+            "expiry",
+            &expiry,
+            "ts-userrights-expiry",
+            if own {
                 "ts-userrights-expiry-self-help"
             } else {
                 "ts-userrights-expiry-help"
-            })),
-            required: false,
-            autocomplete: Some("off"),
-        }
-        .render()
-        .unwrap_or_default(),
-        Field {
-            id: "ts-userrights-reason",
-            name: "reason",
-            kind: "text",
-            value: &back.reason,
-            label: &m.get("ts-userrights-reason"),
-            description: None,
-            help: Some(&m.get("ts-userrights-reason-help")),
-            required: false,
-            autocomplete: Some("off"),
-        }
-        .render()
-        .unwrap_or_default(),
-        Button {
+            },
+            false,
+        ),
+        reason: text_field(
+            m,
+            "ts-userrights-reason",
+            "reason",
+            &back.reason,
+            "ts-userrights-reason",
+            "ts-userrights-reason-help",
+            false,
+        ),
+        save: Button {
             label: &m.get("ts-userrights-save"),
             kind: "submit",
             action: Action::Progressive,
             weight: Weight::Primary,
         }
-        .render()
-        .unwrap_or_default(),
-    );
-    s
+        .model(),
+        contributions: link_to(
+            format!("/wiki/Special:Contributions/{}", title_url(&user.name)),
+            m.get("ts-userrights-contributions"),
+        ),
+    }
 }
 
 /// The account's page.
@@ -261,39 +338,39 @@ async fn user_page(
     };
     let own = cx.user.as_deref() == Some(user.name.as_str());
     let m = &cx.m;
-    let mut body = String::new();
-    if let Some((kind, text)) = &back.notice {
-        body.push_str(&pages::message(*kind, text));
-    }
+    let mut notices: Vec<MessageModel> = back
+        .notice
+        .iter()
+        .map(|(k, t)| Message::block(*k, t).model())
+        .collect();
     if let Some(e) = &user.block_expiry {
-        body.push_str(&pages::message(
-            MessageKind::Warning,
-            &m.with("ts-userrights-blocked", &[&user.name, e]),
-        ));
+        notices.push(
+            Message::block(
+                MessageKind::Warning,
+                &m.with("ts-userrights-blocked", &[&user.name, e]),
+            )
+            .model(),
+        );
     }
-    body.push_str(&form_html(
-        m,
-        &user,
-        &groups.value,
-        &changeable.value,
-        own,
-        &token.value.value,
-        &back,
-    ));
-    let _ = write!(
-        body,
-        "<p class=\"ts-userrights__links\">{}</p>",
-        link(
-            &format!("/wiki/Special:Contributions/{}", title_url(&user.name)),
-            &esc(&m.get("ts-userrights-contributions")),
-            ""
-        ),
-    );
+    let model = UserRightsPage {
+        notices,
+        ask: None,
+        form: Some(groups_model(
+            m,
+            &user,
+            &groups.value,
+            &changeable.value,
+            own,
+            &token.value.value,
+            &back,
+        )),
+    };
     let heading = m.with("ts-userrights-title-of", &[&user.name]);
+    let body = cx.draw("special/userrights.html", &model);
     let r = pages::respond(cx, headers, StatusCode::OK, |_| Page {
         title: heading.clone(),
         returnto: Some(format!("{TITLE}/{}", user.name)),
-        body: format!("<div class=\"ts-userrights\">{body}</div>"),
+        body,
         ..Page::default()
     });
     pages::with_cookies(r, &token.set_cookies)
@@ -312,15 +389,9 @@ async fn start(
         return Err(pages::no_page(&cx, headers, TITLE.to_string()));
     }
     if cx.user.is_none() {
-        let body = format!(
-            "{}<p>{}</p>",
-            pages::message(MessageKind::Notice, &cx.m.get("ts-userrights-login")),
-            link(
-                &format!("/wiki/Special:UserLogin?returnto={}", title_url(TITLE)),
-                &esc(&cx.m.get("ts-login")),
-                ""
-            )
-        );
+        let href = format!("/wiki/Special:UserLogin?returnto={}", title_url(TITLE));
+        let model = GateModel::login(&cx.m, "ts-userrights-login", href.clone());
+        let body = cx.draw("moderation/gate.html", &model);
         return Err(pages::respond(&cx, headers, StatusCode::OK, |m| Page {
             title: m.get("ts-userrights-title"),
             returnto: Some(TITLE.to_string()),

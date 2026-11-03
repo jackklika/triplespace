@@ -4,19 +4,18 @@
 //! form stays above the diff, filled in, so a comparison can be changed and run again.
 
 use std::collections::BTreeMap;
-use std::fmt::Write as _;
 
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use triplespace_client::{ClientError, DiffAsk, DiffEnd};
 
 use crate::Site;
-use crate::codex::MessageKind;
-use crate::document::diff_html;
+use crate::codex::{Message, MessageKind, MessageModel};
+use crate::document::{DiffTable, diff_table_model};
 use crate::features::Feature;
 use crate::frame::Page;
-use crate::html::esc;
 use crate::pages::{self, Context, Params, Peer};
+use crate::special::controls::FormItem;
 
 const TITLE: &str = "Special:ComparePages";
 
@@ -51,7 +50,7 @@ pub async fn serve(site: &Site, headers: &HeaderMap, peer: Peer, params: &Params
         (Ok(a), Ok(b)) => (a, b),
         (Err(bad), _) | (_, Err(bad)) => {
             let e = cx.m.with("ts-comparepages-bad-rev", &[&bad]);
-            return page(&cx, headers, q, StatusCode::BAD_REQUEST, Some(&e), "");
+            return page(&cx, headers, q, StatusCode::BAD_REQUEST, Some(&e), None);
         }
     };
     let (Some(from), Some(to)) = (from, to) else {
@@ -65,7 +64,7 @@ pub async fn serve(site: &Site, headers: &HeaderMap, peer: Peer, params: &Params
         } else {
             StatusCode::OK
         };
-        return page(&cx, headers, q, status, error.as_deref(), "");
+        return page(&cx, headers, q, status, error.as_deref(), None);
     };
     match site
         .client()
@@ -74,11 +73,8 @@ pub async fn serve(site: &Site, headers: &HeaderMap, peer: Peer, params: &Params
     {
         Ok(d) => {
             cx.inputs.push(d.cache);
-            let html = format!(
-                "<div class=\"ts-page-diff\">{}</div>",
-                diff_html(&cx, &d.value, None)
-            );
-            page(&cx, headers, q, StatusCode::OK, None, &html)
+            let table = diff_table_model(&cx.m, &d.value, None);
+            page(&cx, headers, q, StatusCode::OK, None, Some(table))
         }
         Err(ClientError::Api { code, .. })
             if matches!(
@@ -87,14 +83,38 @@ pub async fn serve(site: &Site, headers: &HeaderMap, peer: Peer, params: &Params
             ) =>
         {
             let e = cx.m.get("ts-comparepages-missing");
-            page(&cx, headers, q, StatusCode::NOT_FOUND, Some(&e), "")
+            page(&cx, headers, q, StatusCode::NOT_FOUND, Some(&e), None)
         }
         Err(ClientError::Api { code, .. }) if code == "invalidtitle" || code == "badvalue" => {
             let e = cx.m.get("ts-comparepages-missing");
-            page(&cx, headers, q, StatusCode::BAD_REQUEST, Some(&e), "")
+            page(&cx, headers, q, StatusCode::BAD_REQUEST, Some(&e), None)
         }
         Err(e) => pages::api_failed(&cx, headers, &e),
     }
+}
+
+/// `Special:ComparePages` as Plain's `special/comparepages.html` draws it.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ComparePage {
+    /// Why the comparison could not be made.
+    pub error: Option<MessageModel>,
+    /// The special page the form goes to.
+    pub title: String,
+    /// The two sides, each a page or a revision.
+    pub sides: Vec<Side>,
+    /// **Compare**.
+    pub go: String,
+    /// The diff.
+    pub diff: Option<DiffTable>,
+}
+
+/// One side of the form.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct Side {
+    /// "First page" or "Second page".
+    pub legend: String,
+    /// Its page and revision fields.
+    pub items: Vec<FormItem>,
 }
 
 /// The form, filled in as asked, an error above it, and the diff below.
@@ -104,34 +124,35 @@ fn page(
     q: &BTreeMap<String, String>,
     status: StatusCode,
     error: Option<&str>,
-    diff: &str,
+    table: Option<DiffTable>,
 ) -> Response {
     let m = &cx.m;
-    let value = |k: &str| q.get(k).map(|v| esc(v)).unwrap_or_default();
-    let mut body = String::new();
-    if let Some(e) = error {
-        body.push_str(&pages::message(MessageKind::Error, e));
-    }
-    let _ = write!(
-        body,
-        "<form class=\"ts-comparepages\" method=\"get\" action=\"/w/index.php\"><input type=\"hidden\" name=\"title\" value=\"{TITLE}\">"
-    );
-    for (n, legend) in [(1, "ts-comparepages-first"), (2, "ts-comparepages-second")] {
-        let _ = write!(
-            body,
-            "<fieldset class=\"ts-comparepages__side\"><legend>{}</legend><label class=\"ts-changes-form__field\"><span>{}</span> <input class=\"cdx-text-input__input\" type=\"text\" name=\"page{n}\" value=\"{}\"></label> <label class=\"ts-changes-form__field\"><span>{}</span> <input class=\"cdx-text-input__input\" type=\"text\" inputmode=\"numeric\" name=\"rev{n}\" value=\"{}\" size=\"10\"></label></fieldset>",
-            esc(&m.get(legend)),
-            esc(&m.get("ts-comparepages-page")),
-            value(&format!("page{n}")),
-            esc(&m.get("ts-comparepages-rev")),
-            value(&format!("rev{n}")),
-        );
-    }
-    let _ = write!(
-        body,
-        "<button class=\"cdx-button cdx-button--action-progressive\" type=\"submit\">{}</button></form>{diff}",
-        esc(&m.get("ts-comparepages-go"))
-    );
+    let asked = |k: &str| q.get(k).cloned().unwrap_or_default();
+    let model = ComparePage {
+        error: error.map(|e| Message::block(MessageKind::Error, e).model()),
+        title: TITLE.into(),
+        sides: [(1, "ts-comparepages-first"), (2, "ts-comparepages-second")]
+            .iter()
+            .map(|(n, legend)| Side {
+                legend: m.get(legend),
+                items: vec![
+                    FormItem::text(
+                        m.get("ts-comparepages-page"),
+                        &format!("page{n}"),
+                        &asked(&format!("page{n}")),
+                    ),
+                    FormItem::numeric(
+                        m.get("ts-comparepages-rev"),
+                        &format!("rev{n}"),
+                        &asked(&format!("rev{n}")),
+                    ),
+                ],
+            })
+            .collect(),
+        go: m.get("ts-comparepages-go"),
+        diff: table,
+    };
+    let body = cx.draw("special/comparepages.html", &model);
     pages::respond(cx, headers, status, |m| Page {
         title: m.get("ts-comparepages-title"),
         returnto: Some(TITLE.to_string()),

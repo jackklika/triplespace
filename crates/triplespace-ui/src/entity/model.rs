@@ -22,7 +22,7 @@ use scatter_wikibase_shape::{Group, Role, Shape, Thresholds, classify};
 use serde::Serialize;
 
 use super::{Render, chart, values};
-use crate::codex::{Align, Chip, ChipKind, ChipModel, Column, Table, TableModel};
+use crate::codex::{Align, Chip, ChipKind, ChipModel, TableModel};
 use crate::frame::title_url;
 use crate::html::linkable;
 
@@ -1860,8 +1860,8 @@ impl Render<'_> {
     /// The Labels tab.
     #[must_use]
     pub fn labels_model(&self) -> TableModel {
-        use crate::codex::Cell;
-        use crate::html::esc;
+        use crate::codex::{CellModel, ColumnModel};
+        use crate::inline::{Inline, join, text};
         let e = self.entity;
         let mut langs: Vec<String> = e
             .labels
@@ -1877,37 +1877,35 @@ impl Render<'_> {
         let rows = langs
             .iter()
             .map(|l| {
-                let text = |o: Option<&String>| o.map(|t| esc(t)).unwrap_or_default();
+                let term = |content: Vec<Inline>| CellModel {
+                    lang: Some(l.clone()),
+                    ..CellModel::of(content)
+                };
                 vec![
-                    Cell {
-                        header: true,
-                        ..Cell::html(format!("<span class=\"ts-mono\">{}</span>", esc(l)))
-                    },
-                    Cell {
-                        lang: Some(l.clone()),
-                        ..Cell::html(text(e.labels.get(l)))
-                    },
-                    Cell {
-                        lang: Some(l.clone()),
-                        ..Cell::html(text(e.descriptions.get(l)))
-                    },
-                    Cell {
-                        lang: Some(l.clone()),
-                        ..Cell::html(
-                            e.aliases
-                                .get(l)
-                                .map(|a| a.iter().map(|x| esc(x)).collect::<Vec<_>>().join(" · "))
-                                .unwrap_or_default(),
-                        )
-                    },
+                    CellModel::heading(vec![Inline::Mono { text: l.clone() }]),
+                    term(
+                        e.labels
+                            .get(l)
+                            .map(|t| text(t.as_str()))
+                            .unwrap_or_default(),
+                    ),
+                    term(
+                        e.descriptions
+                            .get(l)
+                            .map(|t| text(t.as_str()))
+                            .unwrap_or_default(),
+                    ),
+                    term(
+                        e.aliases
+                            .get(l)
+                            .map(|a| join(a.iter().map(|x| text(x.as_str())).collect(), " · "))
+                            .unwrap_or_default(),
+                    ),
                 ]
             })
             .collect();
-        let col = |k: &str| Column {
-            label: self.m.get(k),
-            align: Align::Start,
-        };
-        Table {
+        let col = |k: &str| ColumnModel::new(self.m.get(k), Align::Start);
+        TableModel {
             header: None,
             caption: self.m.get("ts-labels-caption"),
             columns: vec![
@@ -1919,7 +1917,6 @@ impl Render<'_> {
             rows,
             empty: self.m.get("ts-labels-none"),
         }
-        .model()
     }
 
     /// "Where this comes from" (0003 §6).

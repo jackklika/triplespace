@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-10-29
-- **Updated:** 2026-11-02 (A9)
+- **Updated:** 2026-11-03 (A12)
 - **Author:** James Hare / Claude Opus
 - **Changes:** [0005](0005-crate-organization.md), [0015](0015-record-format-and-partition-registry.md), [0034](0034-frontend-stack.md), [0057](0057-web-tier.md), [0077](0077-special-version.md), [0086](0086-theming.md), [0095](0095-the-interface-namespace.md)
 - **Uses:** [0012](0012-api-requirements.md), [0028](0028-tenancy-policy.md), [0050](0050-adr-format.md), [0055](0055-templatestyles-templatedata-and-page-properties.md), [0058](0058-packed-record-storage.md), [0085](0085-settings-and-preferences.md)
@@ -68,7 +68,7 @@ James's direction, from the design discussion of 2026-10-29:
 
 ### 9. The template contract (extends 0034 §2)
 
-*Changed by A2, A4, A6, A7, A8.*
+*Changed by A2, A4, A6, A7, A8, A11, A12.*
 
 *Current text: [19](../architecture/19-site-ui.md) §5.10.*
 
@@ -100,7 +100,7 @@ James's direction, from the design discussion of 2026-10-29:
 
 ### 16. Reaching parity, then removing the built-in rendering
 
-*Changed by A2, A3, A5.*
+*Changed by A2, A3, A5, A12.*
 
 *Current text: [19](../architecture/19-site-ui.md) §5.10.*
 
@@ -238,3 +238,40 @@ Replaced text ([19](../architecture/19-site-ui.md) §5.10, as it stood):
 - **Source:** Direct: Claude, while building the settings pages' templates (group 10), 2026-11-02; unconfirmed
 - **Change:** extends A8
 - **Summary:** The wiki's and the instance's settings pages needed three things A8's vocabulary lacked, and each was added to it rather than drawn on the page. A **radio button** (the Visibility section's anyone, accounts on this wiki or a group) is a control of its own. A checkbox's or radio button's **own label** points at the control's ID where it has one, Codex's markup and the settings pages' (the **Lock** checkbox of Defaults for wikis), and wraps the control where it has none, as the `GET` forms' checkboxes do. The **settings row** carries the origin chips after the label (set on this wiki, inherited, locked, capped), **Lock** after the control, the locked chip after a value shown, and a help without an ID where no control points at it. One built-in difference was settled the shared layout's way before the comparison: Defaults for wikis drew a row's errors before its help and every other row after it, and now draws them after. The chapter text is 19 §5.10.
+
+### A10. A field and an option join the layouts, and the moderation forms move onto them
+
+- **Date:** 2026-11-03
+- **Source:** Direct: Claude, while building the moderation pages' templates (group 11), 2026-11-03; unconfirmed
+- **Change:** extends A8 and A9
+- **Summary:** The moderation forms (Protect, Delete, Undelete, Block, Unblock, Move, UserRights and the sets of ProtectedPages) post, and lay their controls out as Codex's field does, the label above and the help under, which neither of A8's layouts is. Plain gains three layouts in `forms.html` over the same controls: `field`, a control under its label with its help (`FieldRow`); `check`, a checkbox carrying its own label with its help under it (`CheckRow`); and `ask`, a form that asks by `GET` for the page to go to, one `item` and its button (`AskForm`). The controls gain what these forms need: a checkbox may be disabled, shown rather than hidden where the viewer may not change it, and may carry a note at the end of its label (a membership's expiry, `ts-control__note`); an input may be required. Three built-in differences were settled the shared way before the comparison: the Block form's options and the UserRights groups were checkboxes without Codex's inline modifier, and are now inline as every other; the expiry note's class `ts-userrights__expiry` became `ts-control__note`; and the forms of Special:Undelete and Special:MovePage that ask for a page draw A8's `GET` field, the class `ts-form-field` and Codex's `cdx-text-input` wrapper. The deleted page's view, Special:ProtectedPages, Special:ProtectedTitles and Special:BlockList, whose code is group 11's, count in group 11 rather than 5 and 8. The chapter text is 19 §5.10.
+
+### A11. A line of text is parts, and the last group's forms move onto the shared controls
+
+- **Date:** 2026-11-03
+- **Source:** Direct: Claude, while building the last group's templates (group 12), 2026-11-03; unconfirmed
+- **Change:** extends §9, A6 and A10
+- **Summary:** Group 12's pages (Special:Version and its subpages, AllMessages, the four information pages, Providers, BlankPage, ComparePages, NewItem and NewProperty, the term forms, Special:Account, the generated main page) built sentences and table cells whose text holds links, code and line breaks as HTML, and the Codex table's model carried a cell as HTML. A view model now carries such a line as **parts** (`Inline`: text, a link on or off the site, code, monospace text, a line break, a list that opens on demand), drawn by Plain's `parts` macro in `inline.html`; a message whose parameters are links is filled with parts rather than with HTML, a list in the reader's language is joined from parts, and a table cell is parts. A page that says one thing, a refusal, a title with no page or a call that failed, is the skin's `message.html` over a Codex message, the frame's own failure page included. The external issuers' buttons, carried as HTML on the login and creation pages until this group (A6), are a model and `account.html`'s `issuers` macro, which Special:Account draws too; no field of A6's kind remains. An input may carry `inputmode` (ComparePages' revision fields, numeric). Three built-in differences were settled the shared way before the comparison: the forms of AllMessages and ComparePages draw A8's `GET` field, the class `ts-form-field` and Codex's `cdx-text-input` wrapper, without `size`; and NewItem's and NewProperty's prefilled statements are inline checkboxes with their own label, as every other. The chapter text is 19 §5.10.
+
+### A12. The built-in renderer is removed, and parity becomes Worksheet's check
+
+- **Date:** 2026-11-03
+- **Source:** Direct: Claude, while removing the built-in renderer, 2026-11-03; unconfirmed
+- **Change:** amends §16; extends §9, A3 and A6
+- **Summary:** Group 12 passed the gates of §16 with the built-in builders still in place, and switched: every page is drawn by the skin, and the built-in renderer is removed, its string builders, the Codex components' `askama` templates and the `askama` dependency (the components keep their models, which Plain's macros draw, and `tests/codex_macros.rs` holds each macro's markup as a snapshot in place of the builder it was compared with), with the deployment settings `server.renderer` and `web.renderer` (`--renderer`, `TRIPLESPACE_RENDERER`, `TRIPLESPACE_WEB_RENDERER`) and the end-to-end suite's run per renderer. The parity harness and `cargo xtask skin-parity` are kept over the same corpus as the check that Worksheet is Plain with its stylesheets: each case drawn with both skins, Worksheet's stylesheet links taken out, compared as A3 compares; the render times are reported as a watch rather than judged against a budget, since there is no built-in time to judge them by. No part of a page is carried as HTML for a later group (A6). The chapter text is 19 §5.10, 20 §1.2 and 23 §3.6.
+
+Replaced text ([19](../architecture/19-site-ui.md) §5.10, as it stood):
+
+> **Reaching parity.** Plain is first written to reproduce today's HTML, and parity is measured on Worksheet, whose pages must equal the built-in renderer's; Plain's pages equal Worksheet's without its stylesheet links, by construction. The routes move in groups: the frame and the Codex components first, then entity pages, then the rest. **A group switches when it passes five gates**: the existing snapshot tests render unchanged; it is equal on the corpus; the Playwright and axe suite passes under both renderers; it is equal under `compare` on a staging instance; and its server render time, median and 95th percentile, is within 5% of the built-in renderer's, or over it by an amount no reader can perceive: the harness's API answers from memory, so its ratio is a worst case, and the entity pages switched at +9% on the heaviest corpus pages, about 2.5 ms on a 500-statement item ([0097](../decisions/0097-versioning-and-skins.md) A5). **Its built-in code is then deleted**, so no route is kept in two renderers. Deployment configuration `server.renderer` and `web.renderer` (`builtin`, `skin`, or `compare`, which renders both, serves the built-in result and logs each route that differs) applies to the groups not yet switched, and is removed with the last of them. Results are compared as normalized DOM, fragments too, since the built-in renderer already escapes two ways (`askama`'s `&#60;` in its templates, `html::esc`'s `&lt;` in its string builders) and a browser reads both the same ([0097](../decisions/0097-versioning-and-skins.md) A3); `html::esc` is the skin's escaper. The comparison runs over every route for a fixture wiki as an anonymous reader, a user and an administrator, for each content model, right to left, in night mode, with each feature switch on and off, and on a private tenant. **The staging instance is the one the developing agent runs**, seeded from a real wiki's dump; its soak is a crawl of every page of that wiki and a replay of the Playwright flows under `compare`, with no difference logged. **Feature work on the site pauses while the migration runs**, so that nothing is written in a renderer about to be deleted. The template contract stays at major 0 until a skin that stands alone renders every route.
+
+> While the migration runs, a part of a page that belongs to a group not yet switched is carried the same way and the field is replaced by the part's model when that group switches ([0097](../decisions/0097-versioning-and-skins.md) A6); the History tab's changes table was carried so between groups 4 and 7.
+
+Replaced text ([19](../architecture/19-site-ui.md) §5.2, as it stood):
+
+> - **Skins:** the HTML is drawn by a skin the operator installs (§5.10; [0097](../decisions/0097-versioning-and-skins.md) §8): MiniJinja templates over view models the binary builds. Until Worksheet reproduces a group of pages, the built-in rendering draws them, in `askama` templates compiled and type-checked with the Rust code; each group's built-in code is removed when the group switches (§5.10).
+
+Replaced text ([20](../architecture/20-web-tier.md) §1.2 and [23](../architecture/23-configuration-and-registry.md) §3.6, as they stood):
+
+> | `web.renderer` | `builtin` (the default), `skin` or `compare`, as `server.renderer`, until the skin migration is done ([19](../architecture/19-site-ui.md) §5.10) |
+
+> | `server.renderer` | `builtin`, `skin`, `compare` | `builtin` | Which renderer draws the embedded site's pages until the skin migration is done: `compare` renders both, serves the built-in result and logs each route that differs; removed with the last group ([19](../architecture/19-site-ui.md) §5.10) | [0097](../decisions/0097-versioning-and-skins.md) §16 |

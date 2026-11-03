@@ -1,0 +1,6 @@
+{#- The Delete form (0016 §7; 19 §6.3): the warning, the reason, **Also delete the talk
+    page** and **Delete**. -#}
+{%- import "codex.html" as codex -%}
+{%- import "forms.html" as forms -%}
+<div class="ts-protect-page">{% for n in notices %}{{ codex.message(n) }}{% endfor -%}
+<form class="ts-delete" method="post" action="{{ action }}"><input type="hidden" name="token" value="{{ token }}">{{ forms.field(reason) }}{{ forms.check(talk) }}<div class="ts-protect__actions">{{ codex.button(submit) }}<a href="{{ cancel.href }}" class="ts-protect__cancel">{{ cancel.label }}</a></div></form></div>

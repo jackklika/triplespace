@@ -1,0 +1,7 @@
+{#- Special:Providers (0022 §11; 19 §5): each data provider's chip and name, its mirror's
+    graph, and the entity types it mints. -#}
+{%- import "codex.html" as codex -%}
+<p>{{ intro }}</p>
+{%- if nothing %}<p class="ts-empty">{{ nothing }}</p>
+{%- else %}<table class="cdx-table__table ts-providers"><thead><tr>{% for c in columns %}<th scope="col">{{ c }}</th>{% endfor %}</tr></thead><tbody>
+{%- for p in rows %}<tr><td>{{ codex.chip(p.chip) }} {{ p.name }}</td><td><code>mirror/{{ p.slug }}</code></td><td>{% if p.types %}<ul class="ts-providers__types">{% for t in p.types %}<li>{{ t }}</li>{% endfor %}</ul>{% endif %}</td></tr>{% endfor %}</tbody></table>{% endif -%}

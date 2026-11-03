@@ -1,0 +1,6 @@
+{#- Special:Undelete (0023 §9; 19 §6.3): the form asking for a page, then the deletions the
+    viewer may see, newest first, each leading to the deleted page's view. -#}
+{%- import "forms.html" as forms -%}
+<div class="ts-changes"><p>{{ intro }}</p>{{ forms.ask(ask) }}
+{%- if nothing %}<p class="ts-empty">{{ nothing }}</p>
+{%- else %}<ul class="ts-changes__list ts-undelete__list">{% for r in rows %}<li><time datetime="{{ r.time }}">{{ r.time }}</time> <a href="{{ r.page.href }}">{{ r.page.label }}</a> — {{ r.actor }} {{ r.comment }}</li>{% endfor %}</ul>{% endif %}</div>

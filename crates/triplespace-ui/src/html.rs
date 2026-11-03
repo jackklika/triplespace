@@ -1,6 +1,4 @@
-//! Building HTML from escaped parts, for the pieces too small for a template.
-
-use std::fmt::Write as _;
+//! Escaping, the skin's escaper and the pieces too small for a template.
 
 /// Escapes text for an element's content or a quoted attribute.
 #[must_use]
@@ -25,15 +23,6 @@ pub fn esc(text: &str) -> String {
     out
 }
 
-/// A link: `<a href="…">text</a>`, the text escaped, with extra attributes already
-/// escaped by the caller.
-#[must_use]
-pub fn link(href: &str, text_html: &str, extra: &str) -> String {
-    let mut s = String::new();
-    let _ = write!(s, "<a href=\"{}\"{extra}>{text_html}</a>", esc(href));
-    s
-}
-
 /// Whether a URL is safe to link: `http`, `https`, `ftp` or `mailto`.
 #[must_use]
 pub fn linkable(url: &str) -> bool {
@@ -52,10 +41,6 @@ mod tests {
         assert_eq!(
             esc("<a href=\"x\">'&'</a>"),
             "&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;"
-        );
-        assert_eq!(
-            link("/wiki/A&B", "A &amp; B", ""),
-            "<a href=\"/wiki/A&amp;B\">A &amp; B</a>"
         );
         assert!(linkable("https://example.org"));
         assert!(!linkable("javascript:alert(1)"));

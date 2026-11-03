@@ -9,8 +9,7 @@
 //! above the page's title says that they have a new message, until they read it.
 //!
 //! The frame is drawn by the skin's `frame.html` over the view model [`Model`]
-//! (19 §5.10): group 1 of the skin migration switched on 2026-10-30, and the built-in
-//! `askama` frame was removed.
+//! (19 §5.10).
 
 use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
 

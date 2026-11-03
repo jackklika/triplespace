@@ -33,7 +33,7 @@ use crate::i18n::{self, Messages};
 use crate::routes::{self, Target};
 use crate::skin::Skin;
 use crate::theme::Theme;
-use crate::{MIN_API_VERSION, Renderer, Site, assets};
+use crate::{MIN_API_VERSION, Site, assets};
 use crate::{document, entity, home, moderation, special};
 
 /// The connection address, when the server was started with `ConnectInfo`.
@@ -122,8 +122,6 @@ pub struct Context {
     /// wiki's `skins.default`, in that order, among the skins the wiki offers; `None`
     /// only when no skin at all is loaded.
     pub skin: Option<std::sync::Arc<Skin>>,
-    /// Which renderer draws the page (19 §5.10).
-    pub renderer: Renderer,
 }
 
 impl Context {
@@ -150,47 +148,15 @@ impl Context {
     /// is an empty part and a line in the log, not a failed page.
     #[must_use]
     pub fn draw(&self, template: &str, model: impl serde::Serialize) -> String {
-        let Some(skin) = &self.skin else {
-            eprintln!("triplespace-ui: no skin is loaded");
-            return String::new();
-        };
-        skin.render(template, &self.m, model).unwrap_or_else(|e| {
-            eprintln!(
-                "triplespace-ui: the skin `{}` failed on {template}: {e:#}",
-                skin.name()
-            );
-            String::new()
-        })
+        draw_part(self.skin.as_deref(), &self.m, template, model)
     }
 
-    /// Draws a part of a page of a group not yet switched (19 §5.10), with the renderer
-    /// the deployment runs: the built-in builder, the skin's template, or both under
-    /// `compare`, which serves the built-in result and logs `what` when they differ as a
-    /// browser reads them. A group switches by replacing its calls with [`Self::draw`]
-    /// and deleting the builder.
+    /// A Codex message alone, the whole body of a page that says one thing: a refusal, a
+    /// title with no page, a call that failed (19 §5.10), as the skin's `message.html`
+    /// draws it.
     #[must_use]
-    pub fn draw_or(
-        &self,
-        template: &str,
-        model: impl serde::Serialize,
-        what: &str,
-        builtin: impl FnOnce() -> String,
-    ) -> String {
-        match self.renderer {
-            Renderer::Builtin => builtin(),
-            Renderer::Skin => self.draw(template, model),
-            Renderer::Compare => {
-                let b = builtin();
-                let s = self.draw(template, model);
-                if let Some(d) = crate::parity::compare(&b, &s, crate::parity::Kind::Fragment) {
-                    eprintln!(
-                        "triplespace-ui: compare: {template} differs for {what}: {}",
-                        d.to_string().replace('\n', " ")
-                    );
-                }
-                b
-            }
-        }
+    pub fn message(&self, kind: MessageKind, text: &str) -> String {
+        drawn_message(self.skin.as_deref(), &self.m, kind, text)
     }
 
     /// What the frame needs of the site.
@@ -208,6 +174,36 @@ impl Context {
                 .filter(|_| self.features.has(Feature::Notifications)),
         }
     }
+}
+
+/// [`Context::draw`], for a page drawn before there is a context.
+fn draw_part(
+    skin: Option<&Skin>,
+    m: &Messages,
+    template: &str,
+    model: impl serde::Serialize,
+) -> String {
+    let Some(skin) = skin else {
+        eprintln!("triplespace-ui: no skin is loaded");
+        return String::new();
+    };
+    skin.render(template, m, model).unwrap_or_else(|e| {
+        eprintln!(
+            "triplespace-ui: the skin `{}` failed on {template}: {e:#}",
+            skin.name()
+        );
+        String::new()
+    })
+}
+
+/// [`Context::message`], for a page drawn before there is a context.
+fn drawn_message(skin: Option<&Skin>, m: &Messages, kind: MessageKind, text: &str) -> String {
+    draw_part(
+        skin,
+        m,
+        "message.html",
+        serde_json::json!({ "message": Message::block(kind, text).model() }),
+    )
 }
 
 /// The browser's request, as the client forwards it.
@@ -320,7 +316,6 @@ pub async fn context(
         groups,
         notifications,
         skin,
-        renderer: site.renderer(),
     })
 }
 
@@ -346,11 +341,6 @@ fn unavailable(site: &Site, incoming: &Incoming, error: &ClientError, key: &str)
     let m = Messages::for_language("en");
     let sitename = incoming.host().unwrap_or("Triplespace").to_string();
     let text = m.get(key);
-    let page = Page {
-        title: m.get("ts-api-unavailable-title"),
-        body: message(MessageKind::Error, &text),
-        ..Page::default()
-    };
     let none = Features::default();
     let chrome = Chrome {
         sitename: &sitename,
@@ -363,6 +353,11 @@ fn unavailable(site: &Site, incoming: &Incoming, error: &ClientError, key: &str)
     let Some(skin) = site.skins().choose(None, None, None, None) else {
         eprintln!("triplespace-ui: no skin is loaded");
         return (StatusCode::INTERNAL_SERVER_ERROR, "Internal error\n").into_response();
+    };
+    let page = Page {
+        title: m.get("ts-api-unavailable-title"),
+        body: drawn_message(Some(skin), &m, MessageKind::Error, &text),
+        ..Page::default()
     };
     let html = match frame::render(skin, &m, &chrome, &Theme::shipped(), None, &page) {
         Ok(h) => h,
@@ -406,7 +401,7 @@ pub fn api_failed(cx: &Context, headers: &HeaderMap, error: &ClientError) -> Res
     };
     let mut r = respond(cx, headers, status, |m| Page {
         title: m.get("ts-api-unavailable-title"),
-        body: message(MessageKind::Error, &m.get(key)),
+        body: cx.message(MessageKind::Error, &m.get(key)),
         ..Page::default()
     });
     let h = r.headers_mut();
@@ -417,12 +412,6 @@ pub fn api_failed(cx: &Context, headers: &HeaderMap, error: &ClientError) -> Res
         h.insert(header::RETRY_AFTER, HeaderValue::from_static(RETRY_AFTER));
     }
     r
-}
-
-/// A Codex message, as HTML.
-pub fn message(kind: MessageKind, text: &str) -> String {
-    use askama::Template as _;
-    Message::block(kind, text).render().unwrap_or_default()
 }
 
 /// The composed `ETag`, if every input had one. The build it hashes is the binary's
@@ -543,10 +532,8 @@ pub fn respond(
     r
 }
 
-/// Draws a page in the frame: the skin's `frame.html` (19 §5.10; group 1 switched on
-/// 2026-10-30). The deployment's [`Renderer`] applies to the page bodies of the groups
-/// not yet switched, which the built-in rendering still draws; `compare` has nothing to
-/// compare until a group has templates. `Err` is the internal error to answer with.
+/// Draws a page in the frame: the skin's `frame.html` (19 §5.10). `Err` is the internal
+/// error to answer with.
 fn draw(cx: &Context, page: &Page) -> Result<String, Box<Response>> {
     let failed =
         || Box::new((StatusCode::INTERNAL_SERVER_ERROR, "Internal error\n").into_response());
@@ -697,7 +684,7 @@ pub(crate) fn no_page(cx: &Context, headers: &HeaderMap, title: String) -> Respo
         Page {
             returnto: Some(title.clone()),
             title,
-            body: message(MessageKind::Notice, &text),
+            body: cx.message(MessageKind::Notice, &text),
             ..Page::default()
         }
     })
@@ -788,7 +775,7 @@ async fn dispatch(
     }
     if is_mainpage(&title, &cx.site) {
         if query.get("action").is_some_and(|a| a == "render") {
-            return fragment(&cx, headers, StatusCode::OK, || home::body(&cx));
+            return fragment(&cx, headers, StatusCode::OK, || home::content(&cx));
         }
         return respond(&cx, headers, StatusCode::OK, |_| home::page(&cx));
     }
@@ -987,7 +974,7 @@ pub async fn not_found(State(site): State<Site>, headers: HeaderMap, peer: Peer)
     };
     respond(&cx, &headers, StatusCode::NOT_FOUND, |m| Page {
         title: m.get("ts-not-found-title"),
-        body: message(MessageKind::Warning, &m.get("ts-not-found")),
+        body: cx.message(MessageKind::Warning, &m.get("ts-not-found")),
         ..Page::default()
     })
 }

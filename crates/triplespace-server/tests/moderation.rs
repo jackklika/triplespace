@@ -2404,6 +2404,48 @@ async fn entities_under_acls() {
     assert!(e["entities"][&member].get("missing").is_some(), "{e}");
     let e = carol.api(&get(&member)).await;
     assert!(e["entities"][&member].get("missing").is_none(), "{e}");
+    // An entity named by its page ID, as `prop=info` gives it and Special:ProtectedPages
+    // sends it, is the entity (09 §4.7): added, held once, and removed by the same ID.
+    let vault = r.body["id"].as_u64().expect("the set's ID");
+    let i = alice
+        .api(&format!("action=query&prop=info&titles=Item:{gone}"))
+        .await;
+    let page = i["query"]["pages"][0]["pageid"]
+        .as_u64()
+        .expect("a page ID");
+    let r = alice
+        .rest(
+            "POST",
+            &format!("/acl/set/{vault}/members"),
+            Some(json!({"kind": "page", "id": page, "token": at})),
+        )
+        .await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.body);
+    assert!(
+        r.body["acl"]["members"].to_string().contains(&gone),
+        "recorded as the entity: {}",
+        r.body
+    );
+    let e = anon.api(&get(&gone)).await;
+    assert!(e["entities"][&gone].get("missing").is_some(), "{e}");
+    let r = alice
+        .rest(
+            "POST",
+            &format!("/acl/set/{vault}/members"),
+            Some(json!({"kind": "entity", "id": gone, "token": at})),
+        )
+        .await;
+    assert_eq!(r.body["code"], "ts-already-member", "{}", r.body);
+    let r = alice
+        .rest(
+            "DELETE",
+            &format!("/acl/set/{vault}/members/page/{page}"),
+            Some(json!({"token": at})),
+        )
+        .await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.body);
+    let e = anon.api(&get(&gone)).await;
+    assert!(e["entities"][&gone].get("missing").is_none(), "{e}");
 
     // Deletion: missing outside sysop, seen as deleted within, undeleted by it.
     let r = bob

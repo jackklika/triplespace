@@ -340,11 +340,6 @@ struct SubtitleCtx {
     subtitle: Subtitle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-struct TableCtx {
-    table: DiffTable,
-}
-
 fn choice(href: String, label: String) -> Choice {
     Choice {
         href,
@@ -492,7 +487,7 @@ async fn read(
 fn missing(cx: &Context, headers: &HeaderMap, title: String, render: bool) -> Response {
     if pages::is_mainpage(&title, &cx.site) {
         if render {
-            return pages::fragment(cx, headers, StatusCode::OK, || home::body(cx));
+            return pages::fragment(cx, headers, StatusCode::OK, || home::content(cx));
         }
         return pages::respond(cx, headers, StatusCode::OK, |_| home::page(cx));
     }
@@ -529,7 +524,7 @@ fn missing(cx: &Context, headers: &HeaderMap, title: String, render: bool) -> Re
 /// A revision that does not exist, or is not the viewer's to see.
 fn no_revision(cx: &Context, headers: &HeaderMap, title: String, oldid: u64) -> Response {
     pages::respond(cx, headers, StatusCode::NOT_FOUND, |m| Page {
-        body: pages::message(
+        body: cx.message(
             MessageKind::Error,
             &m.with("ts-page-no-revision", &[&oldid.to_string()]),
         ),
@@ -543,7 +538,7 @@ fn no_revision(cx: &Context, headers: &HeaderMap, title: String, oldid: u64) -> 
 fn bad_title(cx: &Context, headers: &HeaderMap, title: &str) -> Response {
     pages::respond(cx, headers, StatusCode::BAD_REQUEST, |m| Page {
         title: m.get("ts-page-bad-title-heading"),
-        body: pages::message(MessageKind::Error, &m.with("ts-page-bad-title", &[title])),
+        body: cx.message(MessageKind::Error, &m.with("ts-page-bad-title", &[title])),
         ..Page::default()
     })
 }
@@ -809,7 +804,7 @@ fn unsupported(cx: &Context, headers: &HeaderMap, s: &Source) -> Response {
         returnto: Some(s.title.clone()),
         tabs: tabs(m, &s.title, true, TabName::Edit),
         actions: actions(m, &s.title, true, cx.moderation_tabs()),
-        body: pages::message(
+        body: cx.message(
             MessageKind::Notice,
             &m.with("ts-pageedit-unsupported", &[&s.model]),
         ),
@@ -1017,7 +1012,7 @@ fn side_model(m: &Messages, side: &DiffSide, latest: bool, nav: Option<Choice>) 
 }
 
 /// The diff table's model: both sides' headers, and the API's rows.
-fn diff_table_model(m: &Messages, d: &PageDiff, latest_revid: Option<u64>) -> DiffTable {
+pub(crate) fn diff_table_model(m: &Messages, d: &PageDiff, latest_revid: Option<u64>) -> DiffTable {
     let title = &d.to.title;
     DiffTable {
         label: m.get("ts-pagediff-label"),
@@ -1052,16 +1047,6 @@ fn diff_table_model(m: &Messages, d: &PageDiff, latest_revid: Option<u64>) -> Di
     }
 }
 
-/// The diff table as the skin draws it, for `Special:ComparePages`.
-pub(crate) fn diff_html(cx: &Context, d: &PageDiff, latest_revid: Option<u64>) -> String {
-    cx.draw(
-        "document/difftable.html",
-        TableCtx {
-            table: diff_table_model(&cx.m, d, latest_revid),
-        },
-    )
-}
-
 /// `?diff=`: two revisions compared, the newer rendered below unless `diffonly=1`.
 async fn page_diff(
     site: &Site,
@@ -1073,7 +1058,7 @@ async fn page_diff(
 ) -> Response {
     let Some(ask) = diff_ask(&title, params) else {
         return pages::respond(&cx, headers, StatusCode::BAD_REQUEST, |m| Page {
-            body: pages::message(MessageKind::Error, &m.get("ts-pagediff-bad")),
+            body: cx.message(MessageKind::Error, &m.get("ts-pagediff-bad")),
             returnto: Some(title.clone()),
             title: title.clone(),
             ..Page::default()
@@ -1086,7 +1071,7 @@ async fn page_diff(
                 "missingtitle" => missing(&cx, headers, title, false),
                 "nosuchrevid" | "missingcontent" | "permissiondenied" => {
                     pages::respond(&cx, headers, StatusCode::NOT_FOUND, |m| Page {
-                        body: pages::message(MessageKind::Error, &m.get("ts-pagediff-missing")),
+                        body: cx.message(MessageKind::Error, &m.get("ts-pagediff-missing")),
                         returnto: Some(title.clone()),
                         title: title.clone(),
                         ..Page::default()

@@ -1,22 +1,17 @@
-//! The parity harness of the skin migration (0097 §16; 19 §5.10): every case of the
-//! corpus (`tests/corpus/cases.json`) is rendered by both renderers and compared as a
-//! browser reads it (`triplespace_ui::parity`), and the time each renderer took is
-//! measured.
+//! The skins' parity check (0097 §16, A12; 19 §5.10): every case of the corpus
+//! (`tests/corpus/cases.json`, and `cases.recorded.json` from a seeded instance) is
+//! rendered with Worksheet, the default skin, and with Plain, and the two are compared as
+//! a browser reads them (`triplespace_ui::parity`) once Worksheet's stylesheet links are
+//! taken out: Worksheet is Plain with the site's stylesheets, and adds nothing else.
 //!
-//! The built-in renderer against itself was the baseline (2026-10-30, 56 of 56 equal):
-//! a page rendered twice is equal, so every difference reported is a real one. The skin
-//! renderer (`Renderer::Skin`, Worksheet) is compared against the built-in one; since
-//! group 1 switched the frame is the skin's under both, and the comparison is of the
-//! page bodies as each group gets its templates.
+//! Until 2026-11-03 this harness compared the built-in renderer with the skin, group by
+//! group, and timed both (0097 §16, A5); the built-in renderer was removed when the last
+//! group switched (A12). The time each skin took is still measured and reported, as a
+//! watch on page render time.
 //!
 //! `cargo xtask skin-parity` runs this with a report (`SKIN_PARITY_REPORT`, a TSV path)
-//! and timing rounds (`SKIN_PARITY_ROUNDS`, default 1; the renderers alternate within a
-//! round, after one untimed warm-up each). A case whose group has switched to the skin
-//! must be equal; the rest are reported, not failed. The baseline run of 2026-10-30
-//! (built-in against itself, release build, 100 rounds) put the noise of a group's
-//! summed median under 1% and of its 95th percentile at several percent, so the budget
-//! of 0097 §16 is judged on at least 100 rounds, on an idle machine, and a p95 verdict
-//! within the noise is run again before it counts.
+//! and timing rounds (`SKIN_PARITY_ROUNDS`, default 1; the skins alternate within a
+//! round, after one untimed warm-up each).
 
 mod common;
 
@@ -64,12 +59,7 @@ struct Corpus {
     cases: Vec<Case>,
 }
 
-/// The migration groups that have switched to the skin (19 §5.10): a case in one of
-/// them must be equal. A group joins when it switches; the cases of the groups still to
-/// come are reported, not failed, while their templates are written.
-const MIGRATED: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-
-use triplespace_ui::{Renderer, Site};
+use triplespace_ui::Site;
 
 /// The corpus: `cases.json`, written by hand, and `cases.recorded.json`, which
 /// `tools/skin_corpus.sh` writes from a seeded instance.
@@ -113,15 +103,30 @@ struct Rendering {
     body: String,
 }
 
-async fn render(client: &Client, case: &Case, renderer: Renderer) -> Rendering {
-    let mut req = Request::get(&case.path).header(header::HOST, "librarybase.org");
+/// The skins a case is rendered with: Worksheet, the default, and Plain, asked for with
+/// `useskin=`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum With {
+    Worksheet,
+    Plain,
+}
+
+async fn render(client: &Client, case: &Case, with: With) -> Rendering {
+    let path = match with {
+        With::Worksheet => case.path.clone(),
+        With::Plain => {
+            let sep = if case.path.contains('?') { '&' } else { '?' };
+            format!("{}{sep}useskin=plain", case.path)
+        }
+    };
+    let mut req = Request::get(&path).header(header::HOST, "librarybase.org");
     if case.viewer == "user" {
         req = req.header(header::COOKIE, "triplespace_session=alice");
     }
     for (k, v) in &case.headers {
         req = req.header(k.as_str(), v.as_str());
     }
-    let r = triplespace_ui::router_for(Site::new(client.clone()).with_renderer(renderer))
+    let r = triplespace_ui::router_for(Site::new(client.clone()))
         .oneshot(req.body(Body::empty()).unwrap())
         .await
         .unwrap();
@@ -140,7 +145,8 @@ async fn render(client: &Client, case: &Case, renderer: Renderer) -> Rendering {
     }
 }
 
-/// Why two renderings differ, in one line for the report.
+/// Why Worksheet's rendering differs from Plain's once its stylesheet links are taken
+/// out, in one line for the report.
 fn difference(a: &Rendering, b: &Rendering) -> Option<String> {
     if a.status != b.status {
         return Some(format!("status {} vs {}", a.status, b.status));
@@ -151,8 +157,14 @@ fn difference(a: &Rendering, b: &Rendering) -> Option<String> {
             a.content_type, b.content_type
         ));
     }
-    if a.location != b.location {
-        return Some(format!("location {:?} vs {:?}", a.location, b.location));
+    // A redirect keeps the query it was asked with, Plain's `useskin=` among it.
+    let plain_location = b.location.as_deref().map(|l| {
+        l.replace("?useskin=plain&", "?")
+            .replace("&useskin=plain", "")
+            .replace("?useskin=plain", "")
+    });
+    if a.location != plain_location {
+        return Some(format!("location {:?} vs {:?}", a.location, plain_location));
     }
     let html = a
         .content_type
@@ -161,8 +173,11 @@ fn difference(a: &Rendering, b: &Rendering) -> Option<String> {
     if !html {
         return (a.body != b.body).then(|| "body differs (not HTML)".to_string());
     }
-    let kind = Kind::of(&a.body);
-    compare(&a.body, &b.body, kind).map(|d| d.to_string().replace('\n', " "))
+    let without = stylesheet_links(&a.body)
+        .iter()
+        .fold(a.body.clone(), |body, l| body.replace(l, ""));
+    let kind = Kind::of(&without);
+    compare(&without, &b.body, kind).map(|d| d.to_string().replace('\n', " "))
 }
 
 /// The median and the 95th percentile of some durations, in microseconds.
@@ -182,12 +197,12 @@ struct Row {
     status: u16,
     equal: bool,
     difference: Option<String>,
-    builtin_us: (u128, u128),
-    skin_us: (u128, u128),
+    worksheet_us: (u128, u128),
+    plain_us: (u128, u128),
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn every_case_renders_equal_through_both_renderers() {
+async fn worksheet_is_plain_with_its_stylesheets() {
     let rounds: usize = std::env::var("SKIN_PARITY_ROUNDS")
         .ok()
         .and_then(|r| r.parse().ok())
@@ -195,6 +210,7 @@ async fn every_case_renders_equal_through_both_renderers() {
     let corpus = corpus();
     let mut rows = Vec::new();
     let mut clients: BTreeMap<String, Client> = BTreeMap::new();
+    let skins = [With::Worksheet, With::Plain];
     for case in corpus.cases {
         let client = clients
             .entry(case.set.clone())
@@ -203,16 +219,16 @@ async fn every_case_renders_equal_through_both_renderers() {
         let mut timings = [Vec::new(), Vec::new()];
         let mut first = [None, None];
         // A warm-up render each, untimed, so that lazily built state (the message
-        // bundle, the manifest) is charged to neither renderer.
+        // bundle, the manifest) is charged to neither skin.
         if rounds > 1 {
-            for renderer in [Renderer::Builtin, Renderer::Skin] {
-                render(&client, &case, renderer).await;
+            for with in skins {
+                render(&client, &case, with).await;
             }
         }
         for _ in 0..rounds {
-            for (i, renderer) in [Renderer::Builtin, Renderer::Skin].into_iter().enumerate() {
+            for (i, with) in skins.into_iter().enumerate() {
                 let t = Instant::now();
-                let r = render(&client, &case, renderer).await;
+                let r = render(&client, &case, with).await;
                 timings[i].push(t.elapsed().as_micros());
                 first[i].get_or_insert(r);
             }
@@ -225,14 +241,14 @@ async fn every_case_renders_equal_through_both_renderers() {
             status: a.status.as_u16(),
             equal: difference.is_none(),
             difference,
-            builtin_us: stats(timings[0].clone()),
-            skin_us: stats(timings[1].clone()),
+            worksheet_us: stats(timings[0].clone()),
+            plain_us: stats(timings[1].clone()),
             case,
         });
     }
     // The report: one row per case.
     let mut out = String::from(
-        "case\tset\tgroup\tviewer\tpath\tstatus\tequal\tbuiltin_median_us\tbuiltin_p95_us\tskin_median_us\tskin_p95_us\tdifference\n",
+        "case\tset\tgroup\tviewer\tpath\tstatus\tequal\tworksheet_median_us\tworksheet_p95_us\tplain_median_us\tplain_p95_us\tdifference\n",
     );
     for r in &rows {
         let _ = writeln!(
@@ -245,10 +261,10 @@ async fn every_case_renders_equal_through_both_renderers() {
             r.case.path,
             r.status,
             if r.equal { "equal" } else { "differs" },
-            r.builtin_us.0,
-            r.builtin_us.1,
-            r.skin_us.0,
-            r.skin_us.1,
+            r.worksheet_us.0,
+            r.worksheet_us.1,
+            r.plain_us.0,
+            r.plain_us.1,
             r.difference.as_deref().unwrap_or_default(),
         );
     }
@@ -265,26 +281,22 @@ async fn every_case_renders_equal_through_both_renderers() {
         "skin-parity: {equal} of {} cases equal; {rounds} round(s)",
         rows.len()
     );
-    for r in rows.iter().filter(|r| !r.equal) {
-        eprintln!(
-            "  {} ({}, group {}): {}",
-            r.case.name,
-            r.case.path,
-            r.case.group,
-            r.difference.as_deref().unwrap_or_default()
-        );
-    }
-    // With no group switched, the baseline is the gate: every case must be equal, a page
-    // rendered twice by the built-in renderer. Once groups switch, only theirs fail.
-    let must_be_equal = |r: &Row| MIGRATED.is_empty() || MIGRATED.contains(&r.case.group);
-    let failing: Vec<&str> = rows
+    let failing: Vec<String> = rows
         .iter()
-        .filter(|r| !r.equal && must_be_equal(r))
-        .map(|r| r.case.name.as_str())
+        .filter(|r| !r.equal)
+        .map(|r| {
+            format!(
+                "{} ({}): {}",
+                r.case.name,
+                r.case.path,
+                r.difference.as_deref().unwrap_or_default()
+            )
+        })
         .collect();
     assert!(
         failing.is_empty(),
-        "cases that must be equal differ: {failing:?}"
+        "Worksheet adds more than its stylesheets to Plain:\n{}",
+        failing.join("\n")
     );
 }
 
@@ -300,7 +312,7 @@ async fn every_case_is_answered() {
             .entry(case.set.clone())
             .or_insert_with(|| client(&case.set))
             .clone();
-        let r = render(&client, case, Renderer::Builtin).await;
+        let r = render(&client, case, With::Worksheet).await;
         assert_eq!(
             r.status.as_u16(),
             case.status,
@@ -312,44 +324,33 @@ async fn every_case_is_answered() {
     }
 }
 
-/// The frame is the skin's since group 1 switched: Plain links no site stylesheet,
-/// Worksheet links it, and the theme's stylesheets are linked by both.
+/// Plain links no site stylesheet, Worksheet links it where the build has one
+/// (`ui/dist`), and the theme's stylesheets are linked by both.
 #[tokio::test(flavor = "multi_thread")]
-async fn the_frame_is_the_skins() {
+async fn the_skins_link_their_stylesheets() {
     let client = client("fixture");
-    let case = |path: &str| Case {
+    let case = Case {
         name: "x".into(),
         set: "fixture".into(),
-        path: path.into(),
+        path: "/wiki/Item:Q6".into(),
         viewer: anonymous(),
         headers: BTreeMap::new(),
         group: 1,
         status: 200,
     };
-    let worksheet = render(&client, &case("/wiki/Item:Q6"), Renderer::Builtin).await;
-    let plain = render(
-        &client,
-        &case("/wiki/Item:Q6?useskin=plain"),
-        Renderer::Builtin,
-    )
-    .await;
+    let worksheet = render(&client, &case, With::Worksheet).await;
+    let plain = render(&client, &case, With::Plain).await;
     assert!(worksheet.body.starts_with("<!DOCTYPE html>\n<html "));
     assert!(plain.body.starts_with("<!DOCTYPE html>\n<html "));
     assert!(worksheet.body.contains("id=\"ts-palette\""));
     assert!(plain.body.contains("id=\"ts-palette\""));
-    // Plain links no site stylesheet; Worksheet links it where the build has one
-    // (`ui/dist`), and is Plain's page otherwise, by construction (19 §5.10).
     assert!(!plain.body.contains("/ui/assets/site"));
-    let site_css = regex_free_stylesheet_links(&worksheet.body);
-    let without: String = site_css
-        .iter()
-        .fold(worksheet.body.clone(), |b, l| b.replace(l, ""));
-    assert_eq!(compare(&without, &plain.body, Kind::Document), None);
+    assert_eq!(difference(&worksheet, &plain), None);
 }
 
 /// The `<link rel="stylesheet" href="/ui/assets/…">` lines of a page, each with its
 /// leading newline.
-fn regex_free_stylesheet_links(html: &str) -> Vec<String> {
+fn stylesheet_links(html: &str) -> Vec<String> {
     html.split('\n')
         .filter(|l| l.starts_with("<link rel=\"stylesheet\" href=\"/ui/assets/"))
         .map(|l| format!("\n{l}"))
@@ -372,6 +373,7 @@ async fn entity_parts_are_drawn_by_the_skin() {
     for f in [
         "frame.html",
         "codex.html",
+        "inline.html",
         "watch.html",
         "appearance.html",
         "entity.html",
@@ -408,9 +410,7 @@ async fn entity_parts_are_drawn_by_the_skin() {
     )
     .unwrap();
     let client = client("fixture");
-    let site = Site::new(client)
-        .with_skins_dir(Some(&dir))
-        .with_renderer(Renderer::Skin);
+    let site = Site::new(client).with_skins_dir(Some(&dir));
     let req = Request::get("/wiki/Item:Q6?useskin=brokenplain")
         .header(header::HOST, "librarybase.org")
         .body(Body::empty())
@@ -446,15 +446,13 @@ async fn profile_entity_rendering() {
         group: 3,
         status: 200,
     };
-    for renderer in [Renderer::Builtin, Renderer::Skin] {
-        let mut us = Vec::new();
-        for _ in 0..30 {
-            let t = Instant::now();
-            render(&client, &case, renderer).await;
-            us.push(t.elapsed().as_micros());
-        }
-        eprintln!("{renderer:?}: whole page median {} us", stats(us).0);
+    let mut us = Vec::new();
+    for _ in 0..30 {
+        let t = Instant::now();
+        render(&client, &case, With::Worksheet).await;
+        us.push(t.elapsed().as_micros());
     }
+    eprintln!("whole page median {} us", stats(us).0);
     let entity = Entity::from_value(api.entities["WDQ65"].clone())
         .unwrap()
         .entity;
@@ -483,34 +481,23 @@ async fn profile_entity_rendering() {
     triplespace_ui::entity::profile(&r, plain, 30);
 }
 
-/// `Context::draw_or`, the mechanism a group not yet switched renders through: the
-/// built-in builder, the skin, or both with the built-in result served.
+/// `Context::draw`: a template the skin lacks is an empty part, a known one draws.
 #[tokio::test(flavor = "multi_thread")]
-async fn draw_or_follows_the_renderer() {
+async fn a_part_is_drawn_by_the_skin() {
     use triplespace_ui::pages;
-    for renderer in [Renderer::Builtin, Renderer::Skin, Renderer::Compare] {
-        let site = Site::new(client("fixture")).with_renderer(renderer);
-        let headers = HeaderMap::new();
-        let incoming = pages::incoming(&headers, None);
-        let Ok(cx) = pages::context(&site, &incoming, &BTreeMap::new()).await else {
-            panic!("a context");
-        };
-        let drawn = cx.draw_or("x", serde_json::json!({}), "the test", || {
-            "<p>builtin</p>".to_string()
-        });
-        // An unknown template is an empty part through the skin, and the built-in result
-        // under `compare`; a known one draws.
-        match renderer {
-            Renderer::Builtin | Renderer::Compare => assert_eq!(drawn, "<p>builtin</p>"),
-            Renderer::Skin => assert_eq!(drawn, ""),
-        }
-        let drawn = cx.draw(
-            "entity/terms.html",
-            serde_json::json!({"terms": {
-            "description": null, "no_description": "none", "aliases": null, "edit": null}}),
-        );
-        assert!(drawn.contains("ts-terms__description--none"), "{drawn}");
-    }
+    let site = Site::new(client("fixture"));
+    let headers = HeaderMap::new();
+    let incoming = pages::incoming(&headers, None);
+    let Ok(cx) = pages::context(&site, &incoming, &BTreeMap::new()).await else {
+        panic!("a context");
+    };
+    assert_eq!(cx.draw("x", serde_json::json!({})), "");
+    let drawn = cx.draw(
+        "entity/terms.html",
+        serde_json::json!({"terms": {
+        "description": null, "no_description": "none", "aliases": null, "edit": null}}),
+    );
+    assert!(drawn.contains("ts-terms__description--none"), "{drawn}");
 }
 
 /// One case's whole-page render time, for finding where a group's time goes: `CASE`
@@ -528,12 +515,12 @@ async fn profile_one_case() {
         .expect("a case");
     let client = client(&case.set);
     for _ in 0..20 {
-        render(&client, case, Renderer::Builtin).await;
+        render(&client, case, With::Worksheet).await;
     }
     let mut us = Vec::new();
     for _ in 0..300 {
         let t = Instant::now();
-        render(&client, case, Renderer::Builtin).await;
+        render(&client, case, With::Worksheet).await;
         us.push(t.elapsed().as_micros());
     }
     let (med, p95) = stats(us);

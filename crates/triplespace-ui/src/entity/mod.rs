@@ -348,7 +348,7 @@ fn missing(cx: &Context, headers: &HeaderMap, title: &str) -> Response {
     let title = title.to_string();
     pages::respond(cx, headers, StatusCode::NOT_FOUND, move |m| Page {
         returnto: Some(title.clone()),
-        body: pages::message(
+        body: cx.message(
             MessageKind::Warning,
             &m.with("ts-entity-missing", &[&title]),
         ),
@@ -699,7 +699,7 @@ fn page(
         TabName::Labels => draw(r, cx, &Part::Labels),
         TabName::History => match history {
             Some((ask, page)) => history::body(cx, &canonical_title, ask, r.provenance, page),
-            None => pages::message(MessageKind::Warning, &cx.m.get("ts-history-none")),
+            None => cx.message(MessageKind::Warning, &cx.m.get("ts-history-none")),
         },
     };
     if r.editable {

@@ -51,7 +51,7 @@
 	margin: var( --spacing-25, 0.25rem ) 0;
 }
 
-.ts-userrights__expiry {
+.ts-control__note {
 	color: var( --color-subtle, #54595d );
 	font-size: var( --font-size-small, 0.875rem );
 }

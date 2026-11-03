@@ -60,11 +60,6 @@ struct Args {
     /// A directory of installed skins beside the shipped ones (`server.skins`, 0097 §8).
     #[arg(long, env = "TRIPLESPACE_SKINS")]
     skins: Option<std::path::PathBuf>,
-    /// Which renderer draws the embedded site's pages until the skin migration is done
-    /// (`server.renderer`, 19 §5.10): `builtin`, `skin`, or `compare`, which renders
-    /// both, serves the built-in result and logs each route that differs.
-    #[arg(long, env = "TRIPLESPACE_RENDERER", default_value = "builtin")]
-    renderer: String,
 }
 
 /// How long an idle worker waits before looking again.
@@ -145,12 +140,6 @@ fn main() -> Result<()> {
 #[tokio::main]
 async fn run() -> Result<()> {
     let args = Args::parse();
-    let Some(renderer) = triplespace_ui::Renderer::parse(&args.renderer) else {
-        bail!(
-            "--renderer is builtin, skin or compare, not `{}`",
-            args.renderer
-        );
-    };
     let embedded = match args.ui.as_str() {
         "embedded" => true,
         "off" => false,
@@ -228,7 +217,7 @@ async fn run() -> Result<()> {
     );
     let api = router_with(app, triplespace_api_rest::routes());
     let router = if embedded {
-        with_site(api, args.skins.as_deref(), renderer)
+        with_site(api, args.skins.as_deref())
     } else {
         api
     };
@@ -247,15 +236,9 @@ async fn run() -> Result<()> {
 /// The API's router with the site as its fallback, calling the API in process (0057 §1.4,
 /// §2): whatever the API does not route, the site serves, except the API's own paths,
 /// which the site refuses.
-fn with_site(
-    api: axum::Router,
-    skins: Option<&std::path::Path>,
-    renderer: triplespace_ui::Renderer,
-) -> axum::Router {
+fn with_site(api: axum::Router, skins: Option<&std::path::Path>) -> axum::Router {
     let client = Client::new(ServiceTransport::new(api.clone()));
-    let site = triplespace_ui::Site::new(client)
-        .with_skins_dir(skins)
-        .with_renderer(renderer);
+    let site = triplespace_ui::Site::new(client).with_skins_dir(skins);
     api.fallback_service(triplespace_ui::router_for(site))
 }
 

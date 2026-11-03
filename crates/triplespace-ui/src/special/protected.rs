@@ -18,9 +18,7 @@
 //! [`titles`] serves `Special:ProtectedTitles`, the reserved titles alone.
 
 use std::collections::BTreeMap;
-use std::fmt::Write as _;
 
-use askama::Template as _;
 use axum::http::{HeaderMap, Method, StatusCode};
 use axum::response::Response;
 use serde_json::json;
@@ -28,12 +26,16 @@ use triplespace_client::settings::Saved;
 use triplespace_client::{Incoming, Lookup, ProtectedRow, SetInfo};
 
 use crate::Site;
-use crate::codex::{Action, Button, Field, MessageKind, Weight};
+use crate::codex::{
+    Action, Button, ButtonModel, FieldModel, Message, MessageKind, MessageModel, Weight,
+};
+use crate::entity::history::Choice;
 use crate::features::Feature;
 use crate::frame::{Page, Tab, title_url};
-use crate::html::{esc, link};
 use crate::i18n::Messages;
+use crate::moderation::link_to;
 use crate::pages::{self, Context, Params, Peer};
+use crate::special::controls::{Control, FieldRow, Kind};
 
 const TITLE: &str = "Special:ProtectedPages";
 
@@ -54,102 +56,270 @@ fn kind_label(m: &Messages, kind: &str) -> String {
     }
 }
 
-/// The pages table: one row per restriction.
-fn pages_html(m: &Messages, pages: &[ProtectedRow], titles: &[ProtectedRow]) -> String {
-    let mut s = format!(
-        "<section id=\"pages\"><h2>{}</h2>",
-        esc(&m.get("ts-protectedpages-pages"))
-    );
-    if pages.is_empty() && titles.is_empty() {
-        let _ = write!(
-            s,
-            "<p class=\"ts-empty\">{}</p></section>",
-            esc(&m.get("ts-protectedpages-none"))
-        );
-        return s;
-    }
-    let _ = write!(
-        s,
-        "<table class=\"cdx-table__table ts-protectedpages__table\"><thead><tr><th>{}</th><th>{}</th><th>{}</th><th>{}</th></tr></thead><tbody>",
-        esc(&m.get("ts-protectedpages-col-title")),
-        esc(&m.get("ts-protectedpages-col-action")),
-        esc(&m.get("ts-protectedpages-col-group")),
-        esc(&m.get("ts-protectedpages-col-expiry")),
-    );
-    for r in pages.iter().chain(titles) {
-        let kind = if r.kind == "create" || r.kind == "createpage" {
-            "create"
-        } else {
-            r.kind.as_str()
-        };
-        let _ = write!(
-            s,
-            "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
-            link(
-                &format!("/w/index.php?title={}&action=protect", title_url(&r.title)),
-                &esc(&r.title),
-                ""
-            ),
-            esc(&kind_label(m, kind)),
-            esc(&r.level),
-            esc(&expiry_text(m, &r.expiry)),
-        );
-    }
-    s.push_str("</tbody></table></section>");
-    s
+/// `Special:ProtectedPages` as Plain's `special/protectedpages.html` draws it.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ProtectedPagesPage {
+    /// The notice after a form, or its refusal.
+    pub notices: Vec<MessageModel>,
+    /// The restrictions on pages and titles.
+    pub pages: PagesSection,
+    /// The sets.
+    pub sets: SetsSection,
+    /// The groups restrictions name that have no member, for a holder of `userrights`.
+    pub empty: Option<EmptySection>,
 }
 
-fn hidden(name: &str, value: &str) -> String {
-    format!(
-        "<input type=\"hidden\" name=\"{}\" value=\"{}\">",
-        esc(name),
-        esc(value)
-    )
+/// The Pages section.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PagesSection {
+    /// The heading.
+    pub heading: String,
+    /// Said where there are none.
+    pub nothing: Option<String>,
+    /// The column headings.
+    pub columns: Vec<String>,
+    /// One per restriction.
+    pub rows: Vec<RestrictionRow>,
 }
 
-fn button(label: &str, action: Action, weight: Weight) -> String {
+/// One restriction.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct RestrictionRow {
+    /// The title, to its Protect form (or, reserved, its page).
+    pub page: Choice,
+    /// The action restricted, or none for a reserved title's list.
+    pub action: Option<String>,
+    /// The group.
+    pub group: String,
+    /// Until when.
+    pub expiry: String,
+}
+
+/// The Sets section.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SetsSection {
+    /// The heading.
+    pub heading: String,
+    /// What a set is.
+    pub help: String,
+    /// Said where there are none.
+    pub nothing: Option<String>,
+    /// The CSRF token, for a holder of `protect`: every form needs it.
+    pub token: Option<String>,
+    /// The sets.
+    pub sets: Vec<SetModel>,
+    /// The form that creates one.
+    pub new: Option<NewSet>,
+}
+
+/// One set.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SetModel {
+    /// Its ID.
+    pub id: u64,
+    /// Its name.
+    pub name: String,
+    /// What it restricts.
+    pub restrictions: String,
+    /// Said where it has no members.
+    pub no_members: Option<String>,
+    /// Its members.
+    pub members: Vec<SetMember>,
+    /// The forms that manage it.
+    pub manage: Option<ManageSet>,
+}
+
+/// A member of a set.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SetMember {
+    /// Its page.
+    pub page: Choice,
+    /// Its page ID, which **Remove** posts.
+    pub page_id: u64,
+    /// **Remove**.
+    pub remove: Option<ButtonModel>,
+}
+
+/// The forms of a set, for a holder of `protect`.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ManageSet {
+    /// The title to add.
+    pub member: FieldModel,
+    /// **Add**.
+    pub add: ButtonModel,
+    /// The heading of the change form.
+    pub change_heading: String,
+    /// The set's name.
+    pub name: FieldModel,
+    /// Who may read its members.
+    pub read: FieldRow,
+    /// Who may edit them.
+    pub edit: FieldRow,
+    /// **Change**.
+    pub change: ButtonModel,
+    /// **Retire**.
+    pub retire: ButtonModel,
+}
+
+/// The form that creates a set.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct NewSet {
+    /// The heading.
+    pub heading: String,
+    /// The name.
+    pub name: FieldModel,
+    /// Who may read its members.
+    pub read: FieldRow,
+    /// Who may edit them.
+    pub edit: FieldRow,
+    /// **Create**.
+    pub create: ButtonModel,
+}
+
+/// The empty-group report.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct EmptySection {
+    /// The heading.
+    pub heading: String,
+    /// What it reports.
+    pub help: String,
+    /// Said where there are none.
+    pub nothing: Option<String>,
+    /// One line per group.
+    pub rows: Vec<String>,
+}
+
+/// `Special:ProtectedTitles` as Plain's `special/protectedtitles.html` draws it.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ProtectedTitlesPage {
+    /// What the page lists.
+    pub intro: String,
+    /// Said where there are none.
+    pub nothing: Option<String>,
+    /// The column headings.
+    pub columns: Vec<String>,
+    /// The reserved titles.
+    pub rows: Vec<RestrictionRow>,
+    /// To every restriction.
+    pub all: Choice,
+}
+
+fn button_model(label: &str, action: Action, weight: Weight) -> ButtonModel {
     Button {
         label,
         kind: "submit",
         action,
         weight,
     }
-    .render()
-    .unwrap_or_default()
+    .model()
 }
 
-/// A group picker for a set's restriction on `action`.
-fn picker(m: &Messages, id: &str, action: &str, groups: &[String], current: &str) -> String {
-    let value = serde_json::Value::String(current.to_string());
-    let control = crate::special::controls::render(&crate::special::controls::Control {
-        id,
-        name: action,
-        kind: crate::special::controls::Kind::Choice,
-        choices: groups,
-        value: Some(&value),
-        empty_choice: Some(&m.get("ts-protect-level-all")),
-        described_by: None,
-        choice_label: None,
-    });
-    format!(
-        "<div class=\"cdx-field\"><div class=\"cdx-label\"><label class=\"cdx-label__label\" for=\"{id}\"><span class=\"cdx-label__label__text\">{}</span></label></div><div class=\"cdx-field__control\">{control}</div></div>",
-        esc(&kind_label(m, action)),
-    )
+fn text_field(
+    id: &str,
+    name: &str,
+    value: &str,
+    label: String,
+    help: Option<String>,
+    required: bool,
+) -> FieldModel {
+    FieldModel {
+        id: id.into(),
+        name: name.into(),
+        kind: "text".into(),
+        value: value.into(),
+        label,
+        description: None,
+        help,
+        required,
+        autocomplete: Some("off".into()),
+    }
 }
 
-/// One set: its restrictions, members, and its forms for a holder of `protect`.
-#[allow(clippy::too_many_lines)] // one section of markup, read top to bottom
-fn set_html(m: &Messages, set: &SetInfo, groups: &[String], token: Option<&str>) -> String {
+/// A group picker for a set's restriction on `action`, as [`picker`] draws it.
+fn picker_row(
+    m: &Messages,
+    id: &str,
+    action: &str,
+    groups: &[String],
+    current: Option<&str>,
+    help: Option<String>,
+) -> FieldRow {
+    let value = current.map(|c| serde_json::Value::String(c.to_string()));
+    let all = m.get("ts-protect-level-all");
+    FieldRow {
+        id: id.to_string(),
+        label: kind_label(m, action),
+        class: None,
+        control: Control {
+            id,
+            name: action,
+            kind: Kind::Choice,
+            choices: groups,
+            value: value.as_ref(),
+            empty_choice: Some(&all),
+            described_by: None,
+            choice_label: None,
+        }
+        .model(),
+        help,
+        help_id: None,
+    }
+}
+
+fn pages_model(m: &Messages, pages: &[ProtectedRow], titles: &[ProtectedRow]) -> PagesSection {
+    PagesSection {
+        heading: m.get("ts-protectedpages-pages"),
+        nothing: (pages.is_empty() && titles.is_empty()).then(|| m.get("ts-protectedpages-none")),
+        columns: [
+            "ts-protectedpages-col-title",
+            "ts-protectedpages-col-action",
+            "ts-protectedpages-col-group",
+            "ts-protectedpages-col-expiry",
+        ]
+        .iter()
+        .map(|k| m.get(k))
+        .collect(),
+        rows: pages
+            .iter()
+            .chain(titles)
+            .map(|r| {
+                let kind = if r.kind == "create" || r.kind == "createpage" {
+                    "create"
+                } else {
+                    r.kind.as_str()
+                };
+                RestrictionRow {
+                    page: link_to(
+                        format!("/w/index.php?title={}&action=protect", title_url(&r.title)),
+                        r.title.clone(),
+                    ),
+                    action: Some(kind_label(m, kind)),
+                    group: r.level.clone(),
+                    expiry: expiry_text(m, &r.expiry),
+                }
+            })
+            .collect(),
+    }
+}
+
+fn set_model(m: &Messages, set: &SetInfo, groups: &[String], token: Option<&str>) -> SetModel {
     let id = set.id;
-    let name = if set.name.is_empty() {
-        m.with("ts-protectedpages-set-unnamed", &[&id.to_string()])
-    } else {
-        set.name.clone()
+    let manager = token.is_some();
+    let level = |action: &str| -> String {
+        set.protection
+            .iter()
+            .find(|(k, _, _)| k == action)
+            .map(|(_, g, _)| g.clone())
+            .unwrap_or_default()
     };
-    let mut s = format!(
-        "<section class=\"ts-set\" id=\"set-{id}\"><h3>{}</h3><p class=\"ts-set__restrictions\">{}</p>",
-        esc(&name),
-        esc(&set
+    SetModel {
+        id,
+        name: if set.name.is_empty() {
+            m.with("ts-protectedpages-set-unnamed", &[&id.to_string()])
+        } else {
+            set.name.clone()
+        },
+        restrictions: set
             .protection
             .iter()
             .map(|(k, g, e)| {
@@ -159,236 +329,139 @@ fn set_html(m: &Messages, set: &SetInfo, groups: &[String], token: Option<&str>)
                 )
             })
             .collect::<Vec<_>>()
-            .join(" · ")),
-    );
-    if set.members.is_empty() {
-        let _ = write!(
-            s,
-            "<p class=\"ts-empty\">{}</p>",
-            esc(&m.get("ts-protectedpages-set-no-members"))
-        );
-    } else {
-        s.push_str("<ul class=\"ts-set__members\">");
-        for (page_id, _, title) in &set.members {
-            let _ = write!(
-                s,
-                "<li>{}",
-                link(&format!("/wiki/{}", title_url(title)), &esc(title), "")
-            );
-            if let Some(t) = token {
-                let _ = write!(
-                    s,
-                    " <form class=\"ts-set__remove\" method=\"post\" action=\"/wiki/{}\">{}{}{}{}{}</form>",
-                    esc(&title_url(TITLE)),
-                    hidden("token", t),
-                    hidden("do", "remove-member"),
-                    hidden("set", &id.to_string()),
-                    hidden("page", &page_id.to_string()),
-                    button(
+            .join(" · "),
+        no_members: set
+            .members
+            .is_empty()
+            .then(|| m.get("ts-protectedpages-set-no-members")),
+        members: set
+            .members
+            .iter()
+            .map(|(page_id, _, title)| SetMember {
+                page: link_to(format!("/wiki/{}", title_url(title)), title.clone()),
+                page_id: *page_id,
+                remove: manager.then(|| {
+                    button_model(
                         &m.get("ts-protectedpages-remove-member"),
                         Action::Destructive,
-                        Weight::Quiet
-                    ),
-                );
-            }
-            s.push_str("</li>");
-        }
-        s.push_str("</ul>");
-    }
-    if let Some(t) = token {
-        let _ = write!(
-            s,
-            "<form class=\"ts-set__add\" method=\"post\" action=\"/wiki/{}\">{}{}{}{}{}</form>",
-            esc(&title_url(TITLE)),
-            hidden("token", t),
-            hidden("do", "add-member"),
-            hidden("set", &id.to_string()),
-            Field {
-                id: &format!("ts-set-{id}-title"),
-                name: "member",
-                kind: "text",
-                value: "",
-                label: &m.get("ts-protectedpages-add-member"),
-                description: None,
-                help: Some(&m.get("ts-protectedpages-add-member-help")),
-                required: true,
-                autocomplete: Some("off"),
-            }
-            .render()
-            .unwrap_or_default(),
-            button(
+                        Weight::Quiet,
+                    )
+                }),
+            })
+            .collect(),
+        manage: manager.then(|| ManageSet {
+            member: text_field(
+                &format!("ts-set-{id}-title"),
+                "member",
+                "",
+                m.get("ts-protectedpages-add-member"),
+                Some(m.get("ts-protectedpages-add-member-help")),
+                true,
+            ),
+            add: button_model(
                 &m.get("ts-protectedpages-add"),
                 Action::Progressive,
-                Weight::Normal
+                Weight::Normal,
             ),
-        );
-        let level = |action: &str| -> String {
-            set.protection
-                .iter()
-                .find(|(k, _, _)| k == action)
-                .map(|(_, g, _)| g.clone())
-                .unwrap_or_default()
-        };
-        let _ = write!(
-            s,
-            "<form class=\"ts-set__change\" method=\"post\" action=\"/wiki/{}\"><h4>{}</h4>{}{}{}{}{}{}{}</form>",
-            esc(&title_url(TITLE)),
-            esc(&m.get("ts-protectedpages-change-set")),
-            hidden("token", t),
-            hidden("do", "change"),
-            hidden("set", &id.to_string()),
-            Field {
-                id: &format!("ts-set-{id}-name"),
-                name: "name",
-                kind: "text",
-                value: &set.name,
-                label: &m.get("ts-protectedpages-set-name"),
-                description: None,
-                help: None,
-                required: false,
-                autocomplete: Some("off"),
-            }
-            .render()
-            .unwrap_or_default(),
-            picker(
+            change_heading: m.get("ts-protectedpages-change-set"),
+            name: text_field(
+                &format!("ts-set-{id}-name"),
+                "name",
+                &set.name,
+                m.get("ts-protectedpages-set-name"),
+                None,
+                false,
+            ),
+            read: picker_row(
                 m,
                 &format!("ts-set-{id}-read"),
                 "read",
                 groups,
-                &level("read")
+                Some(&level("read")),
+                None,
             ),
-            picker(
+            edit: picker_row(
                 m,
                 &format!("ts-set-{id}-edit"),
                 "edit",
                 groups,
-                &level("edit")
+                Some(&level("edit")),
+                None,
             ),
-            button(
+            change: button_model(
                 &m.get("ts-protectedpages-change"),
                 Action::Progressive,
-                Weight::Normal
+                Weight::Normal,
             ),
-        );
-        let _ = write!(
-            s,
-            "<form class=\"ts-set__retire\" method=\"post\" action=\"/wiki/{}\">{}{}{}{}</form>",
-            esc(&title_url(TITLE)),
-            hidden("token", t),
-            hidden("do", "retire"),
-            hidden("set", &id.to_string()),
-            button(
+            retire: button_model(
                 &m.get("ts-protectedpages-retire"),
                 Action::Destructive,
-                Weight::Normal
+                Weight::Normal,
             ),
-        );
+        }),
     }
-    s.push_str("</section>");
-    s
 }
 
-/// The Sets tab.
-fn sets_html(m: &Messages, sets: &[SetInfo], groups: &[String], token: Option<&str>) -> String {
-    let mut s = format!(
-        "<section id=\"sets\"><h2>{}</h2><p>{}</p>",
-        esc(&m.get("ts-protectedpages-sets")),
-        esc(&m.get("ts-protectedpages-sets-help"))
-    );
-    if sets.is_empty() {
-        let _ = write!(
-            s,
-            "<p class=\"ts-empty\">{}</p>",
-            esc(&m.get("ts-protectedpages-no-sets"))
-        );
-    }
-    for set in sets {
-        s.push_str(&set_html(m, set, groups, token));
-    }
-    if let Some(t) = token {
-        let read = crate::special::controls::render(&crate::special::controls::Control {
-            id: "ts-set-new-read",
-            name: "read",
-            kind: crate::special::controls::Kind::Choice,
-            choices: groups,
-            value: None,
-            empty_choice: Some(&m.get("ts-protect-level-all")),
-            described_by: None,
-            choice_label: None,
-        });
-        let edit = crate::special::controls::render(&crate::special::controls::Control {
-            id: "ts-set-new-edit",
-            name: "edit",
-            kind: crate::special::controls::Kind::Choice,
-            choices: groups,
-            value: None,
-            empty_choice: Some(&m.get("ts-protect-level-all")),
-            described_by: None,
-            choice_label: None,
-        });
-        let _ = write!(
-            s,
-            "<form class=\"ts-set__new\" method=\"post\" action=\"/wiki/{}\"><h3>{}</h3>{}{}{}<div class=\"cdx-field\"><div class=\"cdx-label\"><label class=\"cdx-label__label\" for=\"ts-set-new-read\"><span class=\"cdx-label__label__text\">{}</span></label></div><div class=\"cdx-field__control\">{read}</div><div class=\"cdx-field__help-text\">{}</div></div><div class=\"cdx-field\"><div class=\"cdx-label\"><label class=\"cdx-label__label\" for=\"ts-set-new-edit\"><span class=\"cdx-label__label__text\">{}</span></label></div><div class=\"cdx-field__control\">{edit}</div></div>{}</form>",
-            esc(&title_url(TITLE)),
-            esc(&m.get("ts-protectedpages-new-set")),
-            hidden("token", t),
-            hidden("do", "create"),
-            Field {
-                id: "ts-set-new-name",
-                name: "name",
-                kind: "text",
-                value: "",
-                label: &m.get("ts-protectedpages-set-name"),
-                description: None,
-                help: None,
-                required: true,
-                autocomplete: Some("off"),
-            }
-            .render()
-            .unwrap_or_default(),
-            esc(&m.get("ts-protect-action-read")),
-            esc(&m.get("ts-protectedpages-set-read-help")),
-            esc(&m.get("ts-protect-action-edit")),
-            button(
+fn sets_model(
+    m: &Messages,
+    sets: &[SetInfo],
+    groups: &[String],
+    token: Option<&str>,
+) -> SetsSection {
+    SetsSection {
+        heading: m.get("ts-protectedpages-sets"),
+        help: m.get("ts-protectedpages-sets-help"),
+        nothing: sets.is_empty().then(|| m.get("ts-protectedpages-no-sets")),
+        token: token.map(str::to_string),
+        sets: sets
+            .iter()
+            .map(|s| set_model(m, s, groups, token))
+            .collect(),
+        new: token.map(|_| NewSet {
+            heading: m.get("ts-protectedpages-new-set"),
+            name: text_field(
+                "ts-set-new-name",
+                "name",
+                "",
+                m.get("ts-protectedpages-set-name"),
+                None,
+                true,
+            ),
+            read: picker_row(
+                m,
+                "ts-set-new-read",
+                "read",
+                groups,
+                None,
+                Some(m.get("ts-protectedpages-set-read-help")),
+            ),
+            edit: picker_row(m, "ts-set-new-edit", "edit", groups, None, None),
+            create: button_model(
                 &m.get("ts-protectedpages-create"),
                 Action::Progressive,
-                Weight::Primary
+                Weight::Primary,
             ),
-        );
+        }),
     }
-    s.push_str("</section>");
-    s
 }
 
-/// The empty-group report.
-fn empty_groups_html(m: &Messages, groups: &[triplespace_client::EmptyGroup]) -> String {
-    let mut s = format!(
-        "<section id=\"empty-groups\"><h2>{}</h2><p>{}</p>",
-        esc(&m.get("ts-protectedpages-empty-groups")),
-        esc(&m.get("ts-protectedpages-empty-groups-help"))
-    );
-    if groups.is_empty() {
-        let _ = write!(
-            s,
-            "<p class=\"ts-empty\">{}</p>",
-            esc(&m.get("ts-protectedpages-empty-groups-none"))
-        );
-    } else {
-        s.push_str("<ul>");
-        for g in groups {
-            let _ = write!(
-                s,
-                "<li>{}</li>",
-                esc(&m.with(
+fn empty_model(m: &Messages, groups: &[triplespace_client::EmptyGroup]) -> EmptySection {
+    EmptySection {
+        heading: m.get("ts-protectedpages-empty-groups"),
+        help: m.get("ts-protectedpages-empty-groups-help"),
+        nothing: groups
+            .is_empty()
+            .then(|| m.get("ts-protectedpages-empty-groups-none")),
+        rows: groups
+            .iter()
+            .map(|g| {
+                m.with(
                     "ts-protectedpages-empty-group",
-                    &[&g.group, &g.restrictions.to_string()]
-                ))
-            );
-        }
-        s.push_str("</ul>");
+                    &[&g.group, &g.restrictions.to_string()],
+                )
+            })
+            .collect(),
     }
-    s.push_str("</section>");
-    s
 }
 
 /// The page.
@@ -441,17 +514,16 @@ async fn render(
         .map(|g| g.name)
         .collect();
     let m = &cx.m;
-    let mut body = String::new();
-    if let Some((kind, text)) = notice {
-        body.push_str(&pages::message(kind, &text));
-    }
-    body.push_str(&pages_html(m, &pages.value.0, &pages.value.1));
-    body.push_str(&sets_html(
-        m,
-        &sets.value,
-        &group_names,
-        token.as_ref().map(|t| t.value.value.as_str()),
-    ));
+    let token_value = token.as_ref().map(|t| t.value.value.as_str());
+    let model = ProtectedPagesPage {
+        notices: notice
+            .iter()
+            .map(|(k, t)| Message::block(*k, t).model())
+            .collect(),
+        pages: pages_model(m, &pages.value.0, &pages.value.1),
+        sets: sets_model(m, &sets.value, &group_names, token_value),
+        empty: empty.as_ref().map(|g| empty_model(m, g)),
+    };
     let mut tabs = vec![
         Tab {
             label: m.get("ts-protectedpages-pages"),
@@ -464,19 +536,19 @@ async fn render(
             current: false,
         },
     ];
-    if let Some(groups) = &empty {
-        body.push_str(&empty_groups_html(m, groups));
+    if empty.is_some() {
         tabs.push(Tab {
             label: m.get("ts-protectedpages-empty-groups"),
             href: "#empty-groups".into(),
             current: false,
         });
     }
+    let body = cx.draw("special/protectedpages.html", &model);
     let r = pages::respond(cx, headers, StatusCode::OK, |m| Page {
         title: m.get("ts-protectedpages-title"),
         returnto: Some(TITLE.to_string()),
         tabs,
-        body: format!("<div class=\"ts-protectedpages\">{body}</div>"),
+        body,
         ..Page::default()
     });
     match token {
@@ -516,45 +588,36 @@ pub async fn titles(site: &Site, headers: &HeaderMap, peer: Peer, params: &Param
     };
     cx.inputs.push(found.cache);
     let m = &cx.m;
-    let mut body = format!("<p>{}</p>", esc(&m.get("ts-protectedtitles-intro")));
-    if found.value.is_empty() {
-        let _ = write!(
-            body,
-            "<p class=\"ts-empty\">{}</p>",
-            esc(&m.get("ts-protectedtitles-none"))
-        );
-    } else {
-        let _ = write!(
-            body,
-            "<table class=\"cdx-table__table ts-protectedpages__table\"><thead><tr><th scope=\"col\">{}</th><th scope=\"col\">{}</th><th scope=\"col\">{}</th></tr></thead><tbody>",
-            esc(&m.get("ts-protectedpages-col-title")),
-            esc(&m.get("ts-protectedpages-col-group")),
-            esc(&m.get("ts-protectedpages-col-expiry")),
-        );
-        for r in &found.value {
-            let _ = write!(
-                body,
-                "<tr><td>{}</td><td>{}</td><td>{}</td></tr>",
-                link(
-                    &format!("/wiki/{}", title_url(&r.title)),
-                    &esc(&r.title),
-                    ""
-                ),
-                esc(&r.level),
-                esc(&expiry_text(m, &r.expiry)),
-            );
-        }
-        body.push_str("</tbody></table>");
-    }
-    let _ = write!(
-        body,
-        "<p>{}</p>",
-        link(
-            "/wiki/Special:ProtectedPages",
-            &esc(&m.get("ts-protectedtitles-all")),
-            ""
-        )
-    );
+    let model = ProtectedTitlesPage {
+        intro: m.get("ts-protectedtitles-intro"),
+        nothing: found
+            .value
+            .is_empty()
+            .then(|| m.get("ts-protectedtitles-none")),
+        columns: [
+            "ts-protectedpages-col-title",
+            "ts-protectedpages-col-group",
+            "ts-protectedpages-col-expiry",
+        ]
+        .iter()
+        .map(|k| m.get(k))
+        .collect(),
+        rows: found
+            .value
+            .iter()
+            .map(|r| RestrictionRow {
+                page: link_to(format!("/wiki/{}", title_url(&r.title)), r.title.clone()),
+                action: None,
+                group: r.level.clone(),
+                expiry: expiry_text(m, &r.expiry),
+            })
+            .collect(),
+        all: link_to(
+            "/wiki/Special:ProtectedPages".into(),
+            m.get("ts-protectedtitles-all"),
+        ),
+    };
+    let body = cx.draw("special/protectedtitles.html", &model);
     pages::respond(&cx, headers, StatusCode::OK, |m| Page {
         title: m.get("ts-protectedtitles-title"),
         returnto: Some("Special:ProtectedTitles".to_string()),
@@ -750,15 +813,18 @@ mod tests {
             members: vec![(9, 4, "Project:Minutes".into())],
         };
         let groups = vec!["board".to_string(), "sysop".to_string()];
-        let reader = set_html(&m, &set, &groups, None);
-        assert!(reader.contains("Board docs"));
-        assert!(reader.contains("/wiki/Project:Minutes"));
-        assert!(!reader.contains("<form"));
-        let manager = set_html(&m, &set, &groups, Some("t"));
-        assert!(manager.contains("name=\"do\" value=\"change\""));
-        assert!(manager.contains("<option value=\"board\" selected>"));
-        assert!(manager.contains("name=\"do\" value=\"remove-member\""));
-        assert!(manager.contains("name=\"page\" value=\"9\""));
-        assert!(manager.contains("name=\"do\" value=\"retire\""));
+        let reader = set_model(&m, &set, &groups, None);
+        assert_eq!(reader.name, "Board docs");
+        assert_eq!(reader.members[0].page.href, "/wiki/Project:Minutes");
+        assert!(reader.manage.is_none() && reader.members[0].remove.is_none());
+        let manager = set_model(&m, &set, &groups, Some("t"));
+        let manage = manager.manage.expect("the forms");
+        assert!(matches!(
+            &manage.read.control,
+            crate::special::controls::ControlModel::Select { options, .. }
+                if options.iter().any(|o| o.value == "board" && o.selected)
+        ));
+        assert_eq!(manager.members[0].page_id, 9);
+        assert!(manager.members[0].remove.is_some());
     }
 }

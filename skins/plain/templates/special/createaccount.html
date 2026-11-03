@@ -1,7 +1,7 @@
 {#- Special:CreateAccount (0087 §5, §6; 0088 §6; 19 §2.3): the notice, then the creation
     form (name, password twice, the statement a reviewed wiki asks for, the honeypot, the
-    challenge), or a pending identity's form, or what happened next; the external issuers'
-    buttons are HTML until group 12 (0097 A6). Works without JavaScript. -#}
+    challenge), or a pending identity's form, or what happened next; then the external issuers'
+    buttons (0097 A6). Works without JavaScript. -#}
 {%- import "codex.html" as codex -%}
 {%- import "account.html" as account -%}
 {%- macro statement(st) -%}
@@ -19,5 +19,5 @@
 {%- if pending.suggest %}<div class="ts-createaccount__suggest"><button class="cdx-button" type="submit" name="tssuggested" value="{{ pending.suggest.value }}" formnovalidate aria-describedby="ts-suggest-note">{{ pending.suggest.label }}</button><p class="ts-createaccount__suggest-note" id="ts-suggest-note">{{ pending.suggest.note }}</p></div>{% endif -%}
 {%- if pending.statement %}{{ statement(pending.statement) }}{% endif -%}
 <div class="ts-form__actions">{{ codex.button(pending.submit) }}</div></form>{% endif -%}
-{%- if issuers_html %}{{ issuers_html|safe }}{% endif -%}
+{%- if issuers %}{{ account.issuers(issuers) }}{% endif -%}
 </div>

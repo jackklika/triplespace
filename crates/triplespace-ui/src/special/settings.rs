@@ -943,6 +943,8 @@ fn defaults_model(
                         value: "1".into(),
                         checked,
                         label: Some(m.get("ts-settings-lock")),
+                        note: None,
+                        disabled: false,
                         described_by: None,
                     });
                 }

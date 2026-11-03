@@ -6,7 +6,7 @@
 //! - `wasm`: builds every crate the map marks `wasm` (22 §1.2 rule 7), skipping the ones that do
 //!   not exist yet.
 //! - `manifest`: writes the component manifest of ADR 0077 §15 ([`manifest`]).
-//! - `skin-parity`: the parity harness of the skin migration, with its report ([`parity`]).
+//! - `skin-parity`: the check that Worksheet is Plain with stylesheets ([`parity`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
