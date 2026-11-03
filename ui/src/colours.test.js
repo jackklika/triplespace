@@ -1,6 +1,7 @@
 // Everything the site draws takes its colours from tokens, so every palette variant
-// reaches it (ADR 0086 §2): the site's stylesheets, components and templates hold no colour
-// literal, except as the fallback of a `var()`, which applies only where no palette does.
+// reaches it (ADR 0086 §2): the site's stylesheets, components and the shipped skins'
+// templates and stylesheets hold no colour literal, except as the fallback of a `var()`, which
+// applies only where no palette does.
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -9,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const here = dirname( fileURLToPath( import.meta.url ) );
 const roots = [
 	[ here, /\.(css|vue)$/ ],
-	[ join( here, '../../crates/triplespace-ui/templates' ), /\.html$/ ]
+	[ join( here, '../../skins' ), /\.(html|css)$/ ]
 ];
 const COLOUR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch|oklab|lab|lch)\(/g;
 const FALLBACK = /var\(\s*--[a-z0-9-]+\s*,\s*[^()]*(?:\([^()]*\))?[^()]*\)/g;
