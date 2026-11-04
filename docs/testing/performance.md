@@ -211,3 +211,73 @@ key that also moves with page and thread writes under hidden targets (the pages 
 the ACL frontier), which is the next step if a tenant with thousands of confidential pages
 appears. The feed also computes its lateral joins before sorting and limiting when the planner
 scans `view.activity` sequentially (a small table); on a large one it walks the time index.
+
+## 8. The 2M Wikidata baseline (2026-11-04)
+
+**What ran.** `sync --provider wikidata` of `wd-bench-2m.json.gz` (sha256 `4ceed74c…`), at `main`
+`26f7754`, into a fresh database on a 16-core, 62 GB Debian 13 VM with Postgres 17 tuned per §4
+(`shared_buffers` 16 GB, `max_wal_size` 16 GB, `checkpoint_timeout` 30 min, `wal_compression`
+zstd). The set is every property (14,017), the first million items that exist (Q1–Q1084808) and a
+seeded sample of a million scholarly articles (P31 = Q13442814, seed 1, from 46,010,359), all from
+the 2026-10-26 dump, cut with `tools/wikidata_zindex.py` (real-dumps.md §3.2): 54.8 GB of JSON,
+27 KB per entity.
+
+**Result.** 2,014,017 created, 0 rejected, 0 unreadable, 0 hash mismatches, in 9 h 28 min
+(59 entities/s: 54/s over the properties and dense early items, 63/s over the articles). Peak
+RSS 406 MB, flat in the dump's size since sync streams. Database 39 GB: `view` 26 GB, of which
+`view.term` 18 GB and `view.identifier` 4.3 GB; `log` 13 GB.
+
+**Where the time goes, per entity:**
+
+| | ms | share of wall |
+|---|---|---|
+| Wall clock | 16.9 | 100% |
+| Client CPU (user + sys) | 11.8 | **70%** |
+| Postgres execution | 2.2 | 13% |
+| … `INSERT INTO view.term` alone | 1.3 | 8% |
+| Postgres planning | 0.3 | 2% |
+| Round trips and the rest | ~2.6 | 15% |
+
+20.0 statements per entity. Sampled over 30 s mid-run, the client used 78% of a core and its
+backend 18%, active in 9 of 30 one-second samples. **On Wikidata-sized entities the load is bound
+by client CPU, not by round trips**: the reverse of Librarybase (§2), whose entities are a tenth
+the size.
+
+**Where the client's CPU goes** (callgrind over 1,000 dense items and 1,000 articles, 54M
+instructions per entity; shares overlap where functions nest):
+
+| | share |
+|---|---|
+| Decoding the record just appended, once in each of five projections (`common::operation` from `activity`, `entities` ×2, `sources` ×2) | **44%** |
+| … of which re-encoding the body to check it is canonical CBOR (`cbor::decode_prefix` → `cbor::write`, 10 per entity) | 19% |
+| … of which deserializing it into an `Operation` | 13% |
+| Parsing the dump line (`ParsedEntity::deserialize`) | 12% |
+| The entity-source and activity projections' own work | ~10% each |
+| Canonical JSON (`Resolved::equals`, sizes) | 7% |
+| Encoding the record (`Value::from_json`, body parts) | 8% |
+
+`malloc` and `free` are about a third of all instructions, spread over the rows. `perf` is not
+usable on Debian without lowering `kernel.perf_event_paranoid` (3 by default); callgrind on a
+binary built with `CARGO_PROFILE_RELEASE_DEBUG=line-tables-only` needs no privileges.
+
+**What this changes in §6.** Overlapping parsing and writing (§6 item 1) is worth at most the 12%
+parse share here. Decoding each record once per write and handing the `Operation` to every
+projection removes four of the five decodes, about a third of client CPU, with no change to what
+is verified (one canonical check still runs). `view.term` is 46% of the database and half of
+Postgres's execution time: the mirror-term question of §6 is now measured, not projected. At
+59/s the full dump (122M entities) is about 24 days and `view.term` about 1.1 TB.
+
+**Decoding once (2026-11-04).** `common::operation` now keeps the last record it decoded per
+thread, with a copy of its content bytes, and returns it again (cloned) for equal bytes: the five
+projections and the entity projection's read-back of the record share one decode and one canonical
+check. Against `26f7754` on the same slices: instructions per 2k-entity profile 108.7 G → 71.8 G
+(−34%); on 10,000 dense items and 10,000 articles, client CPU 187.6 s → 128.3 s (−32%) and wall
+273 s → 217 s (73 → 92 entities/s, +26%). The next client costs, in the new profile: entity
+resolution (`resolve_subject`) 31%, the entity-source projection 18%, SHA-256 for commitments 13%,
+and `Resolved::equals` by canonical JSON 12%.
+
+**Terms are the decided rule, not built.** 05 §5.8 (0070 §6, settled for full mirrors by 0082 §6)
+gives a mirrored entity `view.term` rows in the instance's term languages only
+(`entities.term_languages`: the content languages, `mul` and `en`), other languages read from the
+record. The term projection does not apply it yet: the baseline wrote 110.8M rows in 629 languages
+for 2M entities.
