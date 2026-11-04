@@ -64,7 +64,7 @@ type).
    `pg_stat_statements.track_planning = on`. Restart.
 2. `CREATE DATABASE ts_lb_10k;`, run `instance create` into it, then `CREATE EXTENSION
    pg_stat_statements;` there.
-3. `python3 tools/dump_slice.py librarybase-20261005.xml.gz librarybase-slice-10k.xml.gz --limit 10000`
+3. `python3 tools/dump_slice.py data/librarybase-20261005.xml data/librarybase-slice-10k.xml.gz --limit 10000`
 4. `SELECT pg_stat_statements_reset();`, then `adopt` the slice with the same flags as the full run.
 5. `pg_stat_statements` is cluster-wide, so filter by database:
 

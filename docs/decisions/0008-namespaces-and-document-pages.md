@@ -551,7 +551,7 @@ Replaced text ([10](../architecture/10-pages-and-content-models.md) §2.5, as it
 
 Replaced text ([10](../architecture/10-pages-and-content-models.md) §3.5, as it stood):
 
-> - **The canonical name is `Project`, and the local name is the site name,** as in MediaWiki. On the reference install that is `Triplespace Ref` ([siteinfo snapshot](../api/snapshots/mw-1.43.9-wb-REL1_43.siteinfo.json)). Both resolve.
+> - **The canonical name is `Project`, and the local name is the site name,** as in MediaWiki. On the reference install that is `Triplespace Ref` ([siteinfo snapshot](../samples/wikibase-1.43/mw-1.43.9-wb-REL1_43.siteinfo.json)). Both resolve.
 
 ### A38. An adopted wiki's pages come in its adoption job
 

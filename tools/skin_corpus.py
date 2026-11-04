@@ -694,7 +694,6 @@ def record(clients, facts, out_dir):
         "cases": cases,
     }, indent=1) + "\n")
     print(f"{len(cases)} cases written", file=sys.stderr)
-        print(f"compare: {len(differing)} routes differ", file=sys.stderr)
 
 
 def main():

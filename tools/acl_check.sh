@@ -26,7 +26,7 @@ url="${admin%/*}/$db"
 port="${PORT:-18290}"
 api="http://127.0.0.1:$port"
 tenant=librarybase
-fixture="${FIXTURE:-$root/crates/triplespace-server/tests/fixtures/librarybase-sample.xml.gz}"
+fixture="${FIXTURE:-$root/docs/samples/librarybase/dump/librarybase-sample.xml.gz}"
 work="$(mktemp -d)"
 pids=()
 cleanup() {

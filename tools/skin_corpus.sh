@@ -57,7 +57,7 @@ sed -e "s/2026-09-20T14:02:11Z/$yesterday/g" -e 's|<username>Alice</username><id
 	"$fixtures/site-entities.xml" >"$work/site-entities.xml"
 "$bin/triplespace" adopt --tenant $tenant --dump "$work/site-entities.xml" \
 	--source https://librarybase.org/ --version test --frozen --counters item=6,property=12 >/dev/null
-"$bin/triplespace" adopt --tenant $tenant --dump "$fixtures/librarybase-wikitext.xml.gz" \
+"$bin/triplespace" adopt --tenant $tenant --dump "$root/docs/samples/librarybase/dump/librarybase-wikitext.xml.gz" \
 	--source https://librarybase.org/ --version pages --frozen >/dev/null
 "$bin/triplespace" sync --provider internetdomains --dump "$fixtures/internetdomains.json" \
 	--version 20261001 >/dev/null

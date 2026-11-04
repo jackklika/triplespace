@@ -45,7 +45,8 @@ async fn fresh_database() -> String {
 }
 
 fn fixture() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/librarybase-sample.xml.gz")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../docs/samples/librarybase/dump/librarybase-sample.xml.gz")
 }
 
 async fn query(database: &str, sql: &str) -> Vec<tokio_postgres::Row> {

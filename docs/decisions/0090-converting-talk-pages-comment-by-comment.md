@@ -162,6 +162,7 @@ James's direction, from the design discussion of 2026-10-20:
 - [Help:Signatures](https://en.wikipedia.org/wiki/Help:Signatures), [Template:Unsigned](https://en.wikipedia.org/wiki/Template:Unsigned), [Template:Outdent](https://en.wikipedia.org/wiki/Template:Outdent), [Template:Archive top](https://en.wikipedia.org/wiki/Template:Archive_top)
 - [Manual:$wgDefaultUserOptions](https://www.mediawiki.org/wiki/Manual:$wgDefaultUserOptions) (`date`) and MediaWiki's per-language `$dateFormats`
 - `tools/talk_dumps.py`, `tools/talk_fixtures.py`, `tools/talk_split.py`, `tools/talk_compare.py`; the samples of 2026-10-21, committed in `crates/scatter-talk/tests/fixtures/`
+- The same samples, moved on 2026-11-03 to [`docs/samples/enwiki-talk/`](../samples/enwiki-talk/README.md)
 - Project note `claude/talk-page-conversion.md`
 
 ## Amendment log

@@ -35,7 +35,7 @@ As with the API contract, statements here were checked against running software,
 3. **RDF dumps.** RDF was produced with `repo/maintenance/dumpRdf.php` (the `full-dump` and `truthy-dump` flavors) and with `Special:EntityData/Q9.ttl?flavor=full`.
 4. **Comparison.** The emitted vocabulary was compared mechanically against `ontology.owl` using rdflib.
 
-Statements marked **(observed)** come from these outputs. Snapshots are committed in `docs/api/snapshots/`:
+Statements marked **(observed)** come from these outputs. Snapshots are committed in `docs/samples/wikibase-1.43/`:
 
 | File | Contents |
 |---|---|
@@ -542,7 +542,7 @@ Primary:
 - WikibaseEDTF: <https://github.com/ProfessionalWiki/WikibaseEDTF> (3.0.0, and head `23d233c`)
 - EDTF PHP library: <https://github.com/ProfessionalWiki/EDTF> (3.1.0)
 - EDTF specification: [Library of Congress, Extended Date/Time Format](https://www.loc.gov/standards/datetime/)
-- Snapshots in `docs/api/snapshots/` (§1.2)
+- Snapshots in `docs/samples/wikibase-1.43/` (§1.2)
 
 Secondary, not fetched for this revision (mediawiki.org and wikidata.org are unreachable from the build environment), but cited by the primary sources:
 

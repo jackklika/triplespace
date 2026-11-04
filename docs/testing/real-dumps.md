@@ -419,11 +419,11 @@ On one branch, before any testing:
 
 ### 3.1 The 50k sample
 
-`docs/api/snapshots/big/wikidata-20261004-sample-50000.json.gz` holds 50,000 uniformly random items
+`docs/samples/wikidata/big/wikidata-20261004-sample-50000.json.gz` holds 50,000 uniformly random items
 and all 13,972 properties, in the dump's shape (see its manifest).
 
 ```sh
-cp ~/git/triplespace/docs/api/snapshots/big/wikidata-20261004-sample-50000.json.gz ~/ts-test/
+cp ~/git/triplespace/docs/samples/wikidata/big/wikidata-20261004-sample-50000.json.gz ~/ts-test/
 /usr/bin/time -v triplespace sync --provider wikidata \
     --dump wikidata-20261004-sample-50000.json.gz --version sample-20261004 2> sync-wd.stderr | tee sync-wd.out
 ```

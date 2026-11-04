@@ -33,14 +33,14 @@ them at a test database; `--no-write` (Pywikibot and WDI checks) keeps to reads.
 
 ## The Librarybase sample fixture
 
-`crates/triplespace-server/tests/fixtures/librarybase-sample.xml.gz` is 200 random Librarybase
+`docs/samples/librarybase/dump/librarybase-sample.xml.gz` is 200 random Librarybase
 items, 10 more items whose pages have more than one revision, every property page and Q1, each
 page with its whole history, made from the full-history dump of the rebuilt librarybase.org
 (`librarybase-20261101.xml.gz`, sha256 `f722e518…5b8af2`): 254 entities, 295 revisions.
 
 ```sh
 tools/dump_slice.py librarybase-20261101.xml.gz \
-    crates/triplespace-server/tests/fixtures/librarybase-sample.xml.gz \
+    docs/samples/librarybase/dump/librarybase-sample.xml.gz \
     --sample 200 --seed 1 --history 10 --all-properties --include Q1 --defined-only
 ```
 
@@ -58,15 +58,15 @@ the sample's highest IDs; the checks only require new entities to land above the
 
 ## The Librarybase wikitext fixtures
 
-`crates/scatter-wikitext/tests/fixtures/librarybase/` holds every revision of Librarybase's
+`docs/samples/librarybase/parse/` holds every revision of Librarybase's
 wikitext pages with Librarybase's own `action=parse` render of each, made with:
 
 ```sh
-tools/librarybase_parse.py crates/scatter-wikitext/tests/fixtures/librarybase --history
+tools/librarybase_parse.py docs/samples/librarybase/parse --history
 ```
 
 The golden test (`crates/scatter-wikitext/tests/golden.rs`) renders each revision and compares
 it with Librarybase's after both are parsed as HTML5 and normalized. Revisions that are known
-to differ are listed with their reason in `known-differences.txt` there; the test fails when
+to differ are listed with their reason in `crates/scatter-wikitext/tests/fixtures/librarybase/known-differences.txt`; the test fails when
 one of them starts matching, so the list stays true. The MediaWiki-namespace pages are
 fetched but not compared: Triplespace keeps that namespace reserved (11 §2.3).

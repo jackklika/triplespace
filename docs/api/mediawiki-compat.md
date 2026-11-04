@@ -30,13 +30,13 @@ The reference was therefore **generated from the software itself**:
 4. The Wikibase REST API's OpenAPI document was fetched from `rest.php/wikibase/v1/openapi.json`.
 5. Cross-cutting behaviour (the error, warning, continuation, token and Wikibase response envelopes) was verified with live requests against the same install. Behaviour marked **(observed)** below comes from those requests, not from documentation.
 
-The machine-readable outputs are committed next to this file and are normative wherever this prose summarises them:
+The machine-readable outputs are committed in `docs/samples/wikibase-1.43/` and are normative wherever this prose summarises them:
 
 | File | Contents |
 |---|---|
-| `snapshots/mw-1.43.9-wb-REL1_43.paraminfo.json` | Full `action=paraminfo` output for all 153 modules, plus `main` |
-| `snapshots/wikibase-rest-v1.openapi.json` | Wikibase REST API OpenAPI document (API version 1.1) |
-| `snapshots/mw-1.43.9-wb-REL1_43.siteinfo.json` | `meta=siteinfo` (general, extensions, namespaces) for the reference install |
+| `../samples/wikibase-1.43/mw-1.43.9-wb-REL1_43.paraminfo.json` | Full `action=paraminfo` output for all 153 modules, plus `main` |
+| `../samples/wikibase-1.43/wikibase-rest-v1.openapi.json` | Wikibase REST API OpenAPI document (API version 1.1) |
+| `../samples/wikibase-1.43/mw-1.43.9-wb-REL1_43.siteinfo.json` | `meta=siteinfo` (general, extensions, namespaces) for the reference install |
 
 ### 1.3 Scope and caveats
 
@@ -6129,7 +6129,7 @@ Notes on the core REST API:
 
 ### 6.2 Wikibase REST API (`rest.php/wikibase/v1`)
 
-OpenAPI `3.1.0` document, API version `1.1`, served at `rest.php/wikibase/v1/openapi.json`; a copy is committed as `docs/api/snapshots/wikibase-rest-v1.openapi.json` and is the normative contract for request/response schemas. Paths below are relative to `rest.php/wikibase/v1`.
+OpenAPI `3.1.0` document, API version `1.1`, served at `rest.php/wikibase/v1/openapi.json`; a copy is committed as `docs/samples/wikibase-1.43/wikibase-rest-v1.openapi.json` and is the normative contract for request/response schemas. Paths below are relative to `rest.php/wikibase/v1`.
 
 Conventions of the Wikibase REST API. Each point is from the OpenAPI document unless marked **(observed)**.
 
@@ -6246,7 +6246,7 @@ Primary (the software at the pinned refs):
   - Action API modules in `repo/includes/Api/` and `client/includes/Api/`
   - JSON format in `docs/topics/json.md`
   - REST OpenAPI in `repo/rest-api/specs/`
-- Generated snapshots in `docs/api/snapshots/` (§1.2)
+- Generated snapshots in `docs/samples/wikibase-1.43/` (§1.2)
 
 Secondary. These describe current master and Wikimedia production, not 1.43 specifically:
 
