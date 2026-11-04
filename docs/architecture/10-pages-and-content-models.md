@@ -275,7 +275,7 @@ The partition holds page records, not quads. Its RDF output is revision metadata
 
 *Sources: [0008](../decisions/0008-namespaces-and-document-pages.md) §7; [0061](../decisions/0061-sprints-and-tasks.md) §2; [0085](../decisions/0085-settings-and-preferences.md) §7.*
 
-- **The canonical name is `Project`, and the local name is the site name, `site.name`,** as in MediaWiki, unless the tenant's `namespace` record gives namespace 4 a fixed local name. On the reference install that is `Triplespace Ref` ([siteinfo snapshot](../api/snapshots/mw-1.43.9-wb-REL1_43.siteinfo.json)). Both resolve. **Renaming the site keeps the old name as an alias** where the local name was the site's name, written in the same change set, so `Old name:Page` links still resolve; a fixed local name, `Project` included, is untouched and gains no alias ([0085](../decisions/0085-settings-and-preferences.md) §7).
+- **The canonical name is `Project`, and the local name is the site name, `site.name`,** as in MediaWiki, unless the tenant's `namespace` record gives namespace 4 a fixed local name. On the reference install that is `Triplespace Ref` ([siteinfo snapshot](../samples/wikibase-1.43/mw-1.43.9-wb-REL1_43.siteinfo.json)). Both resolve. **Renaming the site keeps the old name as an alias** where the local name was the site's name, written in the same change set, so `Old name:Page` links still resolve; a fixed local name, `Project` included, is untouched and gains no alias ([0085](../decisions/0085-settings-and-preferences.md) §7).
 - **Subpages are allowed.**
 - **Pages can be created by anyone with the right to edit.** No owner is recorded.
 

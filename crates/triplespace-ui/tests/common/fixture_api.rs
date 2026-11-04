@@ -3,7 +3,7 @@
 //! shared by the entity tests and the parity harness.
 //!
 //! The statement shapes (0003 §3–5) are served from the Wikidata snapshots in
-//! `docs/api/snapshots`, as a Wikidata mirror would serve them (`WDQ65`, `WDP1082`), so
+//! `docs/samples/wikidata`, as a Wikidata mirror would serve them (`WDQ65`, `WDP1082`), so
 //! that the mirror's role map applies.
 
 #![allow(dead_code)]
@@ -116,7 +116,7 @@ impl FixtureApi {
         let mut api = Self::new();
         for q in ["Q65", "Q339", "Q731", "Q1520"] {
             let path = format!(
-                "{}/../../docs/api/snapshots/wikidata-{q}.json",
+                "{}/../../docs/samples/wikidata/wikidata-{q}.json",
                 env!("CARGO_MANIFEST_DIR")
             );
             let v: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();

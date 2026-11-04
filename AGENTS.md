@@ -13,7 +13,8 @@ QuickStatements). James Hare (Scatter LLC) owns it; he decides, and agents draft
 | `docs/decisions/` | **Why and when**: ADRs. Every Decision section is a one-line pointer (*Current text: [03] §4.5.*) into a chapter, from the day the ADR is written; the ADR holds Context, Alternatives, Consequences, Open questions and the Amendment log. | Never read an ADR for its text: follow the pointer (`tools/adr.py show`). A new ADR's text is written into the chapters, then `architecture/pointers.py NNNN` fills its pointers. |
 | `docs/registry/` | Names and codes the crates embed (`include_str!`) and parse at build time: providers, graphs, namespaces, content models, special pages, settings, groups… | A change here is a commit. Codes and numbers are never reused. See its `README.md`, including *Pending allocations*. |
 | `docs/testing/` | How to test against real dumps (`real-dumps.md`, with its results log) and write-path performance: measurements, the `pg_stat_statements` recipe, Postgres settings, what a Wikidata-sized load needs (`performance.md`); the sandbox, test-environment and checkout pitfalls (`gotchas.md`). | Add a results row for every real-dump run; add pitfalls as you meet them. |
-| `docs/api/` | Compatibility contracts with Wikibase and MediaWiki, golden snapshots, log test vectors, the OpenAPI file. | Contracts are tested where they are implemented. |
+| `docs/api/` | Compatibility contracts with Wikibase and MediaWiki, log test vectors, the OpenAPI file. | Contracts are tested where they are implemented. |
+| `docs/samples/` | Captures of other software's output, reusable outside Triplespace: Wikibase 1.43 and Wikidata entities, Librarybase dumps and `action=parse` goldens, English Wikipedia talk pages with DiscussionTools' reading. `docs/samples/README.md`. | Each set keeps its own licence (its README); `docs/LICENSE` does not cover them. Tests read them in place; expectations about Triplespace stay in the crates. |
 | `crates/` | One workspace: `scatter-*` (shared with Scatterbase, knows nothing of Triplespace) and `triplespace-*` (the product). | See the crate rules below. |
 | `tools/` | Scripts outside the build: dump slicing, client-compatibility checks, talk-page prototypes. `tools/README.md`. | |
 | `xtask/` | `cargo xtask deps` (dependency graph vs. `docs/registry/crates.toml`), `wasm`, `manifest`, `skin-parity` (the skin migration's harness: `crates/triplespace-ui/tests/parity.rs` over `tests/corpus/`, with its report). | |
@@ -106,7 +107,7 @@ toolchain instead of the pinned one), rather than calling the work verified. Wit
   change, folded into the chapter, with Source `Direct: Claude, while building <what>, <date>;
   unconfirmed` (24 §6); `OPEN.md` lists these for James. Never keep such calls in notes.
 - Sandbox and test-environment pitfalls are `docs/testing/gotchas.md`; add what you learn there.
-- Prefer real data and real clients for testing: the Librarybase fixtures, `tools/*_check.py`.
+- Prefer real data and real clients for testing: the Librarybase samples (`docs/samples/librarybase/`), `tools/*_check.py`.
   Watch for Pywikibot's API cache masking whether a fix worked.
 
 ## Design principles James applies

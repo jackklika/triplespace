@@ -35,11 +35,10 @@ strike what stops being true. Implementation status is not kept here (24 §15: `
   contains the name); match on the binary path (`pkill -f "^/home/.*/triplespace-server"`), and
   start a test server and query it within one call, since background processes die when the call
   ends.
-- The tree tarred into the sandbox leaves out `docs/api/snapshots` (139 MB), but
-  `triplespace-ui`'s `entity` tests and the parity corpus's `wikidata` set read it
-  (`tests/common/fixture_api.rs`): without it seven entity tests panic on a missing file under
-  every renderer. Stage it separately (`tar czf target/snapshots.tgz docs/api/snapshots` on the
-  mount) when running those.
+- The tree tarred into the sandbox must leave out `docs/samples/wikidata/big` (140 MB,
+  gitignored) but keep the rest of `docs/samples` (about 9 MB): many tests read it, among them
+  `triplespace-ui`'s `entity` tests and the parity corpus's `wikidata` set
+  (`tests/common/fixture_api.rs`), which panic on a missing file without it.
 - Moving `target/` into a fresh copy of the tree (to reuse a build) leaves binaries that
   bake `env!("CARGO_MANIFEST_DIR")` pointing at the old copy, and Cargo does not rebuild
   them: `triplespace-ui`'s tests then panic on missing fixtures, and `cargo xtask skin-parity`

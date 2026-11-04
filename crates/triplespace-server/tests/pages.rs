@@ -1,5 +1,5 @@
 //! Document pages end to end: Librarybase's wikitext pages, adopted with their history from
-//! its own export (`fixtures/librarybase-wikitext.xml.gz`, 39 pages, 147 revisions),
+//! its own export (`docs/samples/librarybase/dump/librarybase-wikitext.xml.gz`, 39 pages, 147 revisions),
 //! projected, and served through the Action API. Needs `TRIPLESPACE_TEST_DATABASE_URL`;
 //! vacuous without it.
 
@@ -45,7 +45,8 @@ async fn fresh_database() -> String {
 }
 
 fn fixture() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/librarybase-wikitext.xml.gz")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../docs/samples/librarybase/dump/librarybase-wikitext.xml.gz")
 }
 
 async fn setup() -> Option<(String, PathBuf)> {

@@ -495,7 +495,9 @@ mod tests {
     /// dump's own properties, and nothing is rejected.
     #[test]
     fn a_wikibase_without_a_key_map_mirrors_under_its_prefix() {
-        let prepared = prepare("librarybase", &fixture("librarybase-sample.xml.gz")).unwrap();
+        let sample = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../docs/samples/librarybase/dump/librarybase-sample.xml.gz");
+        let prepared = prepare("librarybase", &sample).unwrap();
         assert_eq!(prepared.unreadable, 0);
         assert!(prepared.items.len() > 100, "{}", prepared.items.len());
         for item in &prepared.items {

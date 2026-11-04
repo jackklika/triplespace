@@ -20,7 +20,7 @@
 //! equals what upstream served either way.
 //!
 //! What is verified: every snak hash, the reference hash and every value-node hash in
-//! `docs/api/snapshots` (Wikibase for MediaWiki 1.43), in this crate's tests.
+//! `docs/samples/wikibase-1.43` and `docs/samples/wikidata`, in this crate's tests.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -460,7 +460,7 @@ mod tests {
 
     #[test]
     fn value_node_hashes_match_the_rdf_dump() {
-        // v: nodes in docs/api/snapshots/wikibase-rdf-full-dump.ttl.
+        // v: nodes in docs/samples/wikibase-1.43/wikibase-rdf-full-dump.ttl.
         let h = Hasher::local();
         let time = DataValue::Time(Time {
             time: "+1952-03-11T00:00:00Z".into(),

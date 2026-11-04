@@ -1,7 +1,7 @@
 # `scatter-talk` test fixtures
 
 Talk pages from Wikipedia, fetched by `tools/talk_dumps.py` from `https://en.wikipedia.org/w/api.php` and converted by
-`tools/talk_fixtures.py`, for the golden tests in `../samples.rs` (ADR 0090 §13).
+`tools/talk_fixtures.py`, for the golden tests in `crates/scatter-talk/tests/samples.rs` (ADR 0090 §13).
 
 **The text is by Wikipedia's contributors** and is available under the
 [Creative Commons Attribution-ShareAlike 4.0 License](https://creativecommons.org/licenses/by-sa/4.0/)

@@ -57,7 +57,7 @@ npm-debug.log*
 *.mwrev.zst
 # Samples too large for git (the Wikidata audit sample of tools/wikidata-sample.py,
 # 140 MB compressed; GitHub refuses files over 100 MB). Shared out of band.
-/docs/api/snapshots/big/
+/docs/samples/wikidata/big/
 # Bind-mounted volumes from compose.yaml
 /.compose/
 
@@ -79,9 +79,6 @@ Thumbs.db
 # --- Trash --------------------------------------------------------
 .trash/
 
-# Dump slices made with tools/dump_slice.py for local rehearsals; the fixture lives in crates/triplespace-server/tests/fixtures/
-tools/*.xml.gz
-tools/*.xml
 
 # Claude Code: personal settings (shared skills in .claude/skills are committed)
 .claude/settings.local.json

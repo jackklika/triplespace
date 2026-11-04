@@ -29,7 +29,7 @@ port="${PORT:-18280}"
 api="http://127.0.0.1:$port"
 tenant=librarybase
 checks="${CHECKS:-dump wbi pwb wdi}"
-fixture="${FIXTURE:-$root/crates/triplespace-server/tests/fixtures/librarybase-sample.xml.gz}"
+fixture="${FIXTURE:-$root/docs/samples/librarybase/dump/librarybase-sample.xml.gz}"
 work="$(mktemp -d)"
 pids=()
 cleanup() {

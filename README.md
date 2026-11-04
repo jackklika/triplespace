@@ -19,7 +19,7 @@ for the crate map and build order.
 | `crates/` | One Cargo workspace. `scatter-*` crates are shared with Scatterbase and know nothing about Triplespace; `triplespace-*` crates are the product (0005 §1). |
 | `tools/` | Scripts that are not part of the build (`tools/README.md`): `wikidata-sample.py` samples a Wikidata dump for the classifier audit (0003 §10); `wikidata_zindex.py` makes a Wikidata JSON dump an indexed zstd archive, to fetch entities by ID and cut slices; `dump_slice.py` cuts a smaller XML dump; `api_check.py`, `pwb_check.py` and `wdi_check.py` exercise a running server through WikibaseIntegrator, Pywikibot and WikidataIntegrator, and `client_compat.sh` runs all three from scratch. |
 | `xtask/` | Repository tasks: `cargo xtask deps` checks the workspace dependency graph against the crate table of 0005 §2 (chapter 22 §2.1); `cargo xtask wasm` builds the crates 0005 rule 7 requires to build for `wasm32-unknown-unknown`. |
-| `docs/` | Architecture chapters, ADRs, registry, API contracts and test vectors. CC0-1.0 (`docs/LICENSE`), so other implementations can embed them. |
+| `docs/` | Architecture chapters, ADRs, registry, API contracts and test vectors. CC0-1.0 (`docs/LICENSE`), so other implementations can embed them. `docs/samples/` holds third-party captures under their own licences (`docs/samples/README.md`). |
 | `ui/` | The site's front end (0034): Codex, its design tokens and the default theme's fonts, built by Vite into `ui/dist`, which `triplespace-ui` embeds. |
 | `i18n/` | The site's interface messages, banana JSON for translatewiki.net (0034 §9). |
 

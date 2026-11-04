@@ -1,7 +1,7 @@
 //! Golden tests against DiscussionTools (0090 §13).
 //!
-//! They read `tests/fixtures/`: the 2026-10-21 samples `tools/talk_dumps.py` fetched from English
-//! Wikipedia, compressed by `tools/talk_fixtures.py` (see the README there for the licence). Set
+//! They read `docs/samples/enwiki-talk/`: the 2026-10-21 samples `tools/talk_dumps.py` fetched from
+//! English Wikipedia, compressed by `tools/talk_fixtures.py` (see the README there for the licence). Set
 //! `TRIPLESPACE_TALK_SAMPLES` to a directory `tools/talk_dumps.py` wrote to run them on other
 //! samples instead; each file is read as named, or with `.gz` or `.bz2` appended.
 //!
@@ -22,7 +22,7 @@ use serde_json::Value;
 
 fn samples() -> PathBuf {
     std::env::var_os("TRIPLESPACE_TALK_SAMPLES").map_or_else(
-        || Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures"),
+        || Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/samples/enwiki-talk"),
         PathBuf::from,
     )
 }
