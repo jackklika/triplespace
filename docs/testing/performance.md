@@ -111,9 +111,10 @@ more. For a machine with `R` of RAM:
 1. **`page_id_of` probes every record partition** (`triplespace-api-ingest/src/store.rs`): the join
    on `log.partition` gives the planner nothing to prune by. Resolve the tenant's partitions first
    (free, from the 3.3 cache) and query `partition = ANY($2)`.
-2. **`sync` materializes the whole dump in a `Vec<SyncItem>`** before `run_sync`, which accepts any
-   iterator. Fine for internetdomains and the 50k Wikidata sample; impossible for the full Wikidata
-   dump. Snapshot mode needs the set of IDs seen, so a full sweep needs more than streaming.
+2. ~~**`sync` materializes the whole dump in a `Vec<SyncItem>`** before `run_sync`.~~ Since
+   2026-11-04 it streams (`SyncItems` in `triplespace-cli/src/sync.rs`): the dump is read one
+   entity at a time as the job takes them. The job still keeps the set of IDs seen (in every mode,
+   for the snapshot sweep), so a full Wikidata sync holds every ID, not every entity, in memory.
 3. ~~**`sync` has only the internetdomains adapter.**~~ Since 0091, `sync` dispatches on the
    registry's `adapter` field and reads every Wikibase provider, Wikidata included, through
    `scatter-adapter-wikibase`; a JSON dump without key maps is read in one pass.

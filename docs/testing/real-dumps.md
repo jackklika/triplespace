@@ -24,11 +24,15 @@ Read this before stage 1, because one of these points changes the stage 1 comman
    [0091](../decisions/0091-one-wikibase-adapter.md): it dispatches on the provider's `adapter`
    field, and `scatter-adapter-wikibase` reads Wikidata, Librarybase and internetdomains alike, with
    the key-map rules of the registry entry. Until 0091 it worked for `internetdomains` only.
-3. **`sync` loads the entire dump into memory first.** It collects every `SyncItem` into a `Vec`
-   before `run_sync` begins, even though `run_sync` accepts any `IntoIterator`. That is fine for
-   internetdomains and the 50k Wikidata sample, and impossible for `latest-all.json.gz` (about 115M
-   entities). 0013 §9 bootstrap mode (COPY, deferred indexes) is not built either. The full
-   Wikidata sync is therefore blocked on code; stage 3 measures what is needed and stops at a slice.
+3. **`sync` streams the dump** (since 2026-11-04): `prepare_wikibase` hands `run_sync` an
+   iterator that reads one entity at a time, so memory no longer grows with the dump. A first
+   pass, when the provider has key maps or the dump is XML, still holds the key index and the
+   property types; the job keeps the set of IDs it has seen in every mode (`seen` in
+   `scatter-ingest`'s `sync.rs`, which the snapshot sweep reads, along with the mirror's entity
+   list), which grows with the number of IDs, not with the entities. Until then `sync` collected every
+   `SyncItem` into a `Vec` first, which was impossible for `latest-all.json.gz` (about 122M
+   entities). 0013 §9 bootstrap mode (COPY, deferred indexes) is not built, so the full Wikidata
+   sync is still blocked on write speed; stage 3 measures what is needed and stops at a slice.
 4. **Known Milestone 1 gaps these tests will hit:** the snapshot sweep tombstones a Domain that is no
    longer in the dump, where 0009 §9 wants an empty `put`; `wbsetsitelink`, `wbgetclaims` and
    `wbmergeitems` are not served; `verify` is not written.
@@ -408,8 +412,10 @@ is the path a Wikidata resolution pass would take, 500 times over.
 On one branch, before any testing:
 - ~~Add `prepare_wikidata` to `sync.rs`.~~ Done by 0091: `prepare_wikibase` serves every Wikibase
   provider, and reads a JSON dump without key maps in one pass.
-- Make the sync stream: pass `run_sync` an iterator instead of a `Vec`. This works for upsert mode;
-  snapshot mode needs a set of the IDs it has seen, so the full dump cannot be swept yet.
+- ~~Make the sync stream: pass `run_sync` an iterator instead of a `Vec`.~~ Done 2026-11-04
+  (`SyncItems`). The job still keeps a set of the IDs it has seen (in every mode; the snapshot
+  sweep reads it with the mirror's entity list), so a full Wikidata sync holds 122M IDs, not
+  122M entities.
 
 ### 3.1 The 50k sample
 
@@ -446,17 +452,44 @@ cp ~/git/triplespace/docs/api/snapshots/big/wikidata-20261004-sample-50000.json.
 
 ### 3.2 A real-dump slice
 
-Download `latest-all.json.gz` (about 140 GB) from dumps.wikimedia.org and cut a prefix rather than
-writing a new reader:
+The dump is **not** in ID order: it is written in shards by page ID and opens Q31, Q8, Q23, with
+properties scattered through it, so a prefix (`head -n`) is neither the first N items nor carries
+the properties its items use. Cut slices by ID instead, from an indexed copy of the dump that
+`tools/wikidata_zindex.py` makes once (`tools/README.md`):
 
 ```sh
-zcat latest-all.json.gz | head -n 1000001 | sed '$ s/,$//' | { cat; echo ']'; } | gzip > wd-slice-1m.json.gz
-triplespace sync --provider wikidata --dump wd-slice-1m.json.gz --version slice-1m-<dumpdate>
+# Pin a dated dump, not latest-all, and take the bz2 (~104 GB): lbzip2 decompresses it on every
+# core, where gzip is single-threaded. aria2c from dumps.wikimedia.org and the your.org mirror
+# (2 connections each) runs ~16 MB/s, about 1¾ h; one wget, ~5 MB/s.
+D=20261026
+aria2c --max-connection-per-server=2 --split=4 --min-split-size=256M --max-tries=0 \
+    --checksum=sha-1=<from wikidata-$D-sha1sums.txt> -o wikidata-$D-all.json.bz2 \
+    https://dumps.wikimedia.org/wikidatawiki/entities/$D/wikidata-$D-all.json.bz2 \
+    https://dumps.wikimedia.your.org/wikidatawiki/entities/$D/wikidata-$D-all.json.bz2
+
+# Once per dump (~2 h on 16 cores, bound by bzip2): the archive and its ID index
+python3 tools/wikidata_zindex.py build wd-$D --input wikidata-$D-all.json.bz2 --sha1 <sha1>
+python3 tools/wikidata_zindex.py verify wd-$D
+
+# The first million items that exist, and every property, in numeric order
+{ python3 tools/wikidata_zindex.py ids wd-$D --kind Q --limit 1000000
+  python3 tools/wikidata_zindex.py ids wd-$D --kind P; } |
+    python3 tools/wikidata_zindex.py get wd-$D --ids-file - | gzip > wd-slice-1m.json.gz
+triplespace sync --provider wikidata --dump wd-slice-1m.json.gz --version slice-1m-$D
 ```
 
-The dump is ordered by ID, so the first million entities are old, dense, heavily linked items: the
-worst case for size per entity. Record the same measurements as in 3.1 at 1M, then repeat with 5M if
-the 1M run looks linear.
+`get` writes JSON Lines, which the dump reader takes as it takes the array form. The dump holds
+only entities that exist, so redirects, deletions and gaps in the numbering are already left out:
+`ids --limit 1000000` ends where the millionth existing item does, well above Q1000000. Any
+other slice (a 5M prefix, a sample, a class of items) is likewise a list of IDs. Keep the archive
+with the dump date in its name; `info` prints the source, sha1 and counts it was built from.
+
+For the 2026-10-26 dump: 122,042,968 items and 14,017 properties; 1.85 TB of JSON in a 104.3 GB
+archive (bzip2: 103.6 GB) with a 2.6 GB index, built in 2 h 1 min at 4.8 GB peak RSS on 16 cores;
+the millionth item is Q1084808; one entity comes back in 0.5 ms.
+
+The first million items are old, dense, heavily linked items: the worst case for size per entity.
+Record the same measurements as in 3.1 at 1M, then repeat with 5M if the 1M run looks linear.
 
 ### 3.3 Extrapolate and decide
 
@@ -492,4 +525,7 @@ One row per run.
 | 2.2 internetdomains | 312,926 entities | | | | | | | | Synced 2026-10-10; measurements not recorded |
 | 2.5 snapshot | | | | | | | | | |
 | 3.1 WD sample | | | | | | | | | |
+| 3.2 WD first-10k + all properties, `main` vs streaming | `wikidata-20261026-all.json.bz2` (sha1 `e46332c3…`) via `wikidata_zindex.py`: Q1–Q10348 (first 10,000 items) and 14,017 properties, 24,017 entities | 8m49s streaming (alone); 11m19s `main` (3 runs in parallel) | 160 MB streaming; 3.75 GB `main` | | 23,862 | 0 | 155 | | 2026-11-04. All 155 unreadable are lexeme form/sense values (`L470-S1`), 0066 §4 not built. |
+| 3.2 WD first-10k + all properties, with lexeme part IDs | same 24,017 entities | 10m21s | 156 MB | | 24,017 | 0 | 0 | | 2026-11-04, after 0066 §4's IDs (A3): the 155 entities with form or sense values now sync, as `WDL…-F…`/`WDL…-S…`. 7 entity-value hash mismatches, the same 7 as before the change: all EntitySchema values (`E1`–`E13` as qualifiers on properties), hashed as `EntityIdValue`s; fixed in `hash.rs` the same day (0 mismatches on the 10k and 50k slices). |
+| 3.2 WD first-50k + all properties, `main` vs streaming | same archive: Q1–Q52905 (first 50,000 items) and 14,017 properties, 64,017 entities, 2.85 GB JSON | 31m34s streaming; 34m04s `main` (3 runs in parallel) | **157 MB** streaming; **10.9 GB** `main` | | 63,757 | 0 | 260 | | 2026-11-04. Same counts both ways; RSS flat with streaming, linear without (≈220 KB/entity). ~35–45 entities/s on these dense early items. |
 | 3.2 WD 1M slice | | | | | | | | | |

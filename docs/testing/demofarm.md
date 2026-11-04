@@ -122,8 +122,7 @@ Read this first: points 2–3 decide what phase 0 has to build before phases 4 a
 9. **Known gaps this will hit:**
    - G21: unit IRIs stay raw;
    - `wbgetentities` `modified` is append time;
-   - the sync loads the whole dump into memory, which is fine at 247k entities but worth watching
-     on the Librarybase run;
+   - ~~the sync loads the whole dump into memory~~ (it streams since 2026-11-04);
    - no `record` ACLs from adoption;
    - no SPARQL endpoint.
 
@@ -487,8 +486,8 @@ curl -s "$R?action=wbgetentities&ids=LBQ1|LBP1&format=json" | jq .
   four tenants (point 4).
 - **Re-sync and snapshot.** Re-sync: unchanged 247,011 (the cursor). Snapshot on the same dump
   with `--threshold 0`: swept 0.
-- **Measurements.** Record wall time and peak RSS. The whole dump is held in memory (point 9); the
-  RSS is the number that says how far the in-memory sync can go before streaming is needed.
+- **Measurements.** Record wall time and peak RSS. The sync streams the dump (point 9), so RSS
+  should stay flat as the dump grows; a rising RSS is a finding.
 
 **Local statements on `LB` entities, from `reader`** (`real-dumps.md` §2.4):
 

@@ -169,8 +169,7 @@ impl Registry {
         }
         let rest = &id[3..];
         let rest = entity_type
-            .id_grammar
-            .canonicalize(rest)
+            .canonical_rest(rest)
             .ok_or_else(|| IdError::Grammar {
                 prefix,
                 grammar: entity_type.id_grammar,
@@ -206,8 +205,7 @@ impl Registry {
         let prefix = format!("{name}:{}", entity_type.upstream_prefix);
         let tail = &rest[entity_type.upstream_prefix.len()..];
         let tail = entity_type
-            .id_grammar
-            .canonicalize(tail)
+            .canonical_rest(tail)
             .ok_or_else(|| IdError::Grammar {
                 prefix,
                 grammar: entity_type.id_grammar,
@@ -247,7 +245,7 @@ impl Registry {
         }
         let rest = upstream_id
             .strip_prefix(entity_type.upstream_prefix.as_str())
-            .and_then(|rest| entity_type.id_grammar.canonicalize(rest))
+            .and_then(|rest| entity_type.canonical_rest(rest))
             .ok_or_else(|| IdError::Grammar {
                 prefix,
                 grammar: entity_type.id_grammar,
@@ -308,6 +306,41 @@ mod tests {
 
     fn reg() -> &'static Registry {
         Registry::default_registry()
+    }
+
+    /// A form or sense of a lexeme (0066 §4): the suffix after the lexeme type's grammar,
+    /// in both directions of the rewrite, and on no other type.
+    #[test]
+    fn lexeme_parts() {
+        let wd = reg().by_code("WD").unwrap();
+        let f = reg().from_upstream(wd, "L252247-F2").unwrap();
+        assert_eq!(f.to_string(), "WDL252247-F2");
+        assert_eq!(f.upstream_id(), "L252247-F2");
+        assert_eq!(f.entity_type().entity_type, "lexeme");
+        assert_eq!(
+            f.concept_iri().as_str(),
+            "http://www.wikidata.org/entity/L252247-F2"
+        );
+        let s = reg().parse_foreign_id("wdl470-s1").unwrap();
+        assert_eq!((s.to_string(), s.rest()), ("WDL470-S1".into(), "470-S1"));
+        assert_eq!(
+            reg()
+                .from_upstream_typed(wd, 'L', "L1-S3")
+                .unwrap()
+                .to_string(),
+            "WDL1-S3"
+        );
+        for bad in [
+            "WDQ1-F1",
+            "WDP1-S1",
+            "WDL1-X1",
+            "WDL1-F",
+            "WDL-F1",
+            "WDL1-F1-S1",
+        ] {
+            assert!(reg().parse_foreign_id(bad).is_err(), "{bad}");
+        }
+        assert!(reg().from_upstream(wd, "Q1-F1").is_err());
     }
 
     #[test]

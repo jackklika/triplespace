@@ -150,6 +150,7 @@ Wikibase hashes PHP serializations, in the pre-PHP-7.4 `Serializable` wrapper `C
 | `quantity`, bounded | `C:24:"DataValues\QuantityValue":L:{a:4:{i:0;D(amount)i:1;S(unit)i:2;D(upperBound)i:3;D(lowerBound)}}` with `D(x) = C:24:"DataValues\DecimalValue":L:{S(x)}` |
 | `quantity`, unbounded | `C:33:"DataValues\UnboundedQuantityValue":L:{a:2:{i:0;D(amount)i:1;S(unit)}}` |
 | `wikibase-entityid` | `C:39:"Wikibase\DataModel\Entity\EntityIdValue":L:{C:<len>:"<ID class>":L:{Q3}}`, the class `Wikibase\DataModel\Entity\ItemId`, `…\NumericPropertyId`, `Wikibase\Lexeme\Domain\Model\LexemeId` / `FormId` / `SenseId` or `Wikibase\MediaInfo\DataModel\MediaInfoId` by `entity-type` |
+| `wikibase-entityid` with `entity-type` `entity-schema` | `C:50:"EntitySchema\Wikibase\DataValues\EntitySchemaValue":L:{O:40:"EntitySchema\Domain\Model\EntitySchemaId":1:{S("\0EntitySchema\Domain\Model\EntitySchemaId\0id")S(E3)}}`: the EntitySchema extension's value is a `DataValueObject`, not an `EntityIdValue`, and its ID is a plain PHP object with one private property (`\0` is a NUL byte). Checked against Wikidata's hashes (2026-10-26 dump) |
 
 The ID inside an entity value is the one the source wrote: Wikidata hashes `Q3`, so a mirrored `WDQ3` is hashed as `Q3` (`Hasher::mirrored_from("WD")`). Everything else in a hash is bytes the JSON carries verbatim, which is why the guard of 0006 §2 can compare on every entity.
 

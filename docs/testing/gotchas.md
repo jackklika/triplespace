@@ -9,7 +9,8 @@ strike what stops being true. Implementation status is not kept here (24 §15: `
 
 - `triplespace-db --test db` `the_public_role_cannot_read_private` fails in the cloud sandbox
   ("permission denied to set role ts_server") on the base commit too; environmental, not a
-  regression. `cargo test --workspace` stops at the first failing test binary; use
+  regression. It fails the same way on a Debian 13 VM prepared by `tools/dev_env.sh`
+  (Postgres 17, 2026-11-04). `cargo test --workspace` stops at the first failing test binary; use
   `--no-fail-fast` to run the rest.
 
 ## The cloud sandbox
@@ -55,6 +56,21 @@ strike what stops being true. Implementation status is not kept here (24 §15: `
 - A test adoption that fails leaves an empty `view`, and an empty `view` passes the rebuild
   equivalence diff vacuously. Check `adopt`'s stderr and the row counts before trusting
   `REBUILD-IDENTICAL`.
+
+## Wikidata dumps
+
+- `latest-all.json.*` is not in ID order: it is written in shards by page ID and opens Q31, Q8,
+  Q23, with properties scattered through it. `head -n N` gives neither the first N items nor
+  the properties they use; cut slices by ID with `tools/wikidata_zindex.py` (real-dumps.md §3.2).
+- `latest-all` changes under a long download; fetch the dated file from
+  `wikidatawiki/entities/<date>/` and check it against that directory's `sha1sums.txt`.
+- dumps.wikimedia.org gives one connection about 5 MB/s and limits connections per IP. The
+  your.org mirror (`dumps.wikimedia.your.org/wikidatawiki/entities/`) serves the same files;
+  `aria2c` with 2 connections to each runs about 16 MB/s. ftp.acc.umu.se did not carry the
+  entity dumps when looked for (2026-11-03).
+- Take the `.bz2` over the `.gz`: `lbzip2` decompresses it on every core (~500 MB/s on 16),
+  where gzip runs on one. A partly downloaded `.bz2` decompresses up to where it stops, which is
+  enough to try a tool on the dump's real opening.
 
 ## The device bridge and James's checkout
 

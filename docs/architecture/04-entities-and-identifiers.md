@@ -46,7 +46,7 @@ The lexeme-part suffix is part of the ID wherever an ID is stored, compared or s
 
 ### 2.2 ID grammars for minted types
 
-*Sources: [0017](../decisions/0017-entity-id-grammar.md) §2; [0017](../decisions/0017-entity-id-grammar.md) §6; [0044](../decisions/0044-tenant-relative-ids.md) §2.*
+*Sources: [0017](../decisions/0017-entity-id-grammar.md) §2; [0017](../decisions/0017-entity-id-grammar.md) §6; [0044](../decisions/0044-tenant-relative-ids.md) §2; [0066](../decisions/0066-lexemes.md) §4.*
 
 Each foreign entity type declares an **ID grammar** in `providers.toml`. It says what may follow the three-letter prefix and what the canonical spelling is.
 
@@ -60,6 +60,8 @@ Each foreign entity type declares an **ID grammar** in `providers.toml`. It says
 Input is case-insensitive in every position. **Canonicalizing an ID uppercases its prefix and applies the grammar's canonical form to the rest**, so `mbab10BBBFC-…` becomes `MBAb10bbbfc-…`. The `entity-id` normalizer of [0008](../decisions/0008-namespaces-and-document-pages.md) §3 therefore does not uppercase the whole ID, and the ID rewriting of [0002](../decisions/0002-source-graphs-and-mass-ingest.md) §4 is: strip or add the prefix, and canonicalize the rest by the type's grammar. The rewriting of upstream IDs also honours `upstream_prefix`, so `keywords/…` and MusicBrainz's bare MBIDs both round-trip.
 
 A grammar is declared per provider and may be set on a single type, overriding the provider's ([0037](../decisions/0037-gdelt-provider.md) §2). A new grammar is added by ADR, as a value the registry accepts. Nothing else in the system needs to know a grammar's rules: the ID parser in `scatter-wikibase-model` ([0005](../decisions/0005-crate-organization.md) §2) reads them from the registry passed in as data (0005 §3, rule 3).
+
+**Lexeme parts.** The `-F` and `-S` suffix of §2.1 belongs to the lexeme entity type, not to a grammar ([0066](../decisions/0066-lexemes.md) §4). A foreign ID whose provider type has entity type `lexeme` may carry, after the rest in that type's grammar, `-F` or `-S` and digits, with the part letter canonical uppercase: `wdl1-f1` is `WDL1-F1`. The rewriting of upstream IDs keeps the suffix (`L252247-F2` ↔ `WDL252247-F2`, concept IRI `http://www.wikidata.org/entity/L252247-F2`), and a type of any other entity type rejects it. So Wikidata's `L` type keeps grammar `digits`, and a provider whose lexemes have another grammar gets the suffix without a grammar of its own.
 
 **Reserved codes.** The twenty-six provider codes `AA` through `ZZ` are reserved in `providers.toml` and are never allocated, so that the tenant-relative input form (§2.3) is unambiguous: a provider with code `QQ` would make `QQQ5` mean two things. No allocated code is a doubled letter (`WD`, `LB`, `OA`, `MB`, `XD`, `OS`, `OW`, `GD`), so nothing moves. Reserving all twenty-six, not only the letters local types use today, means a type letter added later already has its tenant-relative form.
 
