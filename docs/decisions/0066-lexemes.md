@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-10-05
-- **Updated:** 2026-10-09 (A2)
+- **Updated:** 2026-11-04 (A3)
 - **Author:** James Hare / Claude Fable
 - **Changes:** [0004](0004-identity-clusters-and-equivalence.md), [0005](0005-crate-organization.md), [0008](0008-namespaces-and-document-pages.md), [0012](0012-api-requirements.md), [0013](0013-postgres-storage.md), [0014](0014-caches-and-search.md), [0017](0017-entity-id-grammar.md), [0041](0041-content-models.md), [0043](0043-lua-modules.md), [0047](0047-special-pages.md), [0060](0060-scopes.md)
 - **Uses:** [0002](0002-source-graphs-and-mass-ingest.md), [0003](0003-statement-ui.md), [0009](0009-keyed-entity-types-and-domain.md), [0010](0010-site-ui.md), [0015](0015-record-format-and-partition-registry.md), [0016](0016-permissions-and-access-control.md), [0023](0023-moderation.md), [0031](0031-property-constraints.md), [0032](0032-sparql-update-stream.md), [0035](0035-adopting-a-wikibase.md), [0045](0045-table-content-model.md), [Wikibase data model and ontology contract](../api/wikibase-compat.md)
@@ -34,9 +34,9 @@ James's direction, from the design discussion of 2026-10-05:
 
 ### 4. IDs and clusters (extends 0017 §1; extends 0004 §1)
 
-*Changed by A1.*
+*Changed by A1, A3.*
 
-*Current text: [04](../architecture/04-entities-and-identifiers.md) §2.1, §4.1, §4.10, §5.1.*
+*Current text: [04](../architecture/04-entities-and-identifiers.md) §2.1, §2.2, §4.1, §4.10, §5.1.*
 
 ### 5. Terms, search and storage (extends 0013 §5.6; extends 0014 §7; extends 0060 §4)
 
@@ -109,3 +109,11 @@ Replaced text (§4):
 - **Source:** [0050](0050-adr-format.md) §14
 - **Change:** relocates §1–§10
 - **Summary:** The Decision's current text now lives in the architecture chapters [02](../architecture/02-graphs-rdf-and-query.md), [03](../architecture/03-storage-caches-and-search.md), [04](../architecture/04-entities-and-identifiers.md), [18](../architecture/18-api.md), [19](../architecture/19-site-ui.md), [21](../architecture/21-special-pages.md), [22](../architecture/22-crates-and-stack.md), in the sections each pointer names; this ADR keeps its headings, provenance lines, Context, Consequences, Open questions and this log. The last commit in which this file carried the text is `c76d96f`. No decision changed.
+
+### A3. The part suffix belongs to the lexeme entity type, not to a grammar
+
+- **Date:** 2026-11-04
+- **Source:** Direct: Claude, while building lexeme part IDs, 2026-11-04; unconfirmed
+- **Change:** extends §4
+- **Summary:** A foreign ID of a provider type whose entity type is `lexeme` may carry the part suffix (`-F` or `-S` and digits, part letter canonical uppercase) after the rest in the type's ID grammar, whatever that grammar is; a type of any other entity type rejects it. No grammar is added to `providers.toml`, and Wikidata's `L` type keeps `digits`. The alternative, a `lexeme` grammar named on the type, would make every provider of lexemes declare it and would tie the suffix to digits. Built for the Wikidata mirror, whose item statements name senses and forms as values (`L499143-S1`, about 0.04% of entities in the 2026-10-26 dump), so that they sync instead of being unreadable.
+

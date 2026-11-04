@@ -12,13 +12,16 @@
 //! Every reject is printed to stderr (`reject Q48: …`) and, with `--rejects`, written to a
 //! tab-separated file: the job record keeps only the first 100 (0010 §9).
 
-use std::io::Write;
+use std::cell::Cell;
+use std::collections::VecDeque;
+use std::io::{BufRead, Write};
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use anyhow::{Context, Result, bail};
 use clap::Args;
 use scatter_adapter_wikibase::{
-    DumpEntry, DumpPropertyTypes, Entities, Index, KeyMappedAdapter, KeyRules, Outcome,
+    DumpEntry, DumpPropertyTypes, Entities, Entries, Index, KeyMappedAdapter, KeyRules, Outcome,
 };
 use scatter_ingest::sync::{SyncItem, run_sync_in};
 use scatter_ingest::write::Attestation;
@@ -65,22 +68,139 @@ pub struct Sync {
     pub rejects: Option<PathBuf>,
 }
 
-/// What a dump yields for the sync.
-pub struct Prepared {
-    /// The items, in dump order.
-    pub items: Vec<SyncItem>,
-    /// Entities the dump reader could not parse.
-    pub unreadable: u64,
+/// What a dump yields for the sync: its items in dump order, read as the sync asks for
+/// them, so a dump of any size is held one entity at a time (`run_sync_in` takes any
+/// iterator). The first pass, when there is one, has already run; it keeps the key index
+/// and the property types, not the entities.
+pub struct SyncItems {
+    entries: Entries<Box<dyn BufRead + Send>>,
+    adapter: KeyMappedAdapter,
+    types: DumpPropertyTypes,
+    /// Whether the first pass counted the unreadable entries, so this one skips them.
+    counted: bool,
+    /// Items made from one entry and not yet handed over: a reject and its state.
+    pending: VecDeque<SyncItem>,
+    unreadable: Rc<Cell<u64>>,
+    done: bool,
+}
+
+impl SyncItems {
+    /// Entities the dump reader or the adapter could not read so far: all of them once
+    /// the iterator is exhausted.
+    pub fn unreadable(&self) -> u64 {
+        self.unreadable.get()
+    }
+
+    /// A handle on [`Self::unreadable`] that outlives the iterator, for reading the count
+    /// after the sync has consumed it.
+    pub fn unreadable_counter(&self) -> Rc<Cell<u64>> {
+        Rc::clone(&self.unreadable)
+    }
+
+    fn unreadable_one(&self) {
+        self.unreadable.set(self.unreadable.get() + 1);
+    }
+
+    /// The items one dump entry makes, queued in `pending`.
+    fn read(&mut self, entry: Result<DumpEntry, scatter_adapter_wikibase::DumpError>) {
+        let mut parsed = match entry {
+            Ok(DumpEntry::Entity(p)) => *p,
+            Ok(DumpEntry::Redirect(r)) => {
+                let upstream = Upstream::revision(r.revid, Some(&r.timestamp));
+                match self
+                    .adapter
+                    .sync_redirect(r.from.as_str(), r.to.as_str(), upstream)
+                {
+                    Ok(Some((from, to, upstream))) => {
+                        self.pending
+                            .push_back(SyncItem::Redirected { from, to, upstream });
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        self.unreadable_one();
+                        eprintln!("adapter error: {} → {}: {e}", r.from, r.to);
+                    }
+                }
+                return;
+            }
+            Err(e) => {
+                // Counted by the first pass when there was one.
+                if !self.counted {
+                    self.unreadable_one();
+                    eprintln!("dump error: {e}");
+                }
+                return;
+            }
+        };
+        self.types.apply(&mut parsed.entity);
+        match self.adapter.sync_item(parsed) {
+            Ok(Outcome::State {
+                entity,
+                upstream,
+                upstream_id,
+                upstream_aliases,
+            }) => self.pending.push_back(SyncItem::State {
+                entity,
+                upstream,
+                upstream_id,
+                upstream_aliases,
+            }),
+            Ok(Outcome::Rejected {
+                entity,
+                upstream,
+                upstream_id,
+                reason,
+            }) => {
+                self.pending.push_back(SyncItem::Rejected {
+                    upstream_id,
+                    reason,
+                });
+                self.pending.push_back(SyncItem::State {
+                    entity,
+                    upstream,
+                    upstream_id: None,
+                    upstream_aliases: Vec::new(),
+                });
+            }
+            Err(e) => {
+                self.unreadable_one();
+                eprintln!("adapter error: {e}");
+            }
+        }
+    }
+}
+
+impl Iterator for SyncItems {
+    type Item = SyncItem;
+
+    fn next(&mut self) -> Option<SyncItem> {
+        loop {
+            if let Some(item) = self.pending.pop_front() {
+                return Some(item);
+            }
+            if self.done {
+                return None;
+            }
+            if let Some(entry) = self.entries.next() {
+                self.read(entry);
+            } else {
+                self.done = true;
+                if let Some(line) = self.types.untyped_summary() {
+                    eprintln!("  {line}");
+                }
+            }
+        }
+    }
 }
 
 /// Reads a Wikibase provider's dump through `scatter-adapter-wikibase` with the provider's
 /// key-map rules: two passes when the rules or the format need them, one otherwise
-/// (0091 §4).
+/// (0091 §4). The first pass runs here; the second runs as the items are taken.
 pub fn prepare_wikibase(
     provider: &Provider,
     registry: &'static Registry,
     dump: &std::path::Path,
-) -> Result<Prepared> {
+) -> Result<SyncItems> {
     let rules = KeyRules::from_provider(provider)?;
     let inner = WikibaseAdapter::with_registry(&provider.slug, registry)
         .with_context(|| format!("provider `{}` is not registered", provider.slug))?;
@@ -101,8 +221,15 @@ pub fn prepare_wikibase(
             index.redirects()
         );
     }
-    let adapter = KeyMappedAdapter::new(inner, rules, index);
-    second_pass(dump, &adapter, &mut types, unreadable, two_passes)
+    Ok(SyncItems {
+        entries: Entities::open(dump).context("open dump")?.entries(),
+        adapter: KeyMappedAdapter::new(inner, rules, index),
+        types,
+        counted: two_passes,
+        pending: VecDeque::new(),
+        unreadable: Rc::new(Cell::new(unreadable)),
+        done: false,
+    })
 }
 
 /// The first pass: the key index, the property types and the redirects.
@@ -134,119 +261,74 @@ fn first_pass(
     Ok(())
 }
 
-/// The second pass: every entity and redirect through the adapter. Entities the first
-/// pass could not read are counted there and skipped here.
-fn second_pass(
-    dump: &std::path::Path,
-    adapter: &KeyMappedAdapter,
-    types: &mut DumpPropertyTypes,
-    mut unreadable: u64,
-    counted: bool,
-) -> Result<Prepared> {
-    let mut items = Vec::new();
-    for entry in Entities::open(dump).context("open dump")?.entries() {
-        let mut parsed = match entry {
-            Ok(DumpEntry::Entity(p)) => *p,
-            Ok(DumpEntry::Redirect(r)) => {
-                let upstream = Upstream::revision(r.revid, Some(&r.timestamp));
-                match adapter.sync_redirect(r.from.as_str(), r.to.as_str(), upstream) {
-                    Ok(Some((from, to, upstream))) => {
-                        items.push(SyncItem::Redirected { from, to, upstream });
-                    }
-                    Ok(None) => {}
-                    Err(e) => {
-                        unreadable += 1;
-                        eprintln!("adapter error: {} → {}: {e}", r.from, r.to);
-                    }
-                }
-                continue;
-            }
-            Err(e) => {
-                // Counted by the first pass when there was one.
-                if !counted {
-                    unreadable += 1;
-                    eprintln!("dump error: {e}");
-                }
-                continue;
-            }
-        };
-        types.apply(&mut parsed.entity);
-        match adapter.sync_item(parsed) {
-            Ok(Outcome::State {
-                entity,
-                upstream,
-                upstream_id,
-                upstream_aliases,
-            }) => items.push(SyncItem::State {
-                entity,
-                upstream,
-                upstream_id,
-                upstream_aliases,
-            }),
-            Ok(Outcome::Rejected {
-                entity,
-                upstream,
+/// What the sync's items are watched for on their way in: every reject, printed to stderr
+/// and, with a path, written as an `upstream ID<TAB>reason` line (the job record keeps only
+/// the first 100), and the newest upstream time, where the load ended.
+pub struct Watch {
+    rejects: Option<std::io::BufWriter<std::fs::File>>,
+    /// The first error writing the rejects file: an iterator cannot return it.
+    error: Option<std::io::Error>,
+    latest: Option<u64>,
+}
+
+impl Watch {
+    /// Creates the rejects file, if one is named.
+    pub fn new(rejects: Option<&std::path::Path>) -> Result<Self> {
+        let rejects = rejects
+            .map(|p| {
+                std::fs::File::create(p)
+                    .map(std::io::BufWriter::new)
+                    .with_context(|| format!("create {}", p.display()))
+            })
+            .transpose()?;
+        Ok(Self {
+            rejects,
+            error: None,
+            latest: None,
+        })
+    }
+
+    /// Notes one item.
+    pub fn observe(&mut self, item: &SyncItem) {
+        match item {
+            SyncItem::Rejected {
                 upstream_id,
                 reason,
-            }) => {
-                items.push(SyncItem::Rejected {
-                    upstream_id,
-                    reason,
-                });
-                items.push(SyncItem::State {
-                    entity,
-                    upstream,
-                    upstream_id: None,
-                    upstream_aliases: Vec::new(),
-                });
+            } => {
+                eprintln!("reject {upstream_id}: {reason}");
+                if let Some(f) = self.rejects.as_mut()
+                    && self.error.is_none()
+                {
+                    let reason = reason.replace(['\t', '\n'], " ");
+                    if let Err(e) = writeln!(f, "{upstream_id}\t{reason}") {
+                        self.error = Some(e);
+                    }
+                }
             }
-            Err(e) => {
-                unreadable += 1;
-                eprintln!("adapter error: {e}");
-            }
-        }
-    }
-    if let Some(line) = types.untyped_summary() {
-        eprintln!("  {line}");
-    }
-    Ok(Prepared { items, unreadable })
-}
-
-/// Prints every reject to stderr and, with a path, writes them as `upstream ID<TAB>reason`
-/// lines: the job record keeps only the first 100.
-pub fn report_rejects(items: &[SyncItem], path: Option<&std::path::Path>) -> Result<()> {
-    let mut file = path
-        .map(|p| {
-            std::fs::File::create(p)
-                .map(std::io::BufWriter::new)
-                .with_context(|| format!("create {}", p.display()))
-        })
-        .transpose()?;
-    for item in items {
-        if let SyncItem::Rejected {
-            upstream_id,
-            reason,
-        } = item
-        {
-            eprintln!("reject {upstream_id}: {reason}");
-            if let Some(f) = file.as_mut() {
-                let reason = reason.replace(['\t', '\n'], " ");
-                writeln!(f, "{upstream_id}\t{reason}")?;
+            SyncItem::State { upstream, .. }
+            | SyncItem::Deleted { upstream, .. }
+            | SyncItem::Redirected { upstream, .. } => {
+                if let Some(t) = upstream
+                    .time
+                    .as_deref()
+                    .and_then(scatter_adapter_mediawiki::recentchanges::parse_iso)
+                {
+                    self.latest = self.latest.max(Some(t));
+                }
             }
         }
     }
-    if let Some(mut f) = file {
-        f.flush()?;
-    }
-    Ok(())
-}
 
-/// The newest upstream time among a load's items, epoch seconds.
-fn latest_time(times: &[String]) -> Option<u64> {
-    times
-        .iter()
-        .filter_map(|t| scatter_adapter_mediawiki::recentchanges::parse_iso(t))
-        .max()
+    /// Flushes the rejects file and returns the newest upstream time, epoch seconds.
+    pub fn finish(mut self) -> Result<Option<u64>> {
+        if let Some(e) = self.error.take() {
+            return Err(e).context("write the rejects file");
+        }
+        if let Some(mut f) = self.rejects.take() {
+            f.flush().context("write the rejects file")?;
+        }
+        Ok(self.latest)
+    }
 }
 
 /// A registry provider's mirror, or a tenant's source in the tenant's table of names:
@@ -275,12 +357,13 @@ pub async fn run(args: Sync) -> Result<()> {
     let client = connect(&args.database).await?;
     let (registry, provider, tenant) = target(&client, &args).await?;
     let slug = provider.slug.as_str();
-    let prepared = match provider.adapter.as_deref() {
+    let items = match provider.adapter.as_deref() {
         Some(scatter_adapter_wikibase::NAME) => prepare_wikibase(provider, registry, &args.dump)?,
         Some(other) => bail!("`{slug}` is read by `{other}`, which this build does not include"),
         None => bail!("`{slug}` names no adapter"),
     };
-    report_rejects(&prepared.items, args.rejects.as_deref())?;
+    let unreadable = items.unreadable_counter();
+    let mut watch = Watch::new(args.rejects.as_deref())?;
     let farm = farm_of(&client).await?;
     let (store, pipeline) = store(&args.database, &farm)?;
     let version = args.version.clone().unwrap_or_else(|| {
@@ -304,23 +387,13 @@ pub async fn run(args: Sync) -> Result<()> {
         scatter_adapter_wikibase::NAME,
         scatter_adapter_wikibase::VERSION
     ));
-    let items_times: Vec<String> = prepared
-        .items
-        .iter()
-        .filter_map(|i| match i {
-            SyncItem::State { upstream, .. }
-            | SyncItem::Deleted { upstream, .. }
-            | SyncItem::Redirected { upstream, .. } => upstream.time.clone(),
-            SyncItem::Rejected { .. } => None,
-        })
-        .collect();
     let outcome = run_sync_in(
         &store,
         &pipeline,
         &tenant,
         header,
         Attestation::by(&farm.operator().to_string()),
-        prepared.items,
+        items.inspect(|item| watch.observe(item)),
         args.threshold,
         registry,
         now(),
@@ -328,8 +401,9 @@ pub async fn run(args: Sync) -> Result<()> {
     )
     .await
     .context("sync")?;
+    let latest = watch.finish()?;
     // Where the load ended (0092 §5), for a follower to continue from.
-    if let Some(latest) = latest_time(&items_times) {
+    if let Some(latest) = latest {
         let kind = if tenant.is_empty() {
             KIND_PROVIDER
         } else {
@@ -358,8 +432,8 @@ pub async fn run(args: Sync) -> Result<()> {
     if outcome.swept > 0 {
         println!("  swept      {}", outcome.swept);
     }
-    if prepared.unreadable > 0 {
-        println!("  unreadable {} (see stderr)", prepared.unreadable);
+    if unreadable.get() > 0 {
+        println!("  unreadable {} (see stderr)", unreadable.get());
     }
     Ok(())
 }
@@ -372,14 +446,27 @@ mod tests {
     use scatter_wikibase_model::statement::SnakKind;
     use scatter_wikibase_model::value::{DataType, DataValue};
 
+    /// What the sync would be handed, read to the end, and the unreadable count then.
+    struct Prepared {
+        items: Vec<SyncItem>,
+        unreadable: u64,
+    }
+
+    fn collect(mut items: SyncItems) -> Prepared {
+        let collected: Vec<SyncItem> = items.by_ref().collect();
+        Prepared {
+            items: collected,
+            unreadable: items.unreadable(),
+        }
+    }
+
+    fn prepare(slug: &str, dump: &std::path::Path) -> Result<Prepared> {
+        let provider = Registry::default_registry().by_slug(slug).unwrap();
+        prepare_wikibase(provider, Registry::default_registry(), dump).map(collect)
+    }
+
     fn prepare_internetdomains(dump: &std::path::Path) -> Result<Prepared> {
-        prepare_wikibase(
-            Registry::default_registry()
-                .by_slug("internetdomains")
-                .unwrap(),
-            Registry::default_registry(),
-            dump,
-        )
+        prepare("internetdomains", dump)
     }
 
     fn fixture(name: &str) -> std::path::PathBuf {
@@ -408,13 +495,7 @@ mod tests {
     /// dump's own properties, and nothing is rejected.
     #[test]
     fn a_wikibase_without_a_key_map_mirrors_under_its_prefix() {
-        let provider = Registry::default_registry().by_slug("librarybase").unwrap();
-        let prepared = prepare_wikibase(
-            provider,
-            Registry::default_registry(),
-            &fixture("librarybase-sample.xml.gz"),
-        )
-        .unwrap();
+        let prepared = prepare("librarybase", &fixture("librarybase-sample.xml.gz")).unwrap();
         assert_eq!(prepared.unreadable, 0);
         assert!(prepared.items.len() > 100, "{}", prepared.items.len());
         for item in &prepared.items {
@@ -446,13 +527,7 @@ mod tests {
     /// carry their `datatype`, and there is no index to build.
     #[test]
     fn a_json_dump_without_a_key_map_is_read_once() {
-        let provider = Registry::default_registry().by_slug("librarybase").unwrap();
-        let prepared = prepare_wikibase(
-            provider,
-            Registry::default_registry(),
-            &fixture("internetdomains.json"),
-        )
-        .unwrap();
+        let prepared = prepare("librarybase", &fixture("internetdomains.json")).unwrap();
         assert_eq!(prepared.unreadable, 0);
         let ids: Vec<String> = prepared
             .items
@@ -467,6 +542,83 @@ mod tests {
             ids.iter()
                 .all(|id| id.starts_with("LBQ") || id.starts_with("LBP")),
             "{ids:?}"
+        );
+    }
+
+    /// The items are read as the sync takes them, not before: after the first item of a
+    /// one-pass JSON dump, the rest of the dump is still unread.
+    #[test]
+    fn a_dump_is_read_as_the_sync_takes_its_items() {
+        let provider = Registry::default_registry().by_slug("librarybase").unwrap();
+        let mut items = prepare_wikibase(
+            provider,
+            Registry::default_registry(),
+            &fixture("internetdomains.json"),
+        )
+        .unwrap();
+        assert!(items.next().is_some());
+        assert!(
+            !items.done,
+            "the dump is not read to the end for the first item"
+        );
+        assert!(items.pending.is_empty());
+        let rest = items.by_ref().count();
+        assert_eq!(rest, 3);
+        assert!(items.done);
+        assert!(items.next().is_none());
+    }
+
+    /// Wikidata items whose values are a lexeme's sense or form (0066 §4) mirror like any
+    /// other: the values become `WDL…-S…` and `WDL…-F…`, and the snak hashes Wikidata
+    /// wrote for them recompute the same. Two real statements of the 2026-10-26 dump.
+    #[test]
+    fn values_naming_a_sense_or_a_form_mirror_with_their_hashes() {
+        let sense = r#"{"mainsnak":{"snaktype":"value","property":"P1549","datavalue":{"value":{"text":"Belgier","language":"de"},"type":"monolingualtext"},"datatype":"monolingualtext"},"type":"statement","qualifiers":{"P518":[{"snaktype":"value","property":"P518","hash":"735874569aa9bd9762a6bf8dea8d3b3faae7d12b","datavalue":{"value":{"entity-type":"item","numeric-id":499327,"id":"Q499327"},"type":"wikibase-entityid"},"datatype":"wikibase-item"}],"P7018":[{"snaktype":"value","property":"P7018","hash":"12e61a1c81f9fc906805e081c6112561e268e93b","datavalue":{"value":{"entity-type":"sense","id":"L499143-S1"},"type":"wikibase-entityid"},"datatype":"wikibase-sense"}]},"qualifiers-order":["P518","P7018"],"id":"Q31$a09fa2e0-4ba8-6bfa-f1af-4ed688f6fd04","rank":"normal"}"#;
+        let form = r#"{"mainsnak":{"snaktype":"value","property":"P8017","datavalue":{"value":{"entity-type":"form","id":"L252247-F2"},"type":"wikibase-entityid"},"datatype":"wikibase-form"},"type":"statement","id":"Q33866$c2e8a983-4dca-9d9d-46a6-c02b4a249e34","rank":"normal"}"#;
+        let item = |id: &str, p: &str, statement: &str| {
+            format!(
+                r#"{{"type":"item","id":"{id}","labels":{{}},"descriptions":{{}},"aliases":{{}},"claims":{{"{p}":[{statement}]}},"sitelinks":{{}},"lastrevid":1,"modified":"2026-10-25T00:00:00Z"}}"#
+            )
+        };
+        let dump = format!(
+            "[\n{},\n{}\n]\n",
+            item("Q31", "P1549", sense),
+            item("Q33866", "P8017", form)
+        );
+        let path =
+            std::env::temp_dir().join(format!("ts-lexeme-parts-{}.json", std::process::id()));
+        std::fs::write(&path, dump).unwrap();
+        let prepared = prepare("wikidata", &path).unwrap();
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(prepared.unreadable, 0);
+        let hasher = scatter_wikibase_model::Hasher::mirrored_from("WD");
+        let mut values = Vec::new();
+        for item in prepared.items {
+            let SyncItem::State { entity, .. } = item else {
+                panic!("only states: {item:?}");
+            };
+            let mut entity = *entity;
+            let mismatches = hasher.reconcile(&mut entity);
+            assert!(
+                mismatches.is_empty(),
+                "{}: {:?}",
+                entity.id,
+                mismatches.by_kind()
+            );
+            for snak in snaks_of(&entity) {
+                if let SnakKind::Value(DataValue::EntityId(v)) = &snak.kind
+                    && v.id.lexeme_part().is_some()
+                {
+                    values.push((v.entity_type.clone(), v.id.to_string()));
+                }
+            }
+        }
+        assert_eq!(
+            values,
+            [
+                ("sense".to_string(), "WDL499143-S1".to_string()),
+                ("form".to_string(), "WDL252247-F2".to_string()),
+            ]
         );
     }
 
@@ -583,7 +735,15 @@ mod tests {
         assert_eq!(redirects, [("XDQ21".to_string(), "XDQ20".to_string())]);
 
         let file = std::env::temp_dir().join(format!("ts-rejects-{}.tsv", std::process::id()));
-        report_rejects(&prepared.items, Some(&file)).unwrap();
+        let mut watch = Watch::new(Some(&file)).unwrap();
+        for item in &prepared.items {
+            watch.observe(item);
+        }
+        assert_eq!(
+            watch.finish().unwrap(),
+            scatter_adapter_mediawiki::recentchanges::parse_iso("2026-10-02T00:00:00Z"),
+            "the newest upstream time among the items"
+        );
         let tsv = std::fs::read_to_string(&file).unwrap();
         std::fs::remove_file(&file).unwrap();
         let lines: Vec<&str> = tsv.lines().collect();

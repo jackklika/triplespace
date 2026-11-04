@@ -48,6 +48,26 @@ impl EntityType {
     pub fn iri_for(&self, upstream_id: &str) -> String {
         self.iri.replace("{upstream_id}", upstream_id)
     }
+
+    /// The canonical spelling of an ID's rest (after the prefix) under this type, or
+    /// `None` if it is not valid: the type's grammar, and for a type whose entities are
+    /// lexemes, optionally a part suffix after it, `-F` or `-S` and digits, naming a form
+    /// or a sense, with the part letter uppercased (0066 §4). The suffix belongs to the
+    /// lexeme entity type, whatever the grammar of its base; no other type takes one.
+    #[must_use]
+    pub fn canonical_rest(&self, rest: &str) -> Option<String> {
+        if self.entity_type == "lexeme"
+            && let Some((base, part)) = rest.rsplit_once('-')
+            && let Some(kind) = part.as_bytes().first().map(u8::to_ascii_uppercase)
+            && (kind == b'F' || kind == b'S')
+            && part.len() > 1
+            && part.bytes().skip(1).all(|b| b.is_ascii_digit())
+            && let Some(base) = self.id_grammar.canonicalize(base)
+        {
+            return Some(format!("{base}-{}{}", kind as char, &part[1..]));
+        }
+        self.id_grammar.canonicalize(rest)
+    }
 }
 
 /// A provider registry entry.
