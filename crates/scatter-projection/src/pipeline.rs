@@ -71,12 +71,15 @@ pub struct Progress {
 /// Projections in step order.
 pub struct Pipeline<B: Backend> {
     projections: Vec<Arc<dyn Projection<B>>>,
+    /// Run over a block before any projection applies it ([`Self::before_block`]).
+    prelude: Option<fn(&[Record])>,
 }
 
 impl<B: Backend> Default for Pipeline<B> {
     fn default() -> Self {
         Self {
             projections: Vec::new(),
+            prelude: None,
         }
     }
 }
@@ -86,6 +89,15 @@ impl<B: Backend> Pipeline<B> {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Runs `prelude` over each block [`Self::apply_inline_many`] applies, before the first
+    /// projection: work every projection over the block would otherwise repeat, such as
+    /// decoding the records' content, done once and on as many threads as it likes.
+    #[must_use]
+    pub fn before_block(mut self, prelude: fn(&[Record])) -> Self {
+        self.prelude = Some(prelude);
+        self
     }
 
     /// Adds a projection, keeping step order; within a step, the order of addition.
@@ -216,6 +228,9 @@ impl<B: Backend> Pipeline<B> {
             "apply_inline_many takes consecutive records of one partition"
         );
         let started = Instant::now();
+        if let Some(prelude) = self.prelude {
+            prelude(records);
+        }
         let mut out = Inline::default();
         let mut pending: Vec<(&dyn Projection<B>, Target)> = Vec::new();
         for p in self.synchronous() {

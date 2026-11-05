@@ -214,36 +214,120 @@ pub fn attested(record: &Record) -> Attested {
 /// record back from the store: decoding it each time (the canonical-CBOR check re-encodes
 /// it, then serde builds the `Operation`) was about two-fifths of a Wikidata sync's client
 /// CPU (`docs/testing/performance.md` §8). Decoding is a pure function of the content
-/// bytes, so the last decoded operation is kept per thread with a copy of its bytes and
-/// returned again, cloned, when the bytes are equal. Every distinct record is still
-/// decoded and checked once.
+/// bytes, so decoded operations are kept per thread ([`DECODED`]) with a copy of their
+/// bytes and returned again, cloned, when the bytes are equal. Every distinct record is
+/// still decoded and checked once. A block of records ([`decode_block`]) is decoded before
+/// the first projection reads it, so that each projection after it finds the block's
+/// operations instead of decoding them again.
 pub fn operation(record: &Record) -> Result<Option<Operation>, String> {
     let Some(bytes) = record.body().content().bytes() else {
         return Ok(None);
     };
-    if let Some(hit) = LAST_OPERATION.with_borrow(|last| {
-        last.as_ref()
-            .filter(|(b, _)| b.as_slice() == bytes)
-            .map(|(_, op)| op.clone())
-    }) {
+    if let Some(hit) = DECODED.with_borrow(|d| d.get(bytes).cloned()) {
         return Ok(hit);
     }
-    let op = match content(record)? {
-        None => None,
-        Some(value) => Some(
-            cbor::from_value::<Operation>(value)
-                .map_err(|e| format!("not a change-set operation: {e}"))?,
-        ),
-    };
-    LAST_OPERATION.with_borrow_mut(|last| *last = Some((bytes.to_vec(), op.clone())));
+    let op = decode_operation(record)?;
+    remember(vec![(bytes.to_vec(), op.clone())]);
     Ok(op)
 }
 
+/// The operation in a record's content, decoded and checked.
+fn decode_operation(record: &Record) -> Result<Option<Operation>, String> {
+    match content(record)? {
+        None => Ok(None),
+        Some(value) => Ok(Some(
+            cbor::from_value::<Operation>(value)
+                .map_err(|e| format!("not a change-set operation: {e}"))?,
+        )),
+    }
+}
+
+/// Decodes the operations of a block of records that [`operation`] has not decoded yet, on
+/// as many threads as the machine has, and keeps them for it. A projection applying a
+/// block calls this first; it is idempotent, so the projections after it find the block
+/// decoded. A record that does not decode is left for [`operation`] to report.
+pub fn decode_block(records: &[Record]) {
+    let todo: Vec<&Record> = DECODED.with_borrow(|d| {
+        records
+            .iter()
+            .filter(|r| {
+                r.body()
+                    .content()
+                    .bytes()
+                    .is_some_and(|b| !d.contains_key(b))
+            })
+            .collect()
+    });
+    if todo.len() < 2 {
+        return;
+    }
+    let threads = std::thread::available_parallelism()
+        .map_or(1, std::num::NonZero::get)
+        .min(todo.len());
+    let chunk = todo.len().div_ceil(threads);
+    let decoded: Vec<(Vec<u8>, Option<Operation>)> = std::thread::scope(|s| {
+        let handles: Vec<_> = todo
+            .chunks(chunk)
+            .map(|part| {
+                s.spawn(move || {
+                    part.iter()
+                        .filter_map(|r| {
+                            let op = decode_operation(r).ok()?;
+                            Some((r.body().content().bytes()?.to_vec(), op))
+                        })
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .flat_map(|h| h.join().expect("a decoding thread does not panic"))
+            .collect()
+    });
+    remember(decoded);
+}
+
+/// Keeps decoded operations, forgetting all those kept before when the cache is full: a
+/// block's operations are read by the projections over that block, then not again.
+fn remember(decoded: Vec<(Vec<u8>, Option<Operation>)>) {
+    DECODED.with_borrow_mut(|d| {
+        let adding: usize = decoded.iter().map(|(b, _)| b.len()).sum();
+        if d.ops.len() + decoded.len() > DECODED_MAX || d.bytes + adding > DECODED_MAX_BYTES {
+            d.ops.clear();
+            d.bytes = 0;
+        }
+        d.bytes += adding;
+        d.ops.extend(decoded);
+    });
+}
+
+/// How many decoded operations a thread keeps, and how many content bytes they may come
+/// from: several bootstrap blocks (`scatter_ingest::bootstrap`, 200 records by default),
+/// so that a block stays decoded while every projection reads it, without a run of
+/// megabyte-sized items holding much.
+const DECODED_MAX: usize = 4096;
+const DECODED_MAX_BYTES: usize = 64 << 20;
+
+/// Decoded operations by their content bytes, with the bytes' total length.
+#[derive(Default)]
+struct Decoded {
+    ops: std::collections::HashMap<Vec<u8>, Option<Operation>>,
+    bytes: usize,
+}
+
+impl Decoded {
+    fn get(&self, bytes: &[u8]) -> Option<&Option<Operation>> {
+        self.ops.get(bytes)
+    }
+
+    fn contains_key(&self, bytes: &[u8]) -> bool {
+        self.ops.contains_key(bytes)
+    }
+}
+
 thread_local! {
-    /// The content bytes of the last record [`operation`] decoded on this thread, and what
-    /// they decoded to.
-    static LAST_OPERATION: std::cell::RefCell<Option<(Vec<u8>, Option<Operation>)>> =
-        const { std::cell::RefCell::new(None) };
+    /// Content bytes this thread has decoded, and what they decoded to.
+    static DECODED: std::cell::RefCell<Decoded> = std::cell::RefCell::new(Decoded::default());
 }
 
 /// The header key a subject's records are filed under: the entity ID itself, or for a

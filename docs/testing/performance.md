@@ -376,6 +376,23 @@ MB, time 472 s → 515 s and 474 s (runs vary by about 6%). What remains of the 
 of 42 units of the largest items, the projections' working set for a block of them, and
 mimalloc's retention; bounding the window by bytes rather than units would take it lower still.
 
+**Each block decoded once (2026-11-05).** callgrind per thread over a 2,000-item bootstrap load:
+88% of the coordinator's instructions were `common::operation`, decoding each record's content
+again for every projection. The memo kept only the last record decoded, and a block is applied a
+projection at a time, so every projection after the first missed it. The memo is now a cache of
+decoded operations per thread, keyed by the content bytes (4,096 operations or 64 MiB, cleared
+when full), and the pipeline runs a prelude over each block before its first projection
+(`Pipeline::before_block`), which the projections' pipeline sets to `common::decode_block`: the
+block's operations decoded on every core. The workers' own cost (JSON to CBOR, canonical JSON)
+is spread over 14 threads and is not the limit. On the 20k slice: 62 s → 38 s (321 → 532
+entities/s); every compared row the same as the ordinary sync, a rebuild identical; the ordinary
+sync on the same run took 149 s (178 s before, not rerun to separate the cause). **On the 2M set:
+49 min 15 s (681 entities/s), against 1 h 44 min (2.1×) and the 9 h 28 min baseline (11.5×)**;
+the same row counts in `view.entity`, `view.term`, `view.identifier` and `view.entity_source`
+as the previous load; peak RSS 1.68 GB; client CPU 9,525 s, about 310% of one core, with
+Postgres at 83–94% while the dense items loaded and about 30% after. From the 5-minute samples,
+roughly 570 entities/s over the first half of the file and 850/s over the rest.
+
 **`term_prefix` is not yet as 03 §4.3 has it.** The chapter's index is partial over tenant rows
 (`WHERE tenant <> ''`); the migration's (`0002_view.sql`) covers every row, shared ones included,
 and `wbsearchentities` reads shared rows through it (`t.tenant IN ($1, '')`). Making it partial

@@ -55,6 +55,7 @@ pub fn milestone_pipeline<B: Backend<Cx = PgCx>>(
     farm: Farm,
 ) -> Result<Pipeline<B>, ProjectionError> {
     Pipeline::new()
+        .before_block(common::decode_block)
         .with(RegistryProjection)?
         .with(KeyedSurrogateProjection)?
         .with(actors::ActorProjection::new(issuers, farm))?
