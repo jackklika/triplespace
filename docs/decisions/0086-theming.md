@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-10-17
-- **Updated:** 2026-11-01 (A11)
+- **Updated:** 2026-11-04 (A12)
 - **Author:** James Hare / Claude Opus
 - **Changes:** [0005](0005-crate-organization.md), [0010](0010-site-ui.md), [0011](0011-logs.md), [0012](0012-api-requirements.md), [0015](0015-record-format-and-partition-registry.md), [0018](0018-tenants.md), [0034](0034-frontend-stack.md), [0039](0039-files-and-media.md), [0040](0040-instance-prerogatives.md), [0055](0055-templatestyles-templatedata-and-page-properties.md)
 - **Uses:** [0053](0053-mirrored-pages.md), [0054](0054-forking-a-mirrored-page.md), [0077](0077-special-version.md), [0085](0085-settings-and-preferences.md)
@@ -40,7 +40,7 @@ James's direction, from the design discussion of 2026-10-16 and 2026-10-17:
 
 ### 2. Variants and contrast (amends 0010 §2; settles 0034 Q2)
 
-*Changed by A3, A6.*
+*Changed by A3, A6, A12.*
 
 *Current text: [19](../architecture/19-site-ui.md) §1.5, §5.9.*
 
@@ -254,3 +254,48 @@ Replaced text (§7):
 - **Source:** Direct: Claude, while building the palettes James asked for, 2026-11-01; unconfirmed
 - **Change:** extends §1, §3
 - **Summary:** Asked for a wildcard palette and type set, Claude proposed Greenbar, with Cyanotype and a card-catalogue palette as runners-up, and James answered on 2026-11-01: "Add Greenbar and Cyanotype to the collection." Two original palettes and two type sets ship as options, built as A10's are: all four variants, their own `rg` and `by` alternates from parchment's hues moved to meet the floors of §2, subtle backgrounds tinted from their own. The colours and faces are Claude's, unconfirmed. **`greenbar`**: `light` fanfold computer paper, near-white with the pale green of the printed bands for shaded boxes, carbon-black text and ribbon-blue links, `light-more` on white; `dark` a green phosphor screen, near-black with pale green text, amber links after amber-screen terminals, `dark-more` on black; buttons a deep green. **`cyanotype`**: `light` a whiteprint, navy text on a blue-white ground with teal links; `dark` a blueprint, off-white on Prussian blue `#1B3F73` with marking-pencil yellow links; buttons a deep teal in both. Type sets, OFL-1.1 from Fontsource 5.3.0, with the layer `noto`: **`mainframe`** for `greenbar`, VT323 headings (one weight, Latin only) over Overpass with Overpass Mono; **`drafting`** for `cyanotype`, Barlow Condensed over Barlow with JetBrains Mono (`nordic`'s). The chapter text is 19 §5.9; the registry is `themes.toml`.
+
+### A12. Links on the page's canvas, and Codex's values under every palette
+
+- **Date:** 2026-11-04
+- **Source:** Direct: Claude, while fixing the red-link and link-in-text findings of the end-to-end axe checks, 2026-11-04; unconfirmed
+- **Change:** extends §2
+- **Summary:** axe found two failures on a page of content: a red link at 4.25:1, and a link in a sentence told apart from its text by colour alone. Three changes follow.
+  - **Codex's values are served.** A palette's sheet held only the tokens the palette names in `light`, so a token it left alone, `color-destructive` among them, was undefined in light mode and showed whatever fallback a stylesheet wrote beside `var()` (the red link's `#d73333`), not Codex's value, which the contrast check had assumed. The `light` rule is now Codex's light values with the palette's over them, as the dark rule already was for dark mode. This makes the sheet do what §2 states; it changes no decision.
+  - **Two more pairs.** Content sits on the page's canvas, `background-color-neutral-subtle`, as well as on the base, so the check adds `color-visited` and `color-destructive` (which Codex's `color-link-red` is) on it. 35 variants of five palettes failed them, the worst at 3.94:1; asked how to treat them, James chose on 2026-11-04 to "nudge the colours": each failing value keeps its hue and saturation and moves its lightness away from the background until it meets its floor plus 0.05, in the table that sets it, or in the failing variant's own table where it was inherited. Parchment's own variants and Greenbar pass unchanged; parchment's red–green and blue–yellow alternates change in `dark-more`, which Encyclopedia borrows. Where a table set a visited link's hover and active colours, or `color-error` and the destructive and error borders, to the same value, they moved with it. The changes:
+  - `catppuccin.light` `color-visited`: `#8839EF` → `#8636EF`.
+  - `catppuccin.light-more` `color-visited`: `#6711D7` → `#6110CB`.
+  - `catppuccin.alternate.by.dark` `color-visited`: `#CE64AE` → `#D06AB1`, with `color-visited--active`, `color-visited--hover`.
+  - `catppuccin.alternate.by.light-more` `color-visited`: `#892C6D` → `#812966`, with `color-visited--active`, `color-visited--hover`.
+  - `catppuccin.alternate.rg.dark` `color-visited`: `#A977BB` → `#AC7CBD`, with `color-visited--active`, `color-visited--hover`.
+  - `catppuccin.alternate.rg.light-more` `color-visited`: `#6A3D7A` → `#663B75`, with `color-visited--active`, `color-visited--hover`.
+  - `cyanotype.light-more` `color-visited`: Codex's or the inherited value → `#693E8C`.
+  - `cyanotype.alternate.by.dark` `color-visited`: `#DD93C6` → `#E3A5CF`, with `color-visited--active`, `color-visited--hover`.
+  - `cyanotype.alternate.by.dark-more` `color-visited`: `#E4ABD3` → `#E8B8DA`, with `color-visited--active`, `color-visited--hover`.
+  - `cyanotype.alternate.rg.dark` `color-visited`: `#C29ECE` → `#CBADD6`, with `color-visited--active`, `color-visited--hover`.
+  - `cyanotype.alternate.rg.dark` `color-destructive`: `#FF9C59` → `#FFA161`, with `color-error`, `border-color-destructive`, `border-color-error`.
+  - `cyanotype.alternate.rg.dark-more` `color-visited`: `#CFB2D8` → `#D6BEDE`, with `color-visited--active`, `color-visited--hover`.
+  - `encyclopedia.light-more` `color-visited`: `#574D9C` → `#544A97`.
+  - `parchment.alternate.by.dark-more` `color-visited`: `#DB8EC4` → `#DD95C8`, with `color-visited--hover`.
+  - `parchment.alternate.by.dark-more` `color-destructive`: `#E78C9C` → `#E994A3`, with `color-error`, `border-color-error`, `border-color-destructive`.
+  - `parchment.alternate.rg.dark-more` `color-visited`: `#BF99CC` → `#C39FCF`, with `color-visited--hover`.
+  - `parchment.alternate.rg.dark-more` `color-destructive`: `#FF8B3E` → `#FF8E43`, with `color-error`, `border-color-error`, `border-color-destructive`.
+  - `gruvbox.light-more` `color-visited`: `#7E3764` → `#73325C`.
+  - `gruvbox.dark-more` `color-visited`: `#D998A9` → `#DEA5B4`.
+  - `gruvbox.alternate.by.dark` `color-visited`: `#D06CB2` → `#D47AB9`, with `color-visited--active`, `color-visited--hover`.
+  - `gruvbox.alternate.by.light-more` `color-visited`: `#882C6D` → `#7C2864`, with `color-visited--active`, `color-visited--hover`.
+  - `gruvbox.alternate.by.dark-more` `color-visited`: `#DC93C6` → `#E0A0CD`, with `color-visited--active`, `color-visited--hover`.
+  - `gruvbox.alternate.rg.dark` `color-visited`: `#AD7DBE` → `#B489C4`, with `color-visited--active`, `color-visited--hover`.
+  - `gruvbox.alternate.rg.light-more` `color-visited`: `#6A3D7A` → `#633972`, with `color-visited--active`, `color-visited--hover`.
+  - `gruvbox.alternate.rg.dark-more` `color-visited`: `#C29DCE` → `#C9A9D4`, with `color-visited--active`, `color-visited--hover`.
+  - `nord.light` `color-visited`: `#8C5D84` → `#86597F`.
+  - `nord.dark` `color-visited`: `#B691AF` → `#BD9BB6`.
+  - `nord.light-more` `color-visited`: `#674461` → `#63415D`.
+  - `nord.dark-more` `color-visited`: `#C8ACC2` → `#D3BCCE`.
+  - `nord.alternate.by.dark` `color-visited`: `#D67FBC` → `#DA8DC3`, with `color-visited--active`, `color-visited--hover`.
+  - `nord.alternate.by.light-more` `color-visited`: `#872B6C` → `#802966`, with `color-visited--active`, `color-visited--hover`.
+  - `nord.alternate.by.dark-more` `color-visited`: `#E1A0CD` → `#E7B4D8`, with `color-visited--active`, `color-visited--hover`.
+  - `nord.alternate.rg.dark` `color-visited`: `#B78DC6` → `#BE98CB`, with `color-visited--active`, `color-visited--hover`.
+  - `nord.alternate.rg.light-more` `color-visited`: `#6A3D7A` → `#653A75`, with `color-visited--active`, `color-visited--hover`.
+  - `nord.alternate.rg.dark-more` `color-visited`: `#C9A9D4` → `#D4BADC`, with `color-visited--active`, `color-visited--hover`.
+  - **Links in content are underlined.** A link inside rendered wikitext or Markdown (`.mw-parser-output`, `.ts-markdown`) is underlined as well as coloured, since a link's colour is not 3:1 against the text around it in every palette (WCAG 1.4.1), as report rows already were; links in the frame, menus and lists of the site's own pages are not. A red link takes `color-link-red`.

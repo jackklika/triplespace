@@ -59,9 +59,23 @@
 	border-inline-start: 4px solid var( --border-color-muted, #dadde3 );
 }
 
-/* A red link: a page that does not exist yet. */
-.ts-document__content a.new {
-	color: var( --color-destructive, #d73333 );
+/*
+ * Links in rendered content, wikitext or Markdown, on any page that draws it (a document,
+ * a diff, a post, a preview). They sit in running text, so they are underlined as well as
+ * coloured: a link's colour is not 3:1 against the text around it in every palette, and
+ * colour alone may not tell them apart (WCAG 1.4.1; ADR 0086 A12).
+ */
+.mw-parser-output a,
+.ts-markdown a {
+	text-decoration: underline;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 0.15em;
+}
+
+/* A red link: a page that does not exist yet, in Codex's red-link colour. */
+.mw-parser-output a.new,
+.ts-markdown a.new {
+	color: var( --color-link-red, #bf3c2c );
 }
 
 .ts-document__content table {
