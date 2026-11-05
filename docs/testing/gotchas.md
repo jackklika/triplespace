@@ -92,7 +92,9 @@ strike what stops being true. Implementation status is not kept here (24 §15: `
 - A load (a dump sync or a crawl) writes no `view.activity` rows for its mirror records, only
   its job's (03 §4.6), and the REST change view (`/entity/{id}/changes/{p}/{o}`) reads the
   activity row, so a loaded record has none. A test that needs `sync` rows runs the follower
-  (`scatter_ingest::run_follow`, as `triplespace-server/tests/site.rs` does).
+  (`scatter_ingest::run_follow`, as `triplespace-server/tests/site.rs` does; or
+  `triplespace follow --once --api` against a stand-in wiki, as `ui/e2e/run.sh` does with
+  `ui/e2e/wiki.mjs`).
 
 - A `PgCx` dropped after a failed write without `store.rollback(cx)` can leave the pooled
   connection mid-transaction and hang the next write on the same key. Always roll back explicitly,
