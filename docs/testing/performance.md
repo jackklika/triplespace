@@ -308,6 +308,18 @@ two runs each: CPU 130 s / 104 s (−20%) / 96 s (−26%); wall 185 s / 169 s / 
 runs vary by ±6%); peak RSS 49 MB / 128 MB / 85 MB. mimalloc is now the binaries' allocator
 (0033 A24; 22 §4.2).
 
+**The 2M set again, at `867c673` (2026-11-05).** Same file, settings and machine as the
+baseline: 2,014,017 created, 0 rejected, 0 unreadable, 0 hash mismatches, in **5 h 18 min
+(105 entities/s), against 9 h 28 min (59/s): −44% wall, +78% throughput**. Client CPU 12,653 s
+against 23,818 (−47%); Postgres execution 1,862 s against 4,463 (−58%), still 20.0 statements
+per entity (the job lookup replaced the activity insert); database 19 GB against 39 GB, with
+`view.term` 5.1M rows and 1.1 GB against 110.8M and 18 GB, and `view.activity` 3 rows. Unlike
+the baseline, the articles went slower than the dense items (99/s against 110/s). Per entity:
+9.5 ms wall, of which client CPU 6.3 ms (66%), Postgres execution 0.9 ms (10%), round trips
+and the rest about 2.3 ms (24%). The client is still the larger share, so preparing entities
+on worker threads (§6 item 1, for parsing, ID rewriting, hash checks and CBOR encoding) and
+then batch-shaped writes (§6 items 2–4) are next.
+
 **`term_prefix` is not yet as 03 §4.3 has it.** The chapter's index is partial over tenant rows
 (`WHERE tenant <> ''`); the migration's (`0002_view.sql`) covers every row, shared ones included,
 and `wbsearchentities` reads shared rows through it (`t.tenant IN ($1, '')`). Making it partial
