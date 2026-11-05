@@ -283,6 +283,8 @@ A **feed** is defined by three things:
 
 Its rows are the activity rows of §3.1, redacted for the viewer as [0012](../decisions/0012-api-requirements.md) §8 requires ([09](09-security-and-moderation.md) §5.7), ordered by (time, partition, offset) with the continuation tokens of [0012](../decisions/0012-api-requirements.md) §2.3 when paged, and in commit order when streamed (§4.4). Contributions are the actor filter over the everything set, so they are a feed too.
 
+**A deleted target's changes leave the lists** ([0020](../decisions/0020-change-feeds.md) §1, A19). Recent changes, contributions and watchlists, the everything, actor and watched sets, leave out the change rows (`edit`, `sync`, `erased`) of a page, thread or local entity that is deleted now, for every viewer, the deletion group included, as MediaWiki moves a deleted page's revisions out of `recentchanges`. Its log events stay, its deletion's among them. A one-target history and a talk page's composite history keep the rows, which is where `prop=deletedrevisions` and the deletion group read them ([09](09-security-and-moderation.md) §6.2). The test is made when the list is read, so an undeletion brings the rows back.
+
 **Every list of changes the UI or the API shows is one of these.** No feature builds its own list. That is the rule that keeps a history, a watchlist and the downstream stream from drifting apart.
 
 ### 4.2 Target sets

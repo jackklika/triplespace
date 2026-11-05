@@ -17,7 +17,7 @@ use tokio_postgres::{Config, NoTls};
 use tower::ServiceExt as _;
 use triplespace_accounts::Secret;
 use triplespace_api_action::{App, Config as ServerConfig, Mode, router_with};
-use triplespace_cli::instance;
+use triplespace_cli::{adopt, instance};
 
 const DB: &str = "tsmoderation_test";
 const HOST: &str = "librarybase.org";
@@ -156,6 +156,11 @@ impl Client {
 
 /// A fresh instance (database `{DB}_{name}`) with Alice, its owner, logged in.
 async fn instance(name: &str) -> (String, App, Client) {
+    instance_with(name, None).await
+}
+
+/// [`instance`], the tenant adopting `adopt` (its base URL) when given.
+async fn instance_with(name: &str, adopt: Option<String>) -> (String, App, Client) {
     let database = fresh_database(name).await;
     let dir = std::env::temp_dir().join(format!("tsmoderation-{}-{name}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
@@ -171,7 +176,7 @@ async fn instance(name: &str) -> (String, App, Client) {
         tenancy: "isolated".into(),
         farm_base: None,
         providers: vec![],
-        adopt: None,
+        adopt,
         owner: Some(7),
         owner_name: "Alice".into(),
         owner_password_file: Some(pw),
@@ -3277,4 +3282,160 @@ async fn interface_pages_need_editinterface() {
             .is_none(),
         "{si}"
     );
+}
+
+/// A list's titles from an Action API reply.
+fn listed_titles(reply: &Value, list: &str) -> Vec<String> {
+    reply["query"][list]
+        .as_array()
+        .unwrap_or_else(|| panic!("{list}: {reply}"))
+        .iter()
+        .filter_map(|row| row["title"].as_str().map(str::to_owned))
+        .collect()
+}
+
+/// The titles in recent changes' edits, Alice's contributions and her watchlist.
+async fn change_lists(client: &mut Client) -> [Vec<String>; 3] {
+    let rc = client
+        .api("action=query&list=recentchanges&rcprop=title%7Cids&rctype=edit%7Cnew&rclimit=500")
+        .await;
+    let uc = client
+        .api("action=query&list=usercontribs&ucuser=Alice&ucprop=title%7Cids&uclimit=500")
+        .await;
+    let wl = client
+        .api("action=query&list=watchlist&wlprop=title%7Cids&wltype=edit%7Cnew&wllimit=500")
+        .await;
+    [
+        listed_titles(&rc, "recentchanges"),
+        listed_titles(&uc, "usercontribs"),
+        listed_titles(&wl, "watchlist"),
+    ]
+}
+
+/// A deleted page's changes leave recent changes, contributions and the watchlist, for
+/// everyone, its administrator included, as MediaWiki moves a deleted page's revisions out
+/// of `recentchanges`: an adopted item's and an edited page's alike. The deletions' log
+/// events stay; `prop=deletedrevisions` still has the revisions; an undeletion brings the
+/// rows back (16 §4.1; 0020 §1, A19).
+#[tokio::test]
+#[allow(clippy::too_many_lines)]
+async fn a_deleted_pages_changes_leave_the_lists() {
+    if admin_config().is_none() {
+        eprintln!("TRIPLESPACE_TEST_DATABASE_URL is not set; skipping");
+        return;
+    }
+    let (database, _app, mut alice) =
+        instance_with("deleted", Some(format!("https://{HOST}/"))).await;
+    // The e2e fixture's items and properties, adopted with their revisions dated yesterday
+    // so that they are inside recent changes' window.
+    let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap();
+    let yesterday = triplespace_projections::feed::iso8601(
+        u64::try_from(now.as_micros()).unwrap() - 86_400_000_000,
+    );
+    let xml = std::fs::read_to_string(fixtures.join("site-entities.xml"))
+        .unwrap()
+        .replace("2026-09-20T14:02:11Z", &yesterday);
+    let dump =
+        std::env::temp_dir().join(format!("tsmoderation-{}-entities.xml", std::process::id()));
+    std::fs::write(&dump, xml).unwrap();
+    adopt::run(adopt::Adopt {
+        database: database.clone(),
+        tenant: TENANT.into(),
+        dump: dump.clone(),
+        source: format!("https://{HOST}/"),
+        version: Some("test".into()),
+        frozen: true,
+        current_only: false,
+        counters: Some("item=6,property=12".into()),
+        log_floor: 0,
+        entity_sources: vec![],
+        subsidiary: None,
+        batch: 200,
+        skip_talk: false,
+        no_accounts: false,
+    })
+    .await
+    .expect("adopt");
+    let _ = std::fs::remove_file(&dump);
+
+    let token = enc(&alice.csrf().await);
+    let edit = alice
+        .api_post(&format!(
+            "action=edit&title=Project:Note&text=Hello.&token={token}"
+        ))
+        .await;
+    assert_eq!(edit["edit"]["result"], "Success", "{edit}");
+    let tokens = alice.api("action=query&meta=tokens&type=watch").await;
+    let wt = enc(tokens["query"]["tokens"]["watchtoken"].as_str().unwrap());
+    let watched = alice
+        .api_post(&format!(
+            "action=watch&titles=Item:Q6%7CProject:Note&token={wt}"
+        ))
+        .await;
+    assert!(watched.get("error").is_none(), "{watched}");
+
+    let names = ["recent changes", "contributions", "watchlist"];
+    for (list, name) in change_lists(&mut alice).await.iter().zip(names) {
+        for title in ["Item:Q6", "Project:Note"] {
+            assert!(list.iter().any(|x| x == title), "{name} before: {list:?}");
+        }
+    }
+
+    for title in ["Item:Q6", "Project:Note"] {
+        let deletion = alice
+            .api_post(&format!(
+                "action=delete&title={title}&reason=Test&token={token}"
+            ))
+            .await;
+        assert!(deletion.get("error").is_none(), "{title}: {deletion}");
+    }
+    for (list, name) in change_lists(&mut alice).await.iter().zip(names) {
+        for title in ["Item:Q6", "Project:Note"] {
+            assert!(
+                !list.iter().any(|x| x == title),
+                "{name} after deleting {title}: {list:?}"
+            );
+        }
+    }
+    // The deletions themselves are in recent changes, as log events.
+    let rc = alice
+        .api("action=query&list=recentchanges&rcprop=title%7Cloginfo&rctype=log&rclimit=500")
+        .await;
+    let deleted: Vec<String> = rc["query"]["recentchanges"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|row| row["logtype"] == "delete")
+        .filter_map(|row| row["title"].as_str().map(str::to_owned))
+        .collect();
+    for title in ["Item:Q6", "Project:Note"] {
+        assert!(
+            deleted.iter().any(|x| x == title),
+            "the deletion of {title}: {rc}"
+        );
+    }
+    // The deletion group still reads the revisions.
+    let dr = alice
+        .api("action=query&prop=deletedrevisions&titles=Project:Note&drvprop=ids")
+        .await;
+    assert!(
+        dr["query"]["pages"][0]["deletedrevisions"]
+            .as_array()
+            .is_some_and(|revisions| !revisions.is_empty()),
+        "{dr}"
+    );
+    // An undeletion brings the page's rows back.
+    let undeletion = alice
+        .api_post(&format!("action=undelete&title=Project:Note&token={token}"))
+        .await;
+    assert!(undeletion.get("error").is_none(), "{undeletion}");
+    let [rc, _, _] = change_lists(&mut alice).await;
+    assert!(
+        rc.iter().any(|x| x == "Project:Note"),
+        "after undeletion: {rc:?}"
+    );
+    assert!(!rc.iter().any(|x| x == "Item:Q6"), "still deleted: {rc:?}");
 }

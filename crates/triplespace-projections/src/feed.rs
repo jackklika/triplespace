@@ -478,6 +478,15 @@ fn build(tenant: &str, feed: &Feed, viewer: &Viewer) -> Built {
             );
         }
     }
+    // A deleted page's or local entity's changes leave the lists, recent changes,
+    // contributions and watchlists, for everyone, as MediaWiki moves a deleted page's
+    // revisions out of `recentchanges`; its log events, the deletion's included, stay. A
+    // single target's history keeps them: `prop=deletedrevisions` reads it there, for the
+    // deletion group (0023 §8). Read-time, so an undeletion brings them back (16 §4.1;
+    // 0020 §1, A19).
+    if !matches!(feed.set, TargetSet::Target { .. } | TargetSet::Talk(_)) {
+        sql.push_str(DELETED_TARGETS_LEFT_OUT);
+    }
     let f = &feed.filters;
     if !f.kinds.is_empty() && f.log_events {
         push(
@@ -773,6 +782,19 @@ fn row_of(r: &tokio_postgres::Row) -> Result<Row, String> {
         changes: r.get(28),
     })
 }
+
+/// The clause that leaves a deleted target's changes out of a list (see [`query`]): a row
+/// that is a change (`edit`, `sync`, `erased`) whose page or local entity is deleted now.
+/// The page ID is cast only for a page target, inside `CASE`, since SQL does not promise
+/// to evaluate the target kind's test first.
+const DELETED_TARGETS_LEFT_OUT: &str = "
+     AND NOT (a.kind IN ('edit', 'sync', 'erased') AND (
+          EXISTS (SELECT 1 FROM view.page dp
+                  WHERE a.target_kind = 2 AND dp.tenant = a.tenant AND dp.deleted
+                    AND dp.page_id = CASE WHEN a.target_kind = 2 THEN a.target_id::bigint END)
+       OR EXISTS (SELECT 1 FROM view.entity de
+                  WHERE a.target_kind = 1 AND de.tenant = a.tenant AND de.id = a.target_id
+                    AND de.deleted)))";
 
 /// Reads one page of a feed on a tenant, for a viewer.
 pub async fn query<C: PgClient>(

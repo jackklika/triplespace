@@ -126,6 +126,9 @@ test.describe( 'the owner', () => {
 		await expect( page.getByText( 'Soon gone.' ) ).toBeVisible();
 		await page.goto( '/wiki/Special:Log/delete' );
 		await expect( page.locator( '.ts-change--log' ).first() ).toContainText( 'Doomed' );
+		// A deleted page's edits leave recent changes, for its deleter too (ADR 0020 A19).
+		await page.goto( '/wiki/Special:RecentChanges' );
+		await expect( page.locator( '.ts-change--edit', { hasText: 'Doomed' } ) ).toHaveCount( 0 );
 		await page.goto( '/wiki/Special:Undelete' );
 		await page.getByRole( 'link', { name: 'Project:Doomed' } ).click();
 		await page.getByRole( 'button', { name: 'Undelete' } ).click();
