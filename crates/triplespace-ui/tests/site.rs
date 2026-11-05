@@ -1,6 +1,8 @@
 //! The site's router against a fake API: the frame, its caching, the `503` when the API is
 //! away, and the API's paths refused.
 
+mod common;
+
 use std::sync::{Arc, Mutex};
 
 use axum::body::Body;
@@ -88,7 +90,7 @@ async fn get(
     for (k, v) in headers {
         req = req.header(*k, *v);
     }
-    let r = triplespace_ui::router(Client::new(fake.clone()))
+    let r = common::site_router(Client::new(fake.clone()))
         .oneshot(req.body(Body::empty()).unwrap())
         .await
         .unwrap();

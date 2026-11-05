@@ -18,12 +18,12 @@ use std::fmt::Write as _;
 
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
+use serde::Serialize;
 use triplespace_client::{ReportPage, ReportQuery, ReportRow};
 
 use crate::Site;
 use crate::features::{Feature, Features};
 use crate::frame::{Page, title_url};
-use crate::html::{esc, link};
 use crate::i18n::Messages;
 use crate::pages::{self, Params, Peer};
 use crate::special::changes::{clock, date};
@@ -36,6 +36,79 @@ const MAX_LIMIT: u32 = 500;
 
 /// The page sizes offered.
 const SIZES: [u32; 5] = [20, 50, 100, 250, 500];
+
+// ---------------------------------------------------------------------------------------
+// The view model (19 §5.10): what `special/report.html` draws, one model for every report.
+// ---------------------------------------------------------------------------------------
+
+/// A link to a title, red where the title does not exist.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TitleLink {
+    /// The page.
+    pub href: String,
+    /// The text.
+    pub text: String,
+    /// Whether the title does not exist.
+    pub missing: bool,
+}
+
+/// One row.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ReportRowModel {
+    /// The title, or a property's label.
+    pub link: TitleLink,
+    /// A labelled property's ID, after its label.
+    pub id: Option<String>,
+    /// A redirect's target.
+    pub target: Option<TitleLink>,
+    /// A double redirect's last page.
+    pub last: Option<TitleLink>,
+    /// The value the report measures, as text, where it has one.
+    pub value: Option<String>,
+}
+
+/// A step of the pager: a link, or text where there is nowhere to go.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Step {
+    /// The text.
+    pub label: String,
+    /// The page, where it links.
+    pub href: Option<String>,
+}
+
+/// **Previous**, **Next** and the page sizes, as MediaWiki's `viewprevnext` offers.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ReportPager {
+    /// The accessible name.
+    pub label: String,
+    /// The previous page.
+    pub previous: Step,
+    /// The next page.
+    pub next: Step,
+    /// The page sizes, the current one as text.
+    pub sizes: Vec<Step>,
+}
+
+/// A report page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ReportPageModel {
+    /// The report's note, where it has one.
+    pub note: Option<String>,
+    /// How fresh the report is, where it is kept rather than live.
+    pub state: Option<String>,
+    /// What the page says when it has no rows.
+    pub empty: Option<String>,
+    /// "Showing n results starting with #m".
+    pub range: Option<String>,
+    /// The first row's number.
+    pub start: u32,
+    /// The rows.
+    pub rows: Vec<ReportRowModel>,
+    /// The pager, above and below the rows; below the empty notice past the first page.
+    pub pager: Option<ReportPager>,
+    /// The arrow between a redirect and its target, in the page's direction.
+    pub arrow: String,
+}
 
 /// What a row's value counts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -253,7 +326,10 @@ pub async fn serve(
         Err(e) => return pages::api_failed(&cx, headers, &e),
     };
     cx.inputs.push(found.cache);
-    let body = body(&cx.m, report, window, &found.value);
+    let body = cx.draw(
+        "special/report.html",
+        page_model(&cx.m, report, window, &found.value),
+    );
     pages::respond(&cx, headers, StatusCode::OK, |m| Page {
         title: m.get(&report.label_key()),
         returnto: Some(report.title()),
@@ -262,14 +338,17 @@ pub async fn serve(
     })
 }
 
-fn body(m: &Messages, report: &Report, window: Window, page: &ReportPage) -> String {
-    let mut s = String::new();
+/// The report's note, where it has one.
+fn note(m: &Messages, report: &Report) -> Option<String> {
     let note = format!("{}-note", report.key());
-    if m.has(&note) {
-        let _ = write!(s, "<p class=\"ts-report__note\">{}</p>", esc(&m.get(&note)));
-    }
+    m.has(&note).then(|| m.get(&note))
+}
+
+/// How fresh the report is: nothing for a live query; for a kept one, since when, or
+/// how many changes it is still applying.
+fn freshness(m: &Messages, page: &ReportPage) -> Option<String> {
     let state = &page.state;
-    let freshness = if state.backing != "projection" {
+    if state.backing != "projection" {
         None
     } else if state.waiting > 0 {
         Some(m.with("ts-report-catching-up", &[&state.waiting.to_string()]))
@@ -280,164 +359,145 @@ fn body(m: &Messages, report: &Report, window: Window, page: &ReportPage) -> Str
         ))
     } else {
         Some(m.get("ts-report-kept"))
-    };
-    if let Some(f) = freshness {
-        let _ = write!(s, "<p class=\"ts-report__state\">{}</p>", esc(&f));
     }
-    if page.rows.is_empty() {
-        let _ = write!(
-            s,
-            "<p class=\"ts-empty\">{}</p>",
-            esc(&m.get("ts-report-none"))
-        );
-        if window.offset > 0 {
-            s.push_str(&pager(m, report, window, None));
-        }
-        return s;
-    }
-    let first = window.offset + 1;
-    let count = u32::try_from(page.rows.len()).unwrap_or(u32::MAX);
-    let _ = write!(
-        s,
-        "<p class=\"ts-report__range\">{}</p>",
-        esc(&m.with(
-            "ts-report-showing",
-            &[
-                &count.to_string(),
-                &first.to_string(),
-                &(window.offset + count).to_string()
-            ]
-        ))
-    );
-    let nav = pager(m, report, window, page.next);
-    s.push_str(&nav);
-    let _ = write!(s, "<ol class=\"ts-report\" start=\"{first}\">");
-    for row in &page.rows {
-        let _ = write!(s, "<li>{}</li>", row_html(m, report, row));
-    }
-    s.push_str("</ol>");
-    s.push_str(&nav);
-    s
 }
 
-/// A link to a title, red where it does not exist.
-fn title_link(title: &str, fragment: Option<&str>, missing: bool) -> String {
+/// The arrow between a redirect and its target, in the page's direction.
+fn arrow(m: &Messages) -> &'static str {
+    if m.dir() == "rtl" {
+        " \u{2190} "
+    } else {
+        " \u{2192} "
+    }
+}
+
+/// A report page's model.
+fn page_model(m: &Messages, report: &Report, window: Window, page: &ReportPage) -> ReportPageModel {
+    let first = window.offset + 1;
+    let count = u32::try_from(page.rows.len()).unwrap_or(u32::MAX);
+    let empty = page.rows.is_empty();
+    ReportPageModel {
+        note: note(m, report),
+        state: freshness(m, page),
+        empty: empty.then(|| m.get("ts-report-none")),
+        range: (!empty).then(|| {
+            m.with(
+                "ts-report-showing",
+                &[
+                    &count.to_string(),
+                    &first.to_string(),
+                    &(window.offset + count).to_string(),
+                ],
+            )
+        }),
+        start: first,
+        rows: page.rows.iter().map(|r| row_model(m, report, r)).collect(),
+        pager: (!empty || window.offset > 0)
+            .then(|| pager_model(m, report, window, if empty { None } else { page.next })),
+        arrow: arrow(m).to_string(),
+    }
+}
+
+/// A link to a title's model, red where it does not exist.
+fn title_link_model(title: &str, fragment: Option<&str>, missing: bool) -> TitleLink {
     let mut href = format!("/wiki/{}", title_url(title));
     let mut text = title.to_string();
     if let Some(f) = fragment.filter(|f| !f.is_empty()) {
         let _ = write!(href, "#{}", title_url(f));
         let _ = write!(text, "#{f}");
     }
-    link(
-        &href,
-        &esc(&text),
-        if missing { " class=\"new\"" } else { "" },
-    )
+    TitleLink {
+        href,
+        text,
+        missing,
+    }
 }
 
-fn row_html(m: &Messages, report: &Report, row: &ReportRow) -> String {
-    let arrow = if m.dir() == "rtl" {
-        " \u{2190} "
-    } else {
-        " \u{2192} "
-    };
+/// One row's model.
+fn row_model(m: &Messages, report: &Report, row: &ReportRow) -> ReportRowModel {
     if report.name == "ListProperties" {
         let id = row
             .title
             .rsplit_once(':')
             .map_or(row.title.as_str(), |(_, id)| id);
-        return match row.label.as_deref().filter(|l| !l.is_empty()) {
-            Some(label) => format!(
-                "{} ({})",
-                link(&format!("/wiki/{}", title_url(&row.title)), &esc(label), ""),
-                esc(id)
-            ),
-            None => link(&format!("/wiki/{}", title_url(&row.title)), &esc(id), ""),
+        let href = format!("/wiki/{}", title_url(&row.title));
+        let (text, id) = match row.label.as_deref().filter(|l| !l.is_empty()) {
+            Some(label) => (label.to_string(), Some(id.to_string())),
+            None => (id.to_string(), None),
+        };
+        return ReportRowModel {
+            link: TitleLink {
+                href,
+                text,
+                missing: false,
+            },
+            id,
+            target: None,
+            last: None,
+            value: None,
         };
     }
-    let mut s = title_link(&row.title, None, report.missing);
-    if let Some(target) = &row.target {
-        s.push_str(arrow);
-        s.push_str(&title_link(
-            target,
-            row.fragment.as_deref(),
-            report.missing_target,
-        ));
+    let value = (!row.value.is_empty())
+        .then(|| match report.unit {
+            Unit::None => None,
+            Unit::Time => Some(format!("{}, {}", clock(&row.value), date(m, &row.value))),
+            unit => Some(m.with(unit_key(unit)?, &[&row.value])),
+        })
+        .flatten();
+    ReportRowModel {
+        link: title_link_model(&row.title, None, report.missing),
+        id: None,
+        target: row
+            .target
+            .as_deref()
+            .map(|t| title_link_model(t, row.fragment.as_deref(), report.missing_target)),
+        last: row
+            .last
+            .as_deref()
+            .map(|l| title_link_model(l, None, false)),
+        value,
     }
-    if let Some(last) = &row.last {
-        s.push_str(arrow);
-        s.push_str(&title_link(last, None, false));
-    }
-    let unit = match report.unit {
-        Unit::None => None,
+}
+
+/// The message a value is shown in.
+fn unit_key(unit: Unit) -> Option<&'static str> {
+    match unit {
+        Unit::None | Unit::Time => None,
         Unit::Links => Some("ts-report-links"),
         Unit::Members => Some("ts-report-members"),
         Unit::Categories => Some("ts-report-categories"),
         Unit::Revisions => Some("ts-report-revisions"),
         Unit::Bytes => Some("ts-report-bytes"),
-        Unit::Time => {
-            if !row.value.is_empty() {
-                let _ = write!(
-                    s,
-                    " ({}, {})",
-                    esc(clock(&row.value)),
-                    esc(&date(m, &row.value))
-                );
-            }
-            None
-        }
-    };
-    if let Some(key) = unit
-        && !row.value.is_empty()
-    {
-        let _ = write!(s, " ({})", esc(&m.with(key, &[&row.value])));
     }
-    s
 }
 
-/// **Previous**, **Next** and the page sizes, as MediaWiki's `viewprevnext` offers.
-fn pager(m: &Messages, report: &Report, window: Window, next: Option<u32>) -> String {
+/// The pager's model.
+fn pager_model(m: &Messages, report: &Report, window: Window, next: Option<u32>) -> ReportPager {
     let size = window.limit.to_string();
-    let previous = if window.offset > 0 {
-        link(
-            &Window {
-                offset: window.offset.saturating_sub(window.limit),
-                ..window
-            }
-            .href(report),
-            &esc(&m.with("ts-report-previous", &[&size])),
-            " rel=\"prev\"",
-        )
-    } else {
-        esc(&m.with("ts-report-previous", &[&size]))
-    };
-    let following = match next {
-        Some(offset) => link(
-            &Window { offset, ..window }.href(report),
-            &esc(&m.with("ts-report-next", &[&size])),
-            " rel=\"next\"",
-        ),
-        None => esc(&m.with("ts-report-next", &[&size])),
-    };
-    let sizes: Vec<String> = SIZES
-        .iter()
-        .map(|&limit| {
-            if limit == window.limit {
-                limit.to_string()
-            } else {
-                link(
-                    &Window { limit, ..window }.href(report),
-                    &limit.to_string(),
-                    "",
-                )
-            }
-        })
-        .collect();
-    format!(
-        "<nav class=\"ts-pager ts-report__pager\" aria-label=\"{}\">({previous} | {following}) ({})</nav>",
-        esc(&m.get("ts-report-pages-label")),
-        sizes.join(" | ")
-    )
+    ReportPager {
+        label: m.get("ts-report-pages-label"),
+        previous: Step {
+            label: m.with("ts-report-previous", &[&size]),
+            href: (window.offset > 0).then(|| {
+                Window {
+                    offset: window.offset.saturating_sub(window.limit),
+                    ..window
+                }
+                .href(report)
+            }),
+        },
+        next: Step {
+            label: m.with("ts-report-next", &[&size]),
+            href: next.map(|offset| Window { offset, ..window }.href(report)),
+        },
+        sizes: SIZES
+            .iter()
+            .map(|&limit| Step {
+                label: limit.to_string(),
+                href: (limit != window.limit).then(|| Window { limit, ..window }.href(report)),
+            })
+            .collect(),
+    }
 }
 
 #[cfg(test)]
@@ -496,6 +556,121 @@ mod tests {
             let aliases: Vec<&str> = e.aliases.iter().map(String::as_str).collect();
             assert_eq!(aliases, report.aliases, "{}", report.name);
         }
+    }
+
+    fn row(title: &str, value: &str) -> ReportRow {
+        ReportRow {
+            title: title.into(),
+            value: value.into(),
+            ..ReportRow::default()
+        }
+    }
+
+    /// A report's model (19 §5.10): the range, the pager both sides, a row's value in
+    /// its unit, a missing title red, a redirect's target with its fragment, a labelled
+    /// property with its ID.
+    #[test]
+    fn a_report_is_a_model() {
+        let m = Messages::for_language("en");
+        let short = Report::of("ShortPages").unwrap();
+        let page = ReportPage {
+            rows: vec![row("Project:Stub", "6"), row("Project:Home", "120")],
+            next: Some(2),
+            ..ReportPage::default()
+        };
+        let w = Window {
+            offset: 0,
+            limit: 2,
+        };
+        let p = page_model(&m, short, w, &page);
+        assert_eq!(p.start, 1);
+        assert_eq!(p.rows[0].value.as_deref(), Some("6 bytes"));
+        assert!(!p.rows[0].link.missing);
+        let pager = p.pager.unwrap();
+        assert!(pager.previous.href.is_none());
+        assert_eq!(
+            pager.next.href.as_deref(),
+            Some("/w/index.php?title=Special:ShortPages&limit=2&offset=2")
+        );
+        assert_eq!(
+            pager.sizes.iter().filter(|s| s.href.is_none()).count(),
+            0,
+            "2 is not one of the sizes, so every size links"
+        );
+
+        let wanted = Report::of("WantedPages").unwrap();
+        let p = page_model(
+            &m,
+            wanted,
+            w,
+            &ReportPage {
+                rows: vec![row("Project:Style guide", "2")],
+                ..ReportPage::default()
+            },
+        );
+        assert!(p.rows[0].link.missing);
+        assert_eq!(p.rows[0].value.as_deref(), Some("2 links"));
+
+        let broken = Report::of("BrokenRedirects").unwrap();
+        let mut r = row("Project:Old name", "");
+        r.target = Some("Project:Never written".into());
+        r.fragment = Some("Dates".into());
+        let p = page_model(
+            &m,
+            broken,
+            w,
+            &ReportPage {
+                rows: vec![r],
+                ..ReportPage::default()
+            },
+        );
+        let target = p.rows[0].target.as_ref().unwrap();
+        assert_eq!(target.href, "/wiki/Project:Never_written#Dates");
+        assert_eq!(target.text, "Project:Never written#Dates");
+        assert!(target.missing && p.rows[0].value.is_none());
+
+        let props = Report::of("ListProperties").unwrap();
+        let mut labelled = row("Property:P3", "");
+        labelled.label = Some("population".into());
+        let p = page_model(
+            &m,
+            props,
+            w,
+            &ReportPage {
+                rows: vec![labelled, row("Property:P4", "")],
+                ..ReportPage::default()
+            },
+        );
+        assert_eq!(
+            (p.rows[0].link.text.as_str(), p.rows[0].id.as_deref()),
+            ("population", Some("P3"))
+        );
+        assert_eq!(
+            (p.rows[1].link.text.as_str(), p.rows[1].id.as_deref()),
+            ("P4", None)
+        );
+
+        let past = page_model(
+            &m,
+            short,
+            Window {
+                offset: 500,
+                limit: 50,
+            },
+            &ReportPage::default(),
+        );
+        assert!(past.empty.is_some() && past.range.is_none());
+        assert!(past.pager.unwrap().previous.href.is_some());
+        let first = page_model(
+            &m,
+            short,
+            Window {
+                offset: 0,
+                limit: 50,
+            },
+            &ReportPage::default(),
+        );
+        assert!(first.pager.is_none());
     }
 
     #[test]

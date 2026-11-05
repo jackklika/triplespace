@@ -2,6 +2,8 @@
 //! keeps a CSRF token per session, knows three properties, and records each
 //! `wbeditentity` it is sent.
 
+mod common;
+
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
@@ -73,7 +75,12 @@ impl FakeApi {
                 }
             };
             let mut u = json!({"id": id, "name": name});
-            if q.contains("uiprop=rights") {
+            // The rights wherever `uiprop` asks for them: the page's own call asks for
+            // `options|accountrequests|rights|groups`, the forms' for `rights` alone.
+            if q.split('&').any(|p| {
+                p.strip_prefix("uiprop=")
+                    .is_some_and(|v| v.split('|').any(|x| x == "rights"))
+            }) {
                 u["rights"] = rights;
             }
             return json!({"query": {"userinfo": u}});
@@ -161,7 +168,7 @@ struct Answer {
 }
 
 async fn send(api: &FakeApi, req: Request<Body>) -> Answer {
-    let r = triplespace_ui::router(Client::new(api.clone()))
+    let r = common::site_router(Client::new(api.clone()))
         .oneshot(req)
         .await
         .unwrap();
@@ -194,6 +201,12 @@ async fn post(api: &FakeApi, title: &str, who: &str, fields: &[(&str, &str)]) ->
         .body(Body::from(body))
         .unwrap();
     send(api, req).await
+}
+
+/// A page with its quotation marks spelled as the skin spells them, whichever renderer
+/// drew it.
+fn spelled(html: &str) -> String {
+    html.replace("&#34;", "&quot;")
 }
 
 #[tokio::test]
@@ -265,7 +278,8 @@ async fn the_form_with_its_prefills() {
             .contains("values of type Point in time cannot be filled in here yet")
     );
     assert!(a.body.contains("there is no property P99"));
-    assert!(a.body.contains("&#34;nonsense&#34; is left out"));
+    // Either renderer's spelling of a quotation mark (19 §5.10).
+    assert!(spelled(&a.body).contains("&quot;nonsense&quot; is left out"));
     assert_eq!(a.headers[header::CACHE_CONTROL], "private, no-cache");
 }
 
@@ -337,8 +351,8 @@ async fn refusals_show_the_form_again() {
     .await;
     assert_eq!(a.status, StatusCode::OK);
     assert!(
-        a.body
-            .contains("Nothing was created: Item Q1 already has label &#34;Taken&#34;.")
+        spelled(&a.body)
+            .contains("Nothing was created: Item Q1 already has label &quot;Taken&quot;.")
     );
     assert!(a.body.contains("value=\"Taken\""));
     // An expired token: a fresh one, and the form as sent.
@@ -415,16 +429,20 @@ async fn a_property_needs_property_create() {
     );
 }
 
+/// Both pages are listed under Wikibase's heading; `Special:NewProperty` only to a viewer
+/// who may create properties, since the registry restricts it to `property-create`
+/// (21 §1.1).
 #[tokio::test]
 async fn listed_on_special_pages() {
     let api = FakeApi::default();
-    let a = get(&api, "/wiki/Special:SpecialPages", None).await;
-    assert!(
-        a.body
-            .contains("href=\"/wiki/Special:NewItem\">Create a new item</a>")
-    );
-    assert!(
-        a.body
-            .contains("href=\"/wiki/Special:NewProperty\">Create a new property</a>")
-    );
+    let new_item = "href=\"/wiki/Special:NewItem\">Create a new item</a>";
+    let new_property = "href=\"/wiki/Special:NewProperty\">Create a new property</a>";
+    let a = get(&api, "/wiki/Special:SpecialPages", Some("alice")).await;
+    assert!(a.body.contains("id=\"mw-specialpagesgroup-wikibaserepo\""));
+    assert!(a.body.contains(new_item) && a.body.contains(new_property));
+    for who in [None, Some("bob")] {
+        let a = get(&api, "/wiki/Special:SpecialPages", who).await;
+        assert!(a.body.contains(new_item), "{who:?}");
+        assert!(!a.body.contains(new_property), "{who:?}");
+    }
 }

@@ -1,0 +1,12 @@
+/* The typefaces of the type set `retro` (docs/registry/themes.toml; ADR 0086 §3), made for the
+   palette `gruvbox`: Bitter for headings over IBM Plex Sans and IBM Plex Mono. Served from the
+   site's own origin, as the content security policy requires (ADR 0034 §11), inside the type set's
+   stylesheet. SIL Open Font License 1.1. */
+@import '@fontsource/bitter/400.css';
+@import '@fontsource/bitter/500.css';
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/400-italic.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';

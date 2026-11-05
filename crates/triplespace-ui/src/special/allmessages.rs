@@ -7,7 +7,6 @@
 //! `from`, the first key shown, which the **Next page** link carries.
 
 use std::collections::BTreeMap;
-use std::fmt::Write as _;
 
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
@@ -15,10 +14,11 @@ use scatter_titles::{INTERFACE, Namespaces};
 use triplespace_client::{MessageQuery, MessageRow};
 
 use crate::Site;
+use crate::entity::history::Choice;
 use crate::frame::{Page, title_url};
-use crate::html::{esc, link};
 use crate::i18n;
 use crate::pages::{self, Context, Params, Peer};
+use crate::special::controls::FormItem;
 
 const TITLE: &str = "Special:AllMessages";
 const LIMITS: &[usize] = &[20, 50, 100, 250, 500, 5000];
@@ -118,7 +118,8 @@ pub async fn serve(site: &Site, headers: &HeaderMap, peer: Peer, params: &Params
         Err(e) => return pages::api_failed(&cx, headers, &e),
     };
     cx.inputs.push(found.cache);
-    let body = body(&cx, &ask, &found.value);
+    let model = model(&cx, &ask, &found.value);
+    let body = cx.draw("special/allmessages.html", &model);
     pages::respond(&cx, headers, StatusCode::OK, |m| Page {
         title: m.get("ts-allmessages-title"),
         returnto: Some(TITLE.to_string()),
@@ -127,105 +128,127 @@ pub async fn serve(site: &Site, headers: &HeaderMap, peer: Peer, params: &Params
     })
 }
 
-fn body(cx: &Context, ask: &Ask, rows: &[MessageRow]) -> String {
-    let m = &cx.m;
-    let mut s = format!(
-        "<p>{}</p>{}",
-        esc(&m.get("ts-allmessages-intro")),
-        form(cx, ask)
-    );
-    let shown = &rows[..rows.len().min(ask.limit)];
-    if shown.is_empty() {
-        let _ = write!(
-            s,
-            "<p class=\"ts-empty\">{}</p>",
-            esc(&m.get("ts-allmessages-none"))
-        );
-        return s;
-    }
-    let _ = write!(
-        s,
-        "<table class=\"cdx-table__table ts-allmessages\" lang=\"{}\"><thead><tr><th scope=\"col\">{}</th><th scope=\"col\">{}</th><th scope=\"col\">{}</th></tr></thead><tbody>",
-        esc(&ask.lang),
-        esc(&m.get("ts-allmessages-col-name")),
-        esc(&m.get("ts-allmessages-col-default")),
-        esc(&m.get("ts-allmessages-col-current")),
-    );
-    for r in shown {
-        let page = interface_title(&r.name, &ask.lang, &cx.site.lang);
-        let name = link(
-            &format!("/wiki/{}", title_url(&page)),
-            &format!("<code>{}</code>", esc(&r.name)),
-            "",
-        );
-        let default = r.default.as_deref().map(esc).unwrap_or_default();
-        let current = if r.customised {
-            r.content.as_deref().map(esc).unwrap_or_default()
-        } else {
-            String::new()
-        };
-        let class = if r.customised {
-            " class=\"ts-allmessages__customised\""
-        } else {
-            ""
-        };
-        let _ = write!(
-            s,
-            "<tr{class}><td>{name}</td><td>{default}</td><td>{current}</td></tr>"
-        );
-    }
-    s.push_str("</tbody></table>");
-    if let Some(next) = rows.get(ask.limit) {
-        let _ = write!(
-            s,
-            "<p class=\"ts-allmessages__more\">{}</p>",
-            link(
-                &ask.href_from(&next.name),
-                &esc(&m.get("ts-allmessages-next")),
-                ""
-            )
-        );
-    }
-    s
+/// `Special:AllMessages` as Plain's `special/allmessages.html` draws it.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AllMessagesPage {
+    /// What the page lists.
+    pub intro: String,
+    /// The filter form.
+    pub form: AllMessagesForm,
+    /// Said where nothing matches.
+    pub nothing: Option<String>,
+    /// The language of the messages shown.
+    pub lang: String,
+    /// The column headings.
+    pub columns: Vec<String>,
+    /// One row per message.
+    pub rows: Vec<MessageLine>,
+    /// **Next page**.
+    pub next: Option<Choice>,
 }
 
-fn form(cx: &Context, ask: &Ask) -> String {
+/// The filter form: prefix, filter, language, limit.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AllMessagesForm {
+    /// The page it filters.
+    pub title: String,
+    /// The fields.
+    pub items: Vec<FormItem>,
+    /// **Go**.
+    pub go: String,
+}
+
+/// One message.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MessageLine {
+    /// Its key.
+    pub name: String,
+    /// The Interface page that overrides it.
+    pub href: String,
+    /// The text the build ships.
+    pub default: String,
+    /// The wiki's own text, where it overrides the default.
+    pub current: String,
+    /// Whether the wiki overrides it.
+    pub customised: bool,
+}
+
+fn model(cx: &Context, ask: &Ask, rows: &[MessageRow]) -> AllMessagesPage {
     let m = &cx.m;
-    let option = |value: &str, label: &str, on: bool| {
-        format!(
-            "<option value=\"{}\"{}>{}</option>",
-            esc(value),
-            if on { " selected" } else { "" },
-            esc(label)
-        )
+    let options = |list: Vec<(String, String)>, current: &str| {
+        list.into_iter()
+            .map(|(v, label)| {
+                let on = v == current;
+                (v, label, on)
+            })
+            .collect()
     };
-    let filters: String = [
+    let filters = [
         ("all", "ts-allmessages-filter-all"),
         ("modified", "ts-allmessages-filter-modified"),
         ("unmodified", "ts-allmessages-filter-unmodified"),
     ]
     .iter()
-    .map(|(v, k)| option(v, &m.get(k), ask.filter == *v))
+    .map(|(v, k)| ((*v).to_string(), m.get(k)))
     .collect();
-    let limits: String = LIMITS
+    let limits = LIMITS
         .iter()
-        .map(|l| option(&l.to_string(), &l.to_string(), ask.limit == *l))
+        .map(|l| (l.to_string(), l.to_string()))
         .collect();
-    format!(
-        "<form class=\"ts-changes-form ts-allmessages__form\" method=\"get\" action=\"/w/index.php\"><input type=\"hidden\" name=\"title\" value=\"{TITLE}\">\
-<label class=\"ts-changes-form__field\"><span>{}</span> <input class=\"cdx-text-input__input\" type=\"text\" name=\"prefix\" value=\"{}\"></label> \
-<label class=\"ts-changes-form__field\"><span>{}</span> <select class=\"cdx-select\" name=\"filter\">{filters}</select></label> \
-<label class=\"ts-changes-form__field\"><span>{}</span> <input class=\"cdx-text-input__input\" type=\"text\" name=\"lang\" value=\"{}\" size=\"8\"></label> \
-<label class=\"ts-changes-form__field\"><span>{}</span> <select class=\"cdx-select\" name=\"limit\">{limits}</select></label> \
-<button class=\"cdx-button cdx-button--action-progressive\" type=\"submit\">{}</button></form>",
-        esc(&m.get("ts-allmessages-prefix")),
-        esc(&ask.prefix),
-        esc(&m.get("ts-allmessages-filter")),
-        esc(&m.get("ts-allmessages-lang")),
-        esc(&ask.lang),
-        esc(&m.get("ts-allmessages-limit")),
-        esc(&m.get("ts-allmessages-go")),
-    )
+    let shown = &rows[..rows.len().min(ask.limit)];
+    AllMessagesPage {
+        intro: m.get("ts-allmessages-intro"),
+        form: AllMessagesForm {
+            title: TITLE.into(),
+            items: vec![
+                FormItem::text(m.get("ts-allmessages-prefix"), "prefix", &ask.prefix),
+                FormItem::select(
+                    m.get("ts-allmessages-filter"),
+                    "filter",
+                    options(filters, ask.filter),
+                ),
+                FormItem::text(m.get("ts-allmessages-lang"), "lang", &ask.lang),
+                FormItem::select(
+                    m.get("ts-allmessages-limit"),
+                    "limit",
+                    options(limits, &ask.limit.to_string()),
+                ),
+            ],
+            go: m.get("ts-allmessages-go"),
+        },
+        nothing: shown.is_empty().then(|| m.get("ts-allmessages-none")),
+        lang: ask.lang.clone(),
+        columns: [
+            "ts-allmessages-col-name",
+            "ts-allmessages-col-default",
+            "ts-allmessages-col-current",
+        ]
+        .iter()
+        .map(|k| m.get(k))
+        .collect(),
+        rows: shown
+            .iter()
+            .map(|r| MessageLine {
+                name: r.name.clone(),
+                href: format!(
+                    "/wiki/{}",
+                    title_url(&interface_title(&r.name, &ask.lang, &cx.site.lang))
+                ),
+                default: r.default.clone().unwrap_or_default(),
+                current: if r.customised {
+                    r.content.clone().unwrap_or_default()
+                } else {
+                    String::new()
+                },
+                customised: r.customised,
+            })
+            .collect(),
+        next: rows.get(ask.limit).map(|next| Choice {
+            href: ask.href_from(&next.name),
+            label: m.get("ts-allmessages-next"),
+            current: false,
+        }),
+    }
 }
 
 #[cfg(test)]

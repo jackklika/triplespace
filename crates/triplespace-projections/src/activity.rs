@@ -1,6 +1,7 @@
 //! `view.activity` (step 5; 0010 §13; 0012 §3; 0013 §5.5): one row per change-set record
-//! and log event in the tenant, mirror and page partitions. It is the time-ordered index
-//! history, contributions and recent changes read.
+//! and log event in the tenant, mirror and page partitions, except the mirror records of a
+//! load, which is its `job` row alone (`is_load`). It is the time-ordered index history,
+//! contributions and recent changes read.
 //!
 //! The row's `kind` is `edit` for a local or page change set, `sync` for a mirror one,
 //! `job` for a job event, `log` for any other event, and `erased` when the content part
@@ -272,35 +273,35 @@ fn changeset_columns(record: &Record, mirror: bool) -> Result<Columns, String> {
     };
     // An adopted revision that kept the source's revision ID is history: it shows at its
     // source time, `new` only on the first revision adopted, with its minor flag and the
-    // bot flag (0035 A12). A `--current-only` record is the job's own revision.
+    // bot flag, and with the source's edit summary as the source showed it, with no
+    // automatic summary of the `adopt` before it (0035 A12). A `--current-only` record is
+    // the job's own revision, summarized as `adopt`.
+    let history = matches!(&op, Operation::Adopt { source_revid, .. }
+        if record.header().revid == Some(*source_revid));
     let (new, time, minor, bot, visibility) = match &op {
         Operation::Adopt {
-            source_revid,
             source_parentid,
             source_time,
             minor,
             withheld,
             ..
-        } => {
-            let history = record.header().revid == Some(*source_revid);
-            (
-                Some(!history || source_parentid.is_none()),
-                history
-                    .then(|| crate::feed::parse_timestamp(source_time))
-                    .flatten(),
-                Some(*minor),
-                Some(true),
-                withheld_bits(withheld),
-            )
-        }
+        } => (
+            Some(!history || source_parentid.is_none()),
+            history
+                .then(|| crate::feed::parse_timestamp(source_time))
+                .flatten(),
+            Some(*minor),
+            Some(true),
+            withheld_bits(withheld),
+        ),
         Operation::Create { .. } => (Some(true), None, None, None, 0),
         _ => (Some(false), None, None, None, 0),
     };
     Ok(Columns {
         kind: if mirror { "sync" } else { "edit" },
         target,
-        summary_op: Some(op.name().to_string()),
-        summary_args: summarize(&op),
+        summary_op: (!history).then(|| op.name().to_string()),
+        summary_args: if history { None } else { summarize(&op) },
         new,
         size,
         delta,
@@ -921,6 +922,27 @@ async fn block_columns(cx: &PgCx, record: &Record) -> Result<Columns, String> {
     })
 }
 
+/// Whether a mirror record was written by a **load**, a dump sync or a crawl (05 §5.9),
+/// rather than by the follower: a load is one `job` row and the job's own activity row,
+/// never a row per entity (03 §4.6; 0013 §5.5, A61). The follower marks its jobs `follow` (0092 §5); a
+/// record with no job, or whose job is not projected, keeps its row. On a rebuild the job
+/// is projected before its records: instance partitions replay `log` before the mirrors,
+/// and a tenant's partitions interleave in write order (03 §6.1).
+async fn is_load(cx: &PgCx, tenant: &str, job: Option<u64>) -> Result<bool, String> {
+    let Some(job) = job.and_then(|j| i64::try_from(j).ok()) else {
+        return Ok(false);
+    };
+    let row = cx
+        .query_opt(
+            "SELECT coalesce(params->'follow' = 'true'::jsonb, false) FROM view.job
+             WHERE tenant = $1 AND job_id = $2",
+            &[&tenant, &job],
+        )
+        .await
+        .map_err(|e| sql(&e))?;
+    Ok(row.is_some_and(|r| !r.get::<_, bool>(0)))
+}
+
 /// The size of a page's row before a revision, 0 for its first.
 async fn previous_size(
     cx: &PgCx,
@@ -974,6 +996,12 @@ impl<B: Backend<Cx = PgCx>> Projection<B> for ActivityProjection {
         Box::pin(async move {
             let h = record.header();
             let info = partition_info(cx, h.partition).await?;
+            if h.payload_type == PAYLOAD_CHANGESET
+                && info.is_mirror()
+                && is_load(cx, &info.tenant, attested(record).job).await?
+            {
+                return Ok(Applied::rows(0));
+            }
             let mut columns = if h.payload_type == PAYLOAD_CHANGESET {
                 changeset_columns(record, info.is_mirror())?
             } else if h.payload_type == scatter_pages::PAYLOAD_PAGE {

@@ -1,0 +1,4 @@
+{#- A page that needs a signed-in viewer: the notice, and the login page where the site
+    has one. -#}
+{%- import "codex.html" as codex -%}
+{{ codex.message(notice) }}{% if login %}<p><a href="{{ login.href }}">{{ login.label }}</a></p>{% endif %}

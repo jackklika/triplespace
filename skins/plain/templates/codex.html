@@ -1,0 +1,114 @@
+{#- Codex components as Plain's macros (19 §5.2, §5.10): each draws Codex's CSS-only markup
+    over a model the binary builds (`triplespace_ui::codex`, each component's `model()`),
+    so that a Codex markup change is one edit; `tests/codex_macros.rs` holds each macro's
+    markup as a snapshot. `*_html` fields are HTML the binary built from escaped parts; a table cell is
+    parts, drawn by `inline.html`; everything else is text the macro escapes.
+
+    {% import "codex.html" as codex %} … {{ codex.button(b) }} -#}
+{%- import "inline.html" as inline -%}
+
+{%- macro button(b) -%}
+<button type="{{ b.kind }}" class="{{ b.classes }}">{{ b.label }}</button>
+{%- endmacro -%}
+
+{%- macro search(s) -%}
+<div class="cdx-search-input cdx-search-input--has-end-button">
+	<div class="cdx-search-input__input-wrapper">
+		<div class="cdx-text-input">
+			<input class="cdx-text-input__input" type="search" name="{{ s.name }}" value="{{ s.value }}" placeholder="{{ s.placeholder }}" aria-label="{{ s.label }}">
+		</div>
+	</div>
+	<button type="submit" class="cdx-button cdx-search-input__end-button">{{ s.button }}</button>
+</div>
+{%- endmacro -%}
+
+{%- macro message(m) -%}
+<div class="{{ m.classes }}" {{ m.live|safe }}>
+	<span class="cdx-message__icon"></span>
+	<div class="cdx-message__content">{{ m.text }}</div>
+</div>
+{%- endmacro -%}
+
+{%- macro chip(c) -%}
+<span class="{{ c.classes }}"{% if c.title %} title="{{ c.title }}"{% endif %}>{{ c.text }}</span>
+{%- endmacro -%}
+
+{%- macro table(t) -%}
+<div class="cdx-table">
+	{%- if t.header %}
+	<div class="cdx-table__header"><div class="cdx-table__header__caption" aria-hidden="true">{{ t.header }}</div></div>
+	{%- endif %}
+	<div class="cdx-table__table-wrapper">
+		<table class="cdx-table__table">
+			<caption>{{ t.caption }}</caption>
+			<thead>
+				<tr>
+					{%- for c in t.columns %}
+					<th scope="col"{% if c.align_class %} class="{{ c.align_class }}"{% endif %}>{{ c.label }}</th>
+					{%- endfor %}
+				</tr>
+			</thead>
+			<tbody>
+				{%- if not t.rows %}
+				<tr class="cdx-table__table__empty-state"><td class="cdx-table__table__empty-state-content" colspan="{{ t.columns|length }}">{{ t.empty }}</td></tr>
+				{%- endif %}
+				{%- for row in t.rows %}
+				<tr>
+					{%- for cell in row %}
+					{%- if cell.header %}
+					<th scope="row"{% if cell.align_class %} class="{{ cell.align_class }}"{% endif %}{% if cell.lang %} lang="{{ cell.lang }}" dir="auto"{% endif %}>{{ inline.parts(cell.content) }}</th>
+					{%- else %}
+					<td{% if cell.align_class %} class="{{ cell.align_class }}"{% endif %}{% if cell.lang %} lang="{{ cell.lang }}" dir="auto"{% endif %}>{{ inline.parts(cell.content) }}</td>
+					{%- endif %}
+					{%- endfor %}
+				</tr>
+				{%- endfor %}
+			</tbody>
+		</table>
+	</div>
+</div>
+{%- endmacro -%}
+
+{%- macro accordion(a) -%}
+<details class="cdx-accordion"{% if a.open %} open{% endif %}>
+	<summary><span class="cdx-accordion__header"><span class="cdx-accordion__header__title">{{ a.title }}</span>{% if a.description %}<span class="cdx-accordion__header__description">{{ a.description }}</span>{% endif %}</span></summary>
+	<div class="cdx-accordion__content">{{ a.content_html|safe }}</div>
+</details>
+{%- endmacro -%}
+
+{%- macro card(c) -%}
+{%- if c.href %}<a class="cdx-card cdx-card--is-link" href="{{ c.href }}">{% else %}<span class="cdx-card">{% endif %}
+	<span class="cdx-card__text">
+		<span class="cdx-card__text__title">{{ c.title }}</span>
+		{%- if c.description %}
+		<span class="cdx-card__text__description">{{ c.description }}</span>
+		{%- endif %}
+		{%- if c.supporting %}
+		<span class="cdx-card__text__supporting-text">{{ c.supporting }}</span>
+		{%- endif %}
+	</span>
+{% if c.href %}</a>{% else %}</span>{% endif %}
+{%- endmacro -%}
+
+{%- macro field(f) -%}
+<div class="cdx-field">
+	<div class="cdx-label">
+		<label class="cdx-label__label" for="{{ f.id }}"><span class="cdx-label__label__text">{{ f.label }}</span></label>
+		{%- if f.description %}
+		<span class="cdx-label__description" id="{{ f.id }}-description">{{ f.description }}</span>
+		{%- endif %}
+	</div>
+	<div class="cdx-field__control">
+		<div class="cdx-text-input">
+			<input class="cdx-text-input__input" id="{{ f.id }}" name="{{ f.name }}" type="{{ f.kind }}" value="{{ f.value }}"{% if f.description %} aria-describedby="{{ f.id }}-description"{% endif %}{% if f.required %} required{% endif %}{% if f.autocomplete %} autocomplete="{{ f.autocomplete }}"{% endif %}>
+		</div>
+	</div>
+	{%- if f.help %}
+	<div class="cdx-field__help-text">{{ f.help }}</div>
+	{%- endif %}
+</div>
+{%- endmacro -%}
+
+{%- macro progress(p) -%}
+<div class="cdx-progress-bar{% if p.inline %} cdx-progress-bar--inline{% endif %}" role="progressbar" aria-label="{{ p.label }}"><div class="cdx-progress-bar__bar"></div></div>
+{%- endmacro -%}

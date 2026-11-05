@@ -45,7 +45,7 @@ pub mod value;
 
 pub use entity::{Entity, EntityType, PageInfo, ParsedEntity, Sitelink, Term};
 pub use hash::{HashMismatches, Hasher};
-pub use id::{EntityId, IdForm, IdParseError, StatementId, Subject};
+pub use id::{EntityId, IdForm, IdParseError, LexemePart, StatementId, Subject};
 pub use json::{Form, JsonError};
 pub use key::{Canon, Identity, snak_key, statement_key, value_key};
 pub use search::{DocumentContext, EntityDocument, entity_document};

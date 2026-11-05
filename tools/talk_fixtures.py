@@ -2,7 +2,7 @@
 """Turn the samples `tools/talk_dumps.py` wrote into `scatter-talk`'s committed test fixtures
 (0090 §13).
 
-    tools/talk_fixtures.py data/talk-samples crates/scatter-talk/tests/fixtures
+    tools/talk_fixtures.py data/talk-samples docs/samples/enwiki-talk
 
 The fixtures keep the samples' layout and names, so the golden tests read either:
 
@@ -31,7 +31,7 @@ LICENCE = """\
 # `scatter-talk` test fixtures
 
 Talk pages from {sitename}, fetched by `tools/talk_dumps.py` from `{api}` and converted by
-`tools/talk_fixtures.py`, for the golden tests in `../samples.rs` (ADR 0090 §13).
+`tools/talk_fixtures.py`, for the golden tests in `crates/scatter-talk/tests/samples.rs` (ADR 0090 §13).
 
 **The text is by {sitename}'s contributors** and is available under the
 [Creative Commons Attribution-ShareAlike 4.0 License](https://creativecommons.org/licenses/by-sa/4.0/)

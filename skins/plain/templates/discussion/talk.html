@@ -1,0 +1,10 @@
+{#- A talk page: its threads, pinned first, and the new-thread form. -#}
+{%- import "codex.html" as codex -%}
+{%- import "discussion.html" as discussion -%}
+<div class="ts-talk"><div class="ts-talk__bar"><p class="ts-talk__summary">{{ summary }}</p>{% if add %}<a class="cdx-button cdx-button--fake-button cdx-button--fake-button--enabled cdx-button--action-progressive cdx-button--weight-primary" href="{{ add.href }}">{{ add.label }}</a>{% endif %}</div>
+{%- if notice %}{{ codex.message(notice) }}{% endif -%}
+{%- if form %}{{ discussion.topic_form(form) }}{% endif -%}
+{%- if login %}{{ discussion.login(login) }}{% endif -%}
+{%- if empty %}{{ codex.message(empty) }}{% endif -%}
+{%- for t in threads %}{{ discussion.listed(t) }}{% endfor -%}
+</div>

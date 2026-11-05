@@ -9,7 +9,8 @@ strike what stops being true. Implementation status is not kept here (24 §15: `
 
 - `triplespace-db --test db` `the_public_role_cannot_read_private` fails in the cloud sandbox
   ("permission denied to set role ts_server") on the base commit too; environmental, not a
-  regression. `cargo test --workspace` stops at the first failing test binary; use
+  regression. It fails the same way on a Debian 13 VM prepared by `tools/dev_env.sh`
+  (Postgres 17, 2026-11-04). `cargo test --workspace` stops at the first failing test binary; use
   `--no-fail-fast` to run the rest.
 
 ## The cloud sandbox
@@ -34,8 +35,41 @@ strike what stops being true. Implementation status is not kept here (24 §15: `
   contains the name); match on the binary path (`pkill -f "^/home/.*/triplespace-server"`), and
   start a test server and query it within one call, since background processes die when the call
   ends.
+- The tree tarred into the sandbox must leave out `docs/samples/wikidata/big` (140 MB,
+  gitignored) but keep the rest of `docs/samples` (about 9 MB): many tests read it, among them
+  `triplespace-ui`'s `entity` tests and the parity corpus's `wikidata` set
+  (`tests/common/fixture_api.rs`), which panic on a missing file without it.
+- Moving `target/` into a fresh copy of the tree (to reuse a build) leaves binaries that
+  bake `env!("CARGO_MANIFEST_DIR")` pointing at the old copy, and Cargo does not rebuild
+  them: `triplespace-ui`'s tests then panic on missing fixtures, and `cargo xtask skin-parity`
+  writes its report under the old path. `cargo clean -p` the crates that use it (`grep -rl
+  'env!("CARGO_MANIFEST_DIR")' crates xtask`) and `xtask`, or build in place.
 - `tools/client_compat.sh` runs `target/debug` binaries: build `-p triplespace-cli -p
   triplespace-server` first, or it runs stale ones.
+- `pkill -f '<pattern>'` inside a longer shell command matches that command's own `bash -c`
+  line and kills it (exit 144, no output). Stop a test server by process name instead
+  (`kill $(pgrep -x triplespace-ser)`; the name is cut to 15 characters).
+- `triplespace instance create` refuses an owner password under 8 characters only after it has
+  written the instance, so a short test password leaves an instance nobody can log in to.
+  Use 8 or more.
+- A test adoption that fails leaves an empty `view`, and an empty `view` passes the rebuild
+  equivalence diff vacuously. Check `adopt`'s stderr and the row counts before trusting
+  `REBUILD-IDENTICAL`.
+
+## Wikidata dumps
+
+- `latest-all.json.*` is not in ID order: it is written in shards by page ID and opens Q31, Q8,
+  Q23, with properties scattered through it. `head -n N` gives neither the first N items nor
+  the properties they use; cut slices by ID with `tools/wikidata_zindex.py` (real-dumps.md §3.2).
+- `latest-all` changes under a long download; fetch the dated file from
+  `wikidatawiki/entities/<date>/` and check it against that directory's `sha1sums.txt`.
+- dumps.wikimedia.org gives one connection about 5 MB/s and limits connections per IP. The
+  your.org mirror (`dumps.wikimedia.your.org/wikidatawiki/entities/`) serves the same files;
+  `aria2c` with 2 connections to each runs about 16 MB/s. ftp.acc.umu.se did not carry the
+  entity dumps when looked for (2026-11-03).
+- Take the `.bz2` over the `.gz`: `lbzip2` decompresses it on every core (~500 MB/s on 16),
+  where gzip runs on one. A partly downloaded `.bz2` decompresses up to where it stops, which is
+  enough to try a tool on the dump's real opening.
 
 ## The device bridge and James's checkout
 
@@ -50,6 +84,16 @@ strike what stops being true. Implementation status is not kept here (24 §15: `
   run directly needs `PYTHONPATH=docs/tomli-2.4.1-py3-none-any.whl`.
 
 ## The code
+
+- An instance partition's `log.partition.tenant` is NULL, while the `view` tables write the
+  instance as `''`: a join between them on the tenant needs
+  `p.tenant IS NOT DISTINCT FROM nullif(v.tenant, '')`, or it silently finds nothing.
+- A load (a dump sync or a crawl) writes no `view.activity` rows for its mirror records, only
+  its job's (03 §4.6), and the REST change view (`/entity/{id}/changes/{p}/{o}`) reads the
+  activity row, so a loaded record has none. A test that needs `sync` rows runs the follower
+  (`scatter_ingest::run_follow`, as `triplespace-server/tests/site.rs` does; or
+  `triplespace follow --once --api` against a stand-in wiki, as `ui/e2e/run.sh` does with
+  `ui/e2e/wiki.mjs`).
 
 - A `PgCx` dropped after a failed write without `store.rollback(cx)` can leave the pooled
   connection mid-transaction and hang the next write on the same key. Always roll back explicitly,

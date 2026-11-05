@@ -1,0 +1,16 @@
+{#- Inline text as data (`triplespace_ui::inline::Inline`; 19 §5.10): a sentence, a table
+    cell or a list item as parts, text, links, code, line breaks, and a long list that opens
+    on demand. A message whose parameters are links arrives filled with parts.
+
+    {% import "inline.html" as inline %} … {{ inline.parts(p) }} -#}
+{%- macro parts(ps) -%}
+{%- for p in ps -%}
+{%- if p.kind == "text" %}{{ p.text }}
+{%- elif p.kind == "link" %}<a href="{{ p.href }}"{% if p.external %} class="external" rel="nofollow"{% endif %}>{{ p.text }}</a>
+{%- elif p.kind == "code" %}<code>{{ p.text }}</code>
+{%- elif p.kind == "mono" %}<span class="ts-mono">{{ p.text }}</span>
+{%- elif p.kind == "break" %}<br>
+{%- else %}<details class="cdx-accordion"><summary><span class="cdx-accordion__header"><span class="cdx-accordion__header__title">{{ p.title }}</span></span></summary><div class="cdx-accordion__content">{{ p.text }}</div></details>
+{%- endif -%}
+{%- endfor -%}
+{%- endmacro -%}

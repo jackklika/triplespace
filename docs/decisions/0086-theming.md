@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-10-17
-- **Updated:** 2026-10-30 (A9)
+- **Updated:** 2026-11-01 (A11)
 - **Author:** James Hare / Claude Opus
 - **Changes:** [0005](0005-crate-organization.md), [0010](0010-site-ui.md), [0011](0011-logs.md), [0012](0012-api-requirements.md), [0015](0015-record-format-and-partition-registry.md), [0018](0018-tenants.md), [0034](0034-frontend-stack.md), [0039](0039-files-and-media.md), [0040](0040-instance-prerogatives.md), [0055](0055-templatestyles-templatedata-and-page-properties.md)
 - **Uses:** [0053](0053-mirrored-pages.md), [0054](0054-forking-a-mirrored-page.md), [0077](0077-special-version.md), [0085](0085-settings-and-preferences.md)
@@ -34,7 +34,7 @@ James's direction, from the design discussion of 2026-10-16 and 2026-10-17:
 
 ### 1. Palettes and type sets are configuration (amends 0034 §1; extends 0015 §3, 0012 §5, 0011 §6.1, 0018 §10 and 0040 §6)
 
-*Changed by A1, A2, A3, A4, A5, A6.*
+*Changed by A1, A2, A3, A4, A5, A6, A10, A11.*
 
 *Current text: [02](../architecture/02-graphs-rdf-and-query.md) §1.4; [08](../architecture/08-tenants-and-instances.md) §6.3, §8.6; [16](../architecture/16-logs-feeds-and-notifications.md) §2.3; [18](../architecture/18-api.md) §3.2; [19](../architecture/19-site-ui.md) §5.1, §5.9; [23](../architecture/23-configuration-and-registry.md) §2.2.*
 
@@ -46,7 +46,7 @@ James's direction, from the design discussion of 2026-10-16 and 2026-10-17:
 
 ### 3. Type sets (extends 0039 §5)
 
-*Changed by A2, A5.*
+*Changed by A2, A5, A10, A11.*
 
 *Current text: [12](../architecture/12-files-and-media.md) §4.5; [19](../architecture/19-site-ui.md) §5.2, §5.9.*
 
@@ -240,3 +240,17 @@ Replaced text (§7):
   - §7 still says the theme is "not yet served"; it is served (c288df8, fee0708), so the sentence needs a `corrects` entry.
   - The registry lists OpenDyslexic Mono, but IBM Plex Mono is what's served; one of them is wrong.
   - `theme.choice` and the chip swap are as built and unconfirmed.
+
+### A10. Gruvbox, Nord and Catppuccin, with type sets made for them
+
+- **Date:** 2026-11-01
+- **Source:** Direct: Claude, while building the palettes James asked for, 2026-11-01; unconfirmed
+- **Change:** extends §1, §3
+- **Summary:** James asked on 2026-11-01: "Come up with Triplespace palettes for gruvbox, nord, and catpuccin, with complementing type sets. Font reuse is allowed." Three palettes and three type sets ship as options beside the defaults, which stay `parchment` and `default26`. The colours and faces are Claude's choices, unconfirmed. **`gruvbox`** (morhetz/gruvbox, MIT): `light` is gruvbox light on its cream `bg0` with the faded accents, `dark` gruvbox dark on its neutral grey `bg0`, kept grey so it reads apart from parchment's walnut, `dark-more` on `bg0_h`; links in blue, visited in purple, buttons in the faded blue `#076678`. **`nord`** (nordtheme/nord, MIT): `dark` Polar Night with Snow Storm text, `light` Snow Storm with Polar Night text, links in Frost; Nord's mid-tone accents are darkened in their own hue in `light`, warnings there in Aurora orange, and buttons in a darkened Frost blue. **`catppuccin`** (catppuccin/catppuccin, MIT): `light` the Latte flavour, `dark` the Mocha flavour, `dark-more` on Crust; buttons in Latte Blue in both, since Mocha's pastels cannot carry a white label. Each palette sets all four variants, so none falls back to parchment's, and keys its own `rg` and `by` alternates: parchment's hues moved in lightness to meet the floors of §2 on its backgrounds, which parchment's own miss on gruvbox's and Nord's darks, with subtle backgrounds tinted from its own. Every accent is the scheme's own, lightened or darkened in its own hue only where it misses a floor. The type sets, none for accessibility, each with the layer `noto`: **`retro`** for `gruvbox`, Bitter headings over IBM Plex Sans with IBM Plex Mono (`hyperlegible`'s); **`nordic`** for `nord`, Rubik, the face of Nord's own site, over Inter with JetBrains Mono; **`cozy`** for `catppuccin`, Fraunces over Nunito with Lilex (`default26`'s). All are OFL-1.1, from Fontsource 5.3.0, with the body face's 400 italic served. A palette and a type set remain separate choices; the pairing is a suggestion in the registry's comments. The chapter text is 19 §5.9; the registry is `themes.toml`.
+
+### A11. Greenbar and Cyanotype, original palettes with type sets made for them
+
+- **Date:** 2026-11-01
+- **Source:** Direct: Claude, while building the palettes James asked for, 2026-11-01; unconfirmed
+- **Change:** extends §1, §3
+- **Summary:** Asked for a wildcard palette and type set, Claude proposed Greenbar, with Cyanotype and a card-catalogue palette as runners-up, and James answered on 2026-11-01: "Add Greenbar and Cyanotype to the collection." Two original palettes and two type sets ship as options, built as A10's are: all four variants, their own `rg` and `by` alternates from parchment's hues moved to meet the floors of §2, subtle backgrounds tinted from their own. The colours and faces are Claude's, unconfirmed. **`greenbar`**: `light` fanfold computer paper, near-white with the pale green of the printed bands for shaded boxes, carbon-black text and ribbon-blue links, `light-more` on white; `dark` a green phosphor screen, near-black with pale green text, amber links after amber-screen terminals, `dark-more` on black; buttons a deep green. **`cyanotype`**: `light` a whiteprint, navy text on a blue-white ground with teal links; `dark` a blueprint, off-white on Prussian blue `#1B3F73` with marking-pencil yellow links; buttons a deep teal in both. Type sets, OFL-1.1 from Fontsource 5.3.0, with the layer `noto`: **`mainframe`** for `greenbar`, VT323 headings (one weight, Latin only) over Overpass with Overpass Mono; **`drafting`** for `cyanotype`, Barlow Condensed over Barlow with JetBrains Mono (`nordic`'s). The chapter text is 19 §5.9; the registry is `themes.toml`.

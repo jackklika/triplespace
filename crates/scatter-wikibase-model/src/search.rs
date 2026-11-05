@@ -225,7 +225,7 @@ mod tests {
     fn q8() -> Entity {
         let text = std::fs::read_to_string(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../docs/api/snapshots/wikibase-Q8.json"
+            "/../../docs/samples/wikibase-1.43/wikibase-Q8.json"
         ))
         .unwrap();
         let v: serde_json::Value = serde_json::from_str(&text).unwrap();

@@ -447,3 +447,48 @@ fn backend_futures_are_send() {
     let worker = Worker::new().with_all(p.consumers()).unwrap();
     assert_send(&worker.run_once(&backend));
 }
+
+/// 03 §6.1, replay order: the partitions of one group replay interleaved by append time,
+/// so the record written last is applied last whichever partition holds it; replayed one
+/// partition after another, the later partition would win.
+#[test]
+fn a_group_replays_in_append_order_across_partitions() {
+    pollster::block_on(async {
+        const OTHER: u64 = 8;
+        let mut store = MemoryStore::new();
+        for part in [PARTITION, OTHER] {
+            store
+                .create_partition(part, Segments::new(2).unwrap())
+                .await
+                .unwrap();
+        }
+        // Q1 is written first in OTHER (n = 0), then in PARTITION (n = 1).
+        store.append(OTHER, draft(0, "Q1", &[])).await.unwrap();
+        store.append(PARTITION, draft(1, "Q1", &[])).await.unwrap();
+        store.append(OTHER, draft(2, "Q2", &[])).await.unwrap();
+        let backend = MemoryBackend::new();
+        let p = pipeline();
+
+        p.rebuild(&backend, &store, &[PARTITION, OTHER], 10)
+            .await
+            .unwrap();
+        assert_eq!(row(&backend, "index", "Q1").as_deref(), Some("0"));
+
+        let progress = p
+            .rebuild_grouped(&backend, &store, &[vec![PARTITION, OTHER]], 1)
+            .await
+            .unwrap();
+        assert_eq!(row(&backend, "index", "Q1").as_deref(), Some("1"));
+        assert_eq!(row(&backend, "index", "Q2").as_deref(), Some("2"));
+        let records: Vec<(u64, u64)> = progress.iter().map(|(id, p)| (*id, p.records)).collect();
+        assert_eq!(records, vec![(PARTITION, 1), (OTHER, 2)]);
+        // Every projection's position is at each partition's head.
+        assert!(
+            p.lags(&backend, &store, OTHER)
+                .await
+                .unwrap()
+                .iter()
+                .all(|l| l.applied == l.head)
+        );
+    });
+}

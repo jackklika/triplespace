@@ -209,7 +209,7 @@ fn read_dump(path: &Path) -> Vec<Rev> {
 
 #[test]
 fn every_fixture_page_plans_threads_that_replay() {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../scatter-talk/tests/fixtures");
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/samples/enwiki-talk");
     let mut pages = read_dump(&dir.join("current.xml.bz2"));
     if let Some(last) = read_dump(&dir.join("history.xml.bz2")).pop() {
         pages.push(last);

@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish = false
-description = "Repository tasks: `cargo xtask deps`, `cargo xtask wasm`, `cargo xtask manifest`"
+description = "Repository tasks: `cargo xtask deps`, `cargo xtask wasm`, `cargo xtask manifest`, `cargo xtask skin-parity`"
 
 [dependencies]
 anyhow.workspace = true

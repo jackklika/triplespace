@@ -173,6 +173,30 @@ pub async fn run(args: Adopt) -> Result<()> {
         (None, Some(o)) => o,
         (None, None) => bail!("no owner found for `{}`; pass --subsidiary", args.tenant),
     };
+    if !args.no_accounts {
+        let held: Vec<(String, String)> = client
+            .query(
+                "SELECT actor_key, name FROM view.actor
+                 WHERE tenant = $1 AND kind IN ('registered', 'bot') AND name IS NOT NULL",
+                &[&args.tenant],
+            )
+            .await?
+            .iter()
+            .map(|r| (r.get(0), r.get(1)))
+            .collect();
+        let adopted: Vec<(String, String)> = survey
+            .accounts()
+            .iter()
+            .map(|a| (ActorKey::numeric(&issuer, a.id).to_string(), a.name.clone()))
+            .collect();
+        let clashes = name_clashes(&held, &adopted);
+        if !clashes.is_empty() {
+            bail!(
+                "the dump's accounts disagree with accounts the tenant already has, so adoption would give two accounts one name or rename one (0035 §5):\n  {}\nThe owner must be created under the source's own user ID and name (`instance create --owner <user_id> --owner-name <name>`, 07 §2.5)",
+                clashes.join("\n  ")
+            );
+        }
+    }
     let t = now();
     let accounts = if args.no_accounts {
         Vec::new()
@@ -428,5 +452,62 @@ fn adopted(a: AdoptedRevision, issuer: &str, current_only: bool) -> Adopted {
         withheld: a.withheld,
         comment: a.comment,
         author,
+    }
+}
+
+/// Where the source's accounts disagree with the tenant's (0035 §5, A16): a source account
+/// whose name another key already holds, or a key already held under another name. Account
+/// names are unique on a tenant, as on MediaWiki, and the adoption leaves an account it finds
+/// present as it is (07 §2.5), so either case would leave the tenant with two accounts of one
+/// name or the source's account under the wrong name. `held` and `adopted` are
+/// `(actor key, name)` pairs.
+fn name_clashes(held: &[(String, String)], adopted: &[(String, String)]) -> Vec<String> {
+    let mut out = Vec::new();
+    for (key, name) in adopted {
+        for (k, n) in held {
+            if n == name && k != key {
+                out.push(format!(
+                    "`{name}` is {key} in the dump, but the tenant's {k} has that name"
+                ));
+            } else if k == key && n != name {
+                out.push(format!(
+                    "{key} is `{name}` in the dump, but the tenant has it as `{n}`"
+                ));
+            }
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod name_clash_tests {
+    use super::name_clashes;
+
+    fn pairs(v: &[(&str, &str)]) -> Vec<(String, String)> {
+        v.iter()
+            .map(|(k, n)| ((*k).to_string(), (*n).to_string()))
+            .collect()
+    }
+
+    // 0035 §5, A16
+    #[test]
+    fn an_owner_under_another_id_with_a_source_name_is_refused() {
+        let held = pairs(&[("t:3", "Librarybase")]);
+        let adopted = pairs(&[("t:1", "Librarybase")]);
+        assert_eq!(name_clashes(&held, &adopted).len(), 1);
+    }
+
+    #[test]
+    fn an_owner_under_a_source_id_with_another_name_is_refused() {
+        let held = pairs(&[("t:3", "Harej")]);
+        let adopted = pairs(&[("t:3", "Librarybase")]);
+        assert_eq!(name_clashes(&held, &adopted).len(), 1);
+    }
+
+    #[test]
+    fn the_owner_as_the_source_has_it_and_a_rerun_pass() {
+        let held = pairs(&[("t:3", "Harej"), ("t:1", "Librarybase")]);
+        let adopted = pairs(&[("t:1", "Librarybase"), ("t:3", "Harej")]);
+        assert!(name_clashes(&held, &adopted).is_empty());
     }
 }

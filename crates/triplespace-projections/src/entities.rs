@@ -43,6 +43,34 @@ use crate::common::{
 };
 use crate::sources::entity_subject;
 
+/// The instance's term languages, the languages in which a mirrored entity's terms are
+/// shared rows of `view.term` (05 §5.8; 0070 §6; 0082 §6), as a CTE named
+/// `shared_term_languages(lang)`. The instance's `entities.term_languages` is the ceiling
+/// it sets for every tenant, the `tenancy:entities.term_languages` switch (23 §3.2,
+/// §3.4); without one, the default: the instance's content languages, `mul` and `en`.
+/// The content languages are every tenant's `site.language` and the instance's default
+/// for it (`template:site:site.language`), so each tenant's own language is always among
+/// them (0082 A2: what "the instance's content languages" are).
+pub const SHARED_TERM_LANGUAGES: &str = "\
+    term_ceiling AS (
+        SELECT config->'value' AS v FROM view.registry
+        WHERE tenant = '' AND kind = 'tenancy' AND code = 'entities.term_languages'
+          AND jsonb_typeof(config->'value') = 'array'
+    ),
+    shared_term_languages(lang) AS (
+        SELECT jsonb_array_elements_text(v) FROM term_ceiling
+        UNION
+        SELECT d.lang FROM (
+            SELECT 'mul' AS lang
+            UNION SELECT 'en'
+            UNION SELECT config->>'value' FROM view.registry
+                WHERE tenant <> '' AND kind = 'site' AND code = 'site.language'
+            UNION SELECT coalesce(config->'record'->>'value', config->>'value') FROM view.registry
+                WHERE tenant = '' AND kind = 'template' AND code = 'site:site.language'
+        ) d
+        WHERE d.lang IS NOT NULL AND NOT EXISTS (SELECT 1 FROM term_ceiling)
+    )";
+
 fn sql(e: &tokio_postgres::Error) -> String {
     crate::common::describe(e)
 }
@@ -293,10 +321,12 @@ impl EntityProjection {
             .max()
             .ok_or_else(|| format!("no record for `{id}` carries a page ID (0013 §6)"))?;
         let page_id = i64::try_from(page_id).map_err(|e| e.to_string())?;
-        let single_source = contributions.len() == 1
-            && resolved.equals(&contributions[0].entity)
-            && (mirror_states == 1 || local.single_whole);
+        // The resolved JSON is needed either way (the stored copy, or the size), so it is
+        // built once and the comparison reuses it; the cheap conditions go first.
         let json = resolved.canonical_json();
+        let single_source = contributions.len() == 1
+            && (mirror_states == 1 || local.single_whole)
+            && resolved.equals_given(&json, &contributions[0].entity);
         let (kind, blob): (&str, Option<Vec<u8>>) = if single_source {
             ("source", None)
         } else {
@@ -377,6 +407,13 @@ impl EntityProjection {
     }
 
     /// Replaces the subject's `view.term` rows: one delete, one multi-row insert.
+    ///
+    /// A tenant's row (a local entity, an overlay) holds every language. A shared row
+    /// (`tenant = ''`, a mirrored entity) holds only the instance's term languages (05 §5.8;
+    /// 0070 §6; 0082 §6): the other languages stay in the record, which `wbgetentities`
+    /// reads. The set is [`SHARED_TERM_LANGUAGES`], applied inside the insert, so the rows
+    /// follow the configuration in the store with no extra round trip; a change to it
+    /// reaches rows already written when the entity projection is rebuilt.
     async fn write_terms(
         cx: &PgCx,
         tenant: &str,
@@ -418,9 +455,13 @@ impl EntityProjection {
         if !kinds.is_empty() {
             n += cx
                 .execute(
-                    "INSERT INTO view.term (tenant, entity_id, kind, lang, ordinal, text)
-                     SELECT $1, $2, t.kind, t.lang, t.ordinal, t.text
-                     FROM unnest($3::smallint[], $4::text[], $5::smallint[], $6::text[]) AS t(kind, lang, ordinal, text)",
+                    &format!(
+                        "WITH {SHARED_TERM_LANGUAGES}
+                         INSERT INTO view.term (tenant, entity_id, kind, lang, ordinal, text)
+                         SELECT $1, $2, t.kind, t.lang, t.ordinal, t.text
+                         FROM unnest($3::smallint[], $4::text[], $5::smallint[], $6::text[]) AS t(kind, lang, ordinal, text)
+                         WHERE $1 <> '' OR t.lang IN (SELECT lang FROM shared_term_languages)"
+                    ),
                     &[&tenant, &id.as_str(), &kinds, &langs, &ordinals, &texts],
                 )
                 .await

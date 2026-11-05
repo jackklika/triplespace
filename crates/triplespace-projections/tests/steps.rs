@@ -245,7 +245,7 @@ async fn seed(client: Client) -> Client {
                     "target": {"kind": "job", "id": 7},
                     "params": {"source": "internetdomains", "version": "2026-10-01", "mode": "upsert",
                                "graph": "mirror/internetdomains", "adapter": "scatter-adapter-internetdomains 0.0.1",
-                               "args": {"subset": "all"}}}),
+                               "args": {"subset": "all", "follow": true}}}),
                 None,
                 None,
             ),
@@ -477,7 +477,10 @@ async fn steps_two_to_five_project_and_rebuild() {
         (1, Some(2))
     );
     assert_eq!(job7.get::<_, String>(10), "local:1");
-    assert_eq!(job7.get::<_, String>(11), r#"{"subset": "all"}"#);
+    assert_eq!(
+        job7.get::<_, String>(11),
+        r#"{"follow": true, "subset": "all"}"#
+    );
     assert_eq!(
         sorted(&client, "SELECT line::text || '|' || coalesce(match_key, '') || '|' || reason FROM view.job_reject WHERE job_id = 7").await,
         vec![r#"4|{"P1":"not a domain"}|invalid key"#]
@@ -566,7 +569,9 @@ async fn steps_two_to_five_project_and_rebuild() {
             "librarybase|domain:example.org|1|de|example.org (de)",
             "librarybase|domain:example.org|1|en|Example",
             "|XDQ10|1|en|Registrar",
-            "|domain:example.org|1|de|example.org (de)",
+            // A mirrored entity's shared rows hold the instance's term languages only
+            // (05 §5.8; 0082 §6): `mul`, `en` and the tenants' content languages, here
+            // `en`. Its German label stays in the record; the tenant's rows keep it.
             "|domain:example.org|1|en|example.org",
         ]
     );
@@ -588,6 +593,8 @@ async fn steps_two_to_five_project_and_rebuild() {
             "librarybase|edit|local|add|domain:example.org|local:1|-|false",
             "librarybase|edit|local|override|domain:example.org|local:1|-|false",
             "librarybase|edit|local|retain|domain:example.org|local:1|-|false",
+            // Job 7 is the follower's (`follow`), so its mirror records are rows; a load's
+            // are not (03 §4.6; 0013 §5.5), as `end_to_end.rs` and the site test check.
             "|sync|mirror/internetdomains|put|domain:example.org|local:1|7|false",
             "|sync|mirror/internetdomains|put|XDQ10|local:1|7|false",
             "|job|log|job/start|7|local:1|-|-",
@@ -1107,6 +1114,77 @@ async fn snapshot(client: &Client) -> Vec<String> {
         all.extend(sorted(client, &format!("SELECT t::text FROM {table} t")).await);
     }
     all
+}
+
+/// The instance's term languages (05 §5.8; 0082 §6, A2): by default `mul`, `en` and the
+/// instance's content languages, every tenant's `site.language` and the instance's default
+/// for it; an instance `entities.term_languages` ceiling replaces the default.
+#[tokio::test]
+async fn the_instance_term_languages() {
+    if skipped() {
+        return;
+    }
+    let (client, _) = fresh().await;
+    let languages = || async {
+        rows(
+            &client,
+            &format!(
+                "WITH {} SELECT lang FROM shared_term_languages ORDER BY lang",
+                triplespace_projections::entities::SHARED_TERM_LANGUAGES
+            ),
+        )
+        .await
+    };
+    assert_eq!(languages().await, ["en", "mul"], "no configuration");
+    let set = |tenant: &'static str,
+               kind: &'static str,
+               code: &'static str,
+               config: serde_json::Value| {
+        let client = &client;
+        async move {
+            client
+                .execute(
+                    "INSERT INTO view.registry (tenant, kind, code, config, \"offset\") VALUES ($1, $2, $3, $4, 1)
+                     ON CONFLICT (tenant, kind, code) DO UPDATE SET config = EXCLUDED.config",
+                    &[&tenant, &kind, &code, &config],
+                )
+                .await
+                .unwrap();
+        }
+    };
+    set(
+        "librarybase",
+        "site",
+        "site.language",
+        json!({"kind": "site", "name": "site.language", "value": "de"}),
+    )
+    .await;
+    set(
+        "other",
+        "site",
+        "site.language",
+        json!({"kind": "site", "name": "site.language", "value": "en"}),
+    )
+    .await;
+    set("", "template", "site:site.language", json!({"kind": "template", "record": {"kind": "site", "name": "site.language", "value": "fr"}})).await;
+    assert_eq!(
+        languages().await,
+        ["de", "en", "fr", "mul"],
+        "each tenant's content language and the instance's default for it"
+    );
+    set(
+        "",
+        "tenancy",
+        "entities.term_languages",
+        json!({"kind": "tenancy", "value": ["nl", "en"]}),
+    )
+    .await;
+    assert_eq!(
+        languages().await,
+        ["en", "nl"],
+        "the instance ceiling replaces the default"
+    );
+    cleanup().await;
 }
 
 #[tokio::test]

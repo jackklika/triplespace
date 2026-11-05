@@ -13,6 +13,10 @@
 //!   API's own router in process: the browser's request passed as it arrived, with its
 //!   connection address, so the API judges it exactly as if the browser had called it.
 //!
+//! - [`replay::Replay`], from recorded exchanges ([`replay::Record`] keeps them), so that
+//!   a page renders again without an instance: the parity harness of the skin migration
+//!   (0097 §16).
+//!
 //! [`api`], [`entity`], [`search`], [`account`], [`create`], [`version`], [`activity`], [`revisions`], [`pages`], [`settings`], [`rights`], [`notifications`], [`reports`] and [`watch`] have the typed calls the site makes, each returning the value with the
 //! [`api::CacheInfo`] a page needs to compose its own caching (0057 §6).
 //!
@@ -30,6 +34,7 @@ pub mod issuers;
 pub mod notifications;
 pub mod pages;
 pub mod register;
+pub mod replay;
 pub mod reports;
 pub mod revisions;
 pub mod rights;

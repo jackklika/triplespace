@@ -5,7 +5,10 @@
   prefixed provider.
 - **History:** written 2026-10-04 against `4b8d63a`; stage 1 completed 2026-10-06 and its checks run
   in CI (§1.5). Moved into the repo on 2026-10-21 from a working note. Measurements and the
-  write-path analysis are in [`performance.md`](performance.md).
+  write-path analysis are in [`performance.md`](performance.md). Revised 2026-11-01: stage 1's
+  baseline is now a **full-history** adoption ([0035](../decisions/0035-adopting-a-wikibase.md)
+  A12), so the dump is `--full` and `lastrevid` and each page's history must equal the source's;
+  the 2026-10-06 run was a current-state adoption, the shape `adopt --current-only` keeps.
 - **Where to run:** a Linux VM (Debian) or a Mac, from the repo checkout, with a local Postgres.
   Work files go in `~/ts-test/`. Commands assume Linux; macOS differences are noted.
 
@@ -21,11 +24,15 @@ Read this before stage 1, because one of these points changes the stage 1 comman
    [0091](../decisions/0091-one-wikibase-adapter.md): it dispatches on the provider's `adapter`
    field, and `scatter-adapter-wikibase` reads Wikidata, Librarybase and internetdomains alike, with
    the key-map rules of the registry entry. Until 0091 it worked for `internetdomains` only.
-3. **`sync` loads the entire dump into memory first.** It collects every `SyncItem` into a `Vec`
-   before `run_sync` begins, even though `run_sync` accepts any `IntoIterator`. That is fine for
-   internetdomains and the 50k Wikidata sample, and impossible for `latest-all.json.gz` (about 115M
-   entities). 0013 §9 bootstrap mode (COPY, deferred indexes) is not built either. The full
-   Wikidata sync is therefore blocked on code; stage 3 measures what is needed and stops at a slice.
+3. **`sync` streams the dump** (since 2026-11-04): `prepare_wikibase` hands `run_sync` an
+   iterator that reads one entity at a time, so memory no longer grows with the dump. A first
+   pass, when the provider has key maps or the dump is XML, still holds the key index and the
+   property types; the job keeps the set of IDs it has seen in every mode (`seen` in
+   `scatter-ingest`'s `sync.rs`, which the snapshot sweep reads, along with the mirror's entity
+   list), which grows with the number of IDs, not with the entities. Until then `sync` collected every
+   `SyncItem` into a `Vec` first, which was impossible for `latest-all.json.gz` (about 122M
+   entities). 0013 §9 bootstrap mode (COPY, deferred indexes) is not built, so the full Wikidata
+   sync is still blocked on write speed; stage 3 measures what is needed and stops at a slice.
 4. **Known Milestone 1 gaps these tests will hit:** the snapshot sweep tombstones a Domain that is no
    longer in the dump, where 0009 §9 wants an empty `put`; `wbsetsitelink`, `wbgetclaims` and
    `wbmergeitems` are not served; `verify` is not written.
@@ -113,10 +120,10 @@ SQL
 ```
 
 **Pass:**
-- Every page ID matches the entity's page in the dump. `local_revid` is a fresh local revision ID
-  above the revision floor (0035 §3: an adopted record is an ordinary local revision; the source's
-  revision ID is kept as `source_revid` in the content). Spot-check three multi-revision items: the
-  content is the last revision's, not the first.
+- Every page ID matches the entity's page in the dump. Every revision keeps the source's revision
+  ID (0035 A12), so `local_revid` is the dump's last revision ID for the page, below the revision
+  floor. Spot-check three multi-revision items: the content is the last revision's, not the first,
+  and `prop=revisions` lists every revision of the dump with its timestamp, author and summary.
 - Every sequence floor is at or above the dump's maximum.
 - The redirect and the wikitext pages appear as skipped, not as rejected.
 
@@ -140,7 +147,7 @@ always differ.
 - Edit one entity's JSON inside a copy of the dump, then re-run `adopt` with that copy. Expect exactly
   one reject, and the stored entity must be unchanged.
 
-## Stage 1: adopt Librarybase ✔ (2026-10-06)
+## Stage 1: adopt Librarybase (current state ✔ 2026-10-06; full history ✔ 2026-11-02, in CI)
 
 ### 1.1 On the source: freeze, then dump
 
@@ -149,13 +156,16 @@ The order matters: once the dump is taken, the source must stop accepting edits.
 ```sh
 # librarybase.org host
 # set $wgReadOnly = 'Migrating to Triplespace'; in LocalSettings.php and confirm an edit fails
-php maintenance/run.php dumpBackup --current --include-files=no --quiet | gzip > librarybase-20261005.xml.gz
+php maintenance/run.php dumpBackup --full --include-files=no --quiet | gzip > librarybase-YYYYMMDD.xml.gz
 mysql -N -e 'SELECT * FROM wb_id_counters' <db>          # → item=…, property=…
+# After an importDump rebuild, wb_id_counters may sit below the highest IDs: fix it before dumping
 mysql -N -e 'SELECT MAX(log_id) FROM logging' <db>       # → --log-floor
 mysql -N -e 'SELECT user_id FROM user WHERE user_name="James"' <db>   # the owner's source user ID
 # Did the wiki use federated properties / entity sources pointing at Wikidata? If so, note the prefix.
 ```
 
+The dump must carry history: `adopt` refuses a current-state export (every page one revision
+while revisions name parents) unless it is given `--current-only`, which is not the baseline.
 Copy the dump to `~/ts-test/`. Record its sha256 and its size.
 
 ### 1.2 Create the instance and adopt
@@ -178,9 +188,11 @@ triplespace instance create --key-file triplespace.key \
 #   add --entity-source wikidata=WD only if 1.1 said federated properties were used
 ```
 
-`/usr/bin/time -v` reports wall time and peak RSS. Expect about 12 minutes for 247k entities
-(2.9 ms/entity); [`performance.md`](performance.md) §3 has the `pg_stat_statements` recipe if it is
-far off. The final `untyped N snaks on M properties …` line, if present, names properties the dump
+`/usr/bin/time -v` reports wall time and peak RSS (`-l` on macOS). The 11m56s for 247k entities
+in the results log was a current-state adoption, one record per entity; a full-history adoption
+writes one record per revision and has no measured baseline yet, so record its time and the
+survey's revision count. [`performance.md`](performance.md) §3 has the `pg_stat_statements`
+recipe if it looks far off per revision. The final `untyped N snaks on M properties …` line, if present, names properties the dump
 does not define; on a full dump it should be absent.
 
 To rehearse on a prefix of the real dump:
@@ -230,7 +242,17 @@ Per entity it checks:
 - `view.identifier` has a row per external-id mainsnak.
 - The entity equals the source's `Special:EntityData` output minus `lastrevid/modified/pageid/ns/title`.
 - `pageid` equals the source's.
-- `lastrevid` is above the source's (0035 §3–4: a fresh local revision over the floor).
+- `lastrevid` equals the source's (0035 A12: the newest source revision is the current state,
+  under its own ID, with no adoption revision after it).
+- The page's whole history equals the source's, revision by revision: `revid`, `parentid`,
+  `timestamp`, `user`, `userid`, `comment` and `minor`, read through `prop=revisions` on both
+  sides by page ID. The output's `N revisions equal to the source's` says how many.
+- With `--current-only` (a tenant adopted that way), `lastrevid` is instead above the source's,
+  the one adoption revision over the floor (0035 §4), and the history is not compared.
+
+Both equalities hold only while neither side has changed since the dump. Run `--compare` before
+§1.4's writes, or leave the entities they edit out, and keep the source read-only until it is
+done.
 
 Pick IDs that include the lowest Q, the highest Q, every P with an unusual datatype, and a few
 entities with heavy statements, qualifiers, references and many languages.
@@ -288,8 +310,11 @@ needs from the server is in [`../clients.md`](../clients.md).
 ### 1.5 The same, in CI
 
 `tools/client_compat.sh` does 1.2–1.4 unattended against the Librarybase sample fixture (made from
-the full dump, `tools/README.md`) and the internetdomains fixture, then runs all three client checks;
-any failure fails the run. CI's *Client compatibility* job runs it on every push with the clients
+the full-history dump, `tools/README.md`) and the internetdomains fixture. Before any client
+writes, its `dump` step compares every adopted entity with the fixture itself
+(`api_check.py --compare-dump`): content, page ID, `lastrevid` and every revision's history, the
+offline form of §1.3's `--compare`. Then it runs all three client checks; any failure fails the
+run. CI's *Client compatibility* job runs it on every push with the clients
 pinned in `tools/requirements-compat.txt`. Bumping a pin is a deliberate change whose result goes in
 the results log below and in `docs/clients.md`.
 
@@ -387,16 +412,18 @@ is the path a Wikidata resolution pass would take, 500 times over.
 On one branch, before any testing:
 - ~~Add `prepare_wikidata` to `sync.rs`.~~ Done by 0091: `prepare_wikibase` serves every Wikibase
   provider, and reads a JSON dump without key maps in one pass.
-- Make the sync stream: pass `run_sync` an iterator instead of a `Vec`. This works for upsert mode;
-  snapshot mode needs a set of the IDs it has seen, so the full dump cannot be swept yet.
+- ~~Make the sync stream: pass `run_sync` an iterator instead of a `Vec`.~~ Done 2026-11-04
+  (`SyncItems`). The job still keeps a set of the IDs it has seen (in every mode; the snapshot
+  sweep reads it with the mirror's entity list), so a full Wikidata sync holds 122M IDs, not
+  122M entities.
 
 ### 3.1 The 50k sample
 
-`docs/api/snapshots/big/wikidata-20261004-sample-50000.json.gz` holds 50,000 uniformly random items
+`docs/samples/wikidata/big/wikidata-20261004-sample-50000.json.gz` holds 50,000 uniformly random items
 and all 13,972 properties, in the dump's shape (see its manifest).
 
 ```sh
-cp ~/git/triplespace/docs/api/snapshots/big/wikidata-20261004-sample-50000.json.gz ~/ts-test/
+cp ~/git/triplespace/docs/samples/wikidata/big/wikidata-20261004-sample-50000.json.gz ~/ts-test/
 /usr/bin/time -v triplespace sync --provider wikidata \
     --dump wikidata-20261004-sample-50000.json.gz --version sample-20261004 2> sync-wd.stderr | tee sync-wd.out
 ```
@@ -425,17 +452,44 @@ cp ~/git/triplespace/docs/api/snapshots/big/wikidata-20261004-sample-50000.json.
 
 ### 3.2 A real-dump slice
 
-Download `latest-all.json.gz` (about 140 GB) from dumps.wikimedia.org and cut a prefix rather than
-writing a new reader:
+The dump is **not** in ID order: it is written in shards by page ID and opens Q31, Q8, Q23, with
+properties scattered through it, so a prefix (`head -n`) is neither the first N items nor carries
+the properties its items use. Cut slices by ID instead, from an indexed copy of the dump that
+`tools/wikidata_zindex.py` makes once (`tools/README.md`):
 
 ```sh
-zcat latest-all.json.gz | head -n 1000001 | sed '$ s/,$//' | { cat; echo ']'; } | gzip > wd-slice-1m.json.gz
-triplespace sync --provider wikidata --dump wd-slice-1m.json.gz --version slice-1m-<dumpdate>
+# Pin a dated dump, not latest-all, and take the bz2 (~104 GB): lbzip2 decompresses it on every
+# core, where gzip is single-threaded. aria2c from dumps.wikimedia.org and the your.org mirror
+# (2 connections each) runs ~16 MB/s, about 1¾ h; one wget, ~5 MB/s.
+D=20261026
+aria2c --max-connection-per-server=2 --split=4 --min-split-size=256M --max-tries=0 \
+    --checksum=sha-1=<from wikidata-$D-sha1sums.txt> -o wikidata-$D-all.json.bz2 \
+    https://dumps.wikimedia.org/wikidatawiki/entities/$D/wikidata-$D-all.json.bz2 \
+    https://dumps.wikimedia.your.org/wikidatawiki/entities/$D/wikidata-$D-all.json.bz2
+
+# Once per dump (~2 h on 16 cores, bound by bzip2): the archive and its ID index
+python3 tools/wikidata_zindex.py build wd-$D --input wikidata-$D-all.json.bz2 --sha1 <sha1>
+python3 tools/wikidata_zindex.py verify wd-$D
+
+# The first million items that exist, and every property, in numeric order
+{ python3 tools/wikidata_zindex.py ids wd-$D --kind Q --limit 1000000
+  python3 tools/wikidata_zindex.py ids wd-$D --kind P; } |
+    python3 tools/wikidata_zindex.py get wd-$D --ids-file - | gzip > wd-slice-1m.json.gz
+triplespace sync --provider wikidata --dump wd-slice-1m.json.gz --version slice-1m-$D
 ```
 
-The dump is ordered by ID, so the first million entities are old, dense, heavily linked items: the
-worst case for size per entity. Record the same measurements as in 3.1 at 1M, then repeat with 5M if
-the 1M run looks linear.
+`get` writes JSON Lines, which the dump reader takes as it takes the array form. The dump holds
+only entities that exist, so redirects, deletions and gaps in the numbering are already left out:
+`ids --limit 1000000` ends where the millionth existing item does, well above Q1000000. Any
+other slice (a 5M prefix, a sample, a class of items) is likewise a list of IDs. Keep the archive
+with the dump date in its name; `info` prints the source, sha1 and counts it was built from.
+
+For the 2026-10-26 dump: 122,042,968 items and 14,017 properties; 1.85 TB of JSON in a 104.3 GB
+archive (bzip2: 103.6 GB) with a 2.6 GB index, built in 2 h 1 min at 4.8 GB peak RSS on 16 cores;
+the millionth item is Q1084808; one entity comes back in 0.5 ms.
+
+The first million items are old, dense, heavily linked items: the worst case for size per entity.
+Record the same measurements as in 3.1 at 1M, then repeat with 5M if the 1M run looks linear.
 
 ### 3.3 Extrapolate and decide
 
@@ -458,12 +512,21 @@ One row per run.
 | 1.2 Librarybase (before) | `librarybase-20261005.xml.gz`, 247,011 entities / 247,055 pages | 51m44s (10m50 user, 11m31 sys) | | | 247,011 | 0 | 0 | | 2026-10-05, `main` before #56. 44.5 SQL statements/entity, `view.identifier` empty (untyped snaks) |
 | 1.2 Librarybase 10k slice | first 10,000 entities | 2m02s → 35s → 34s | | | 10,000 | 0 | 0 | | successive runs: baseline → after 3.1–3.6 → with typed snaks; 44.5 → 17.0 statements/entity |
 | 1.2 Librarybase (after) | same dump | **11m56s** (4m58 user, 1m58 sys) | | | 247,011 | 0 | 0 | **yes**: `rebuild` 10m01s (3m45 user, 1m28 sys), 1,481,456 view rows, diff empty but for pg_dump's `\restrict` token | 2026-10-05/06, after `3d84c87` + #56 + migration 0008. 17.05 statements/entity; `view.identifier` 246,453 rows |
-| 1.3 api_check, 20 random | | | | | | | | | 2026-10-06: **0 failures**. Content identical to source for 20/20; pageid equal; lastrevid = source + 247,617 (fresh IDs above the floor, 0035 §3); 2 notes for labels shared as a prefix by >50 records, matching the live wiki |
+| 1.2 Librarybase, full history | `librarybase-20261101.xml.gz` (the rebuilt librarybase.org), 247,011 entities, 248,115 revisions | 8m46s (3m00 user, 1m34 sys) | 17 MB | | 248,097 revisions of 247,011 entities | 0 | 0 | | 2026-11-01, Mac, release build. 555 pages with history; 37 document pages; 6 talk pages deferred. The rebuild's `importDump` left every author but `Librarybase` as `imported>Name` (246,450 `imported>Database import`, 1,655 `imported>Harej`), so 1 account and 6 surrogates. Found: surrogates served as `actor:N` with userid N, not as the source shows them; the owner created as a second `Librarybase` stopped `addressing` (0035 A16). Rerun 2026-11-02 with the owner as source user 3: users, IDs and timestamps equal; every summary had `/* adopt */` before the source's (fixed: none on an adopted history revision, 0035 A12); `rebuild` re-projected it, no new adoption needed |
+| 1.3 rebuild equivalence, full history | `librarybase-20261101.xml.gz` | `rebuild` 7m50s (2m30 user, 1m33 sys) | | | | | | **no**: 37 `view.page` rows | 2026-11-02. Every document page's `random` was redrawn (fixed: derived from tenant and page ID, 0047 A29, migration 0025); Main Page, deleted on the site that afternoon, came back not deleted because `rebuild` replayed the tenant's `log` before its `pages` (fixed: a tenant's partitions replay interleaved by append time, as 03 §6.1 says). Rerun after both fixes, migration 0025 applied: the first rebuild restored Main Page's `deleted`, and a second rebuild from that state was **identical** |
+| 1.3 api_check, 2,500 random, full history | `librarybase-20261101.xml.gz` | | | | | 0 failures | | | 2026-11-02, after `rebuild`, against the live librarybase.org: for 2,500 entities, content, `pageid` and `lastrevid` equal to the source's, and every page's history equal revision by revision (revid, parentid, timestamp, user, userid, summary, minor) |
+| 1.3 api_check, 20 random (current state) | | | | | | | | | 2026-10-06: **0 failures**. Content identical to source for 20/20; pageid equal; lastrevid = source + 247,617 (fresh IDs above the floor, 0035 §3); 2 notes for labels shared as a prefix by >50 records, matching the live wiki |
 | 1.4 WBI + owner + rebuild | Q1 | | | | Q250001, P51 | | | **yes**: second rebuild identical with the edits in it | 2026-10-06: WikibaseIntegrator 0.12.15 bot login; fr label set (lastrevid 248238 → 495249); stale baserevid → `editconflict`; P3 statement added and removed; item above floor 250000, property above floor 50; browser tabs and editors work; owner `clientlogin` PASS |
 | 1.4 Pywikibot | Q1 | | | | 1 item | | | | 2026-10-06: **14 passed, 0 failed** (Pywikibot 11.8.0) after server fixes for `thumblimits`/`imagelimits`/`magiclinks`, `generator` version, structured `paraminfo`, `meta=wikibase`, `query+tokens`/`wbsearchentities` params. Stale baserevid surfaces as `OtherPageSaveError` wrapping `editconflict` |
 | 1.4 WikidataIntegrator | Q1 | | | | 1 item | | | | 2026-10-06: **11 passed/info, 0 failed** (WDI 0.9.30) with `setuptools<80`, `BACKOFF_MAX_TRIES=2`, endpoint at `<api>/sparql` (404, continues). `write()` sends no baserevid (info); stale `delete_statement` refused |
+| 1.2 re-adopt, full history | `librarybase-20261101.xml.gz` | | | | adopted 0, unchanged 248,097 | 0 | 0 | | 2026-11-02: idempotent, entity and document-page revisions alike, after the fix that recognises a history revision by its adoption job |
+| 1.5 client_compat.sh, full history | `librarybase-sample.xml.gz` (254 entities, 295 revisions: 200 sampled items, 10 with history, every property, Q1; cut from `librarybase-20261101.xml.gz`) | | | | 254 | 0 | 0 | | 2026-11-02, sandbox, Postgres 16: `dump` 254/254, WBI 0 failures, Pywikibot 23/23, WDI 11/11; `acl_check.sh` 612 checks, 0 findings |
 | 1.5 client_compat.sh | `librarybase-sample.xml.gz` (225 entities, the earlier fixture cut from the 10k slice) | ~90 s incl. adopt | | | 225 | 0 | 0 | | 2026-10-06, Postgres 16: all three checks pass (WBI 0 failures; Pywikibot 14/14; WDI 11/11). The fixture has since been regenerated from the full dump |
 | 2.2 internetdomains | 312,926 entities | | | | | | | | Synced 2026-10-10; measurements not recorded |
 | 2.5 snapshot | | | | | | | | | |
 | 3.1 WD sample | | | | | | | | | |
+| 3.2 WD first-10k + all properties, `main` vs streaming | `wikidata-20261026-all.json.bz2` (sha1 `e46332c3…`) via `wikidata_zindex.py`: Q1–Q10348 (first 10,000 items) and 14,017 properties, 24,017 entities | 8m49s streaming (alone); 11m19s `main` (3 runs in parallel) | 160 MB streaming; 3.75 GB `main` | | 23,862 | 0 | 155 | | 2026-11-04. All 155 unreadable are lexeme form/sense values (`L470-S1`), 0066 §4 not built. |
+| 3.2 WD first-10k + all properties, with lexeme part IDs | same 24,017 entities | 10m21s | 156 MB | | 24,017 | 0 | 0 | | 2026-11-04, after 0066 §4's IDs (A3): the 155 entities with form or sense values now sync, as `WDL…-F…`/`WDL…-S…`. 7 entity-value hash mismatches, the same 7 as before the change: all EntitySchema values (`E1`–`E13` as qualifiers on properties), hashed as `EntityIdValue`s; fixed in `hash.rs` the same day (0 mismatches on the 10k and 50k slices). |
+| 3.2 WD 2M benchmark: all properties, first 1M items, 1M scholarly articles | `wd-bench-2m.json.gz` (sha256 `4ceed74c…`), 2,014,017 entities, 54.8 GB JSON; from the 2026-10-26 dump, sha1 `e46332c3…` | 9h28m08s (59/s) | 406 MB | 39 GB | 2,014,017 | 0 | 0 | | 2026-11-04, `main` `26f7754`, Postgres tuned per performance.md §4. 0 hash mismatches. Client CPU 70% of wall; 20.0 statements/entity; `view.term` 18 GB. Analysis in performance.md §8. |
+| 3.2 WD first-50k + all properties, `main` vs streaming | same archive: Q1–Q52905 (first 50,000 items) and 14,017 properties, 64,017 entities, 2.85 GB JSON | 31m34s streaming; 34m04s `main` (3 runs in parallel) | **157 MB** streaming; **10.9 GB** `main` | | 63,757 | 0 | 260 | | 2026-11-04. Same counts both ways; RSS flat with streaming, linear without (≈220 KB/entity). ~35–45 entities/s on these dense early items. |
 | 3.2 WD 1M slice | | | | | | | | | |

@@ -25,22 +25,21 @@
 //! Not yet: the Page data tab, Pin here, List on… and Move, starting a thread on a user talk page, boards,
 //! foreign threads, and a talk title in a namespace whose local name is not `… talk`.
 
-use std::fmt::Write as _;
-
-use askama::Template as _;
-
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use scatter_titles::Namespaces;
+use serde::Serialize;
 use triplespace_client::{
     CacheInfo, ClientError, Incoming, Lookup, NewThreadOn, PageInfo, PostForm, PostView,
     ThreadView, Written,
 };
 
 use crate::Site;
-use crate::codex::{Action as ButtonAction, Button, MessageKind, Weight};
+use crate::codex::{
+    Action as ButtonAction, Button, ButtonModel, Message, MessageKind, MessageModel, Weight,
+};
+use crate::entity::history::Choice;
 use crate::frame::{Page, Tab, title_url};
-use crate::html::{esc, link};
 use crate::i18n::Messages;
 use crate::pages::{self, Context, Params};
 use crate::special::changes::{clock, date};
@@ -124,106 +123,321 @@ fn status_label(m: &Messages, status: &str) -> String {
     }
 }
 
+// ---------------------------------------------------------------------------------------
+// The view models (19 §5.10): what the skin's `discussion/*.html` templates draw.
+// ---------------------------------------------------------------------------------------
+
 /// The status chip.
-fn chip(m: &Messages, status: &str, closed: bool) -> String {
-    format!(
-        "<span class=\"ts-status ts-status--{} ts-status--{}\">{}</span>",
-        if closed { "closed" } else { "open" },
-        esc(status),
-        esc(&status_label(m, status))
-    )
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct StatusChip {
+    /// `closed` or `open`.
+    pub state: &'static str,
+    /// The status, as the API names it.
+    pub status: String,
+    /// The status, as the reader's language says it.
+    pub label: String,
+}
+
+/// A post's author, linked, with their talk page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Author {
+    /// The user page.
+    pub user: Choice,
+    /// The talk page.
+    pub talk: Choice,
+}
+
+/// A post's signature line.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Signature {
+    /// The author; `None` where hidden.
+    pub author: Option<Author>,
+    /// What the line says of a hidden author.
+    pub hidden: String,
+    /// The time, which is the post's permalink on its thread page.
+    pub time: Option<Choice>,
+}
+
+/// A status a post set.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Event {
+    /// "X set the status".
+    pub text: String,
+    /// The chip.
+    pub chip: StatusChip,
+}
+
+/// One post.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PostModel {
+    /// The post ID.
+    pub id: u64,
+    /// The depth shown, at most `MAX_DEPTH` (6).
+    pub depth: usize,
+    /// "Replying to X", for a post deeper than the depth shown.
+    pub replying_to: Option<String>,
+    /// The text, HTML: the API's rendering of the post; `None` where hidden.
+    pub post_html: Option<String>,
+    /// What the post says of hidden text.
+    pub hidden: String,
+    /// A status the post set.
+    pub event: Option<Event>,
+    /// The signature line.
+    pub signature: Signature,
+    /// **Reply**.
+    pub reply: Option<Choice>,
+}
+
+/// The posts of a thread in tree order, flattened: a post, or the opening or closing of
+/// a hat, the `<details>` that holds a collapsed range at the place of its first post.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+#[allow(clippy::large_enum_variant)]
+pub enum PostItem {
+    /// A hat opens: the collapsing post's text is its summary.
+    HatOpen {
+        /// The depth shown.
+        depth: usize,
+        /// The collapsing post's text, HTML.
+        post_html: String,
+        /// "collapsed by X".
+        by: String,
+    },
+    /// A post.
+    Post {
+        /// The post.
+        post: PostModel,
+    },
+    /// A hat closes.
+    HatClose,
+}
+
+/// The text area of a form.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TextArea {
+    /// The `id`.
+    pub id: String,
+    /// The `name`.
+    pub name: String,
+    /// The label.
+    pub label: String,
+    /// The value, with the leading newline the textarea's parser eats.
+    pub value: String,
+    /// The rows.
+    pub rows: u8,
+}
+
+/// One status the reply form offers.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct StatusOption {
+    /// The value.
+    pub value: String,
+    /// The label.
+    pub label: String,
+    /// Whether it is selected.
+    pub selected: bool,
+}
+
+/// The reply form of a thread page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ReplyForm {
+    /// Where it posts.
+    pub action: String,
+    /// The CSRF token.
+    pub token: String,
+    /// The post replied to.
+    pub reply_to: Option<u64>,
+    /// The text.
+    pub text: TextArea,
+    /// The status menu's label.
+    pub status_label: String,
+    /// The menu's first entry: no change.
+    pub no_change: String,
+    /// The statuses.
+    pub statuses: Vec<StatusOption>,
+    /// The markup line.
+    pub markup: String,
+    /// **Reply**.
+    pub submit: ButtonModel,
+}
+
+/// The new-thread form of a talk page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TopicForm {
+    /// Where it posts.
+    pub action: String,
+    /// The CSRF token.
+    pub token: String,
+    /// The subject field's label.
+    pub subject_label: String,
+    /// The subject.
+    pub subject: String,
+    /// The text.
+    pub text: TextArea,
+    /// The markup line.
+    pub markup: String,
+    /// **Cancel**.
+    pub cancel: Choice,
+    /// **Add topic**.
+    pub submit: ButtonModel,
+}
+
+/// Where else a listed thread lives: "started on X", or "also on A, B".
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Elsewhere {
+    /// The label.
+    pub label: String,
+    /// The pages.
+    pub pages: Vec<Choice>,
+}
+
+/// One thread on a talk page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ListedThread {
+    /// The thread ID.
+    pub id: u64,
+    /// The pin's label, where the thread is pinned here.
+    pub pinned: Option<String>,
+    /// The subject, linked to the thread page.
+    pub subject: Choice,
+    /// The status chip, once a post has set one.
+    pub chip: Option<StatusChip>,
+    /// "Latest comment … · n comments · n people in discussion".
+    pub meta: String,
+    /// Where else it lives.
+    pub elsewhere: Option<Elsewhere>,
+    /// The summary of a closed thread, which collapses its posts.
+    pub closed: Option<String>,
+    /// The posts.
+    pub posts: Vec<PostItem>,
+}
+
+/// A talk page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TalkPage {
+    /// "n threads, n pinned".
+    pub summary: String,
+    /// **Add topic**.
+    pub add: Option<Choice>,
+    /// What the API refused.
+    pub notice: Option<MessageModel>,
+    /// The new-thread form.
+    pub form: Option<TopicForm>,
+    /// The login line, for a viewer who is not signed in.
+    pub login: Option<Choice>,
+    /// What the page says when it has no threads.
+    pub empty: Option<MessageModel>,
+    /// The threads.
+    pub threads: Vec<ListedThread>,
+}
+
+/// A thread page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ThreadPage {
+    /// The home: its label and the page.
+    pub home: Option<(String, Choice)>,
+    /// Also on: its label and the pages.
+    pub also: Option<(String, Vec<Choice>)>,
+    /// The status chip.
+    pub chip: StatusChip,
+    /// "Latest comment … · n comments · n people in discussion".
+    pub meta: String,
+    /// The posts.
+    pub posts: Vec<PostItem>,
+    /// What the API refused.
+    pub notice: Option<MessageModel>,
+    /// The reply form.
+    pub form: Option<ReplyForm>,
+    /// The login line, for a viewer who is not signed in.
+    pub login: Option<Choice>,
+}
+
+fn choice(href: String, label: String) -> Choice {
+    Choice {
+        href,
+        label,
+        current: false,
+    }
+}
+
+fn page_link(title: &str) -> Choice {
+    choice(format!("/wiki/{}", title_url(title)), title.to_string())
+}
+
+fn message_model(kind: MessageKind, text: &str) -> MessageModel {
+    Message::block(kind, text).model()
+}
+
+/// The status chip.
+fn chip_model(m: &Messages, status: &str, closed: bool) -> StatusChip {
+    StatusChip {
+        state: if closed { "closed" } else { "open" },
+        status: status.to_string(),
+        label: status_label(m, status),
+    }
 }
 
 /// A post's signature line: the author and their talk page, and the time, which is the
 /// post's permalink on its thread page.
-fn signature(m: &Messages, p: &PostView, thread_title: &str) -> String {
-    let who = match &p.author {
-        Some(a) => format!(
-            "{} ({})",
-            link(&format!("/wiki/User:{}", title_url(a)), &esc(a), ""),
-            link(
-                &format!("/wiki/User_talk:{}", title_url(a)),
-                &esc(&m.get("ts-thread-talk")),
-                ""
+fn signature_model(m: &Messages, p: &PostView, thread_title: &str) -> Signature {
+    Signature {
+        author: p.author.as_ref().map(|a| Author {
+            user: choice(format!("/wiki/User:{}", title_url(a)), a.clone()),
+            talk: choice(
+                format!("/wiki/User_talk:{}", title_url(a)),
+                m.get("ts-thread-talk"),
+            ),
+        }),
+        hidden: m.get("ts-thread-user-hidden"),
+        time: p.published.as_deref().map(|t| {
+            choice(
+                format!("{}#post-{}", thread_href(thread_title), p.id),
+                sig_time(m, t),
             )
-        ),
-        None => format!(
-            "<span class=\"ts-post__hidden\">{}</span>",
-            esc(&m.get("ts-thread-user-hidden"))
-        ),
-    };
-    let when = p.published.as_deref().map_or_else(String::new, |t| {
-        link(
-            &format!("{}#post-{}", thread_href(thread_title), p.id),
-            &esc(&sig_time(m, t)),
-            "class=\"ts-post__time\"",
-        )
-    });
-    format!("<p class=\"ts-post__sig\">{who} {when}</p>")
+        }),
+    }
 }
 
 /// One post: its text, its status line, its signature, and Reply.
-fn post_html(
+fn post_model(
     m: &Messages,
     p: &PostView,
     thread: &ThreadView,
     parent_name: Option<&str>,
-    reply_href: Option<&str>,
-) -> String {
-    let depth = p.depth.min(MAX_DEPTH);
-    let mut out = format!(
-        "<div class=\"ts-post\" id=\"post-{}\" style=\"--ts-depth:{depth}\">",
-        p.id
-    );
-    if p.depth > MAX_DEPTH
-        && let Some(name) = parent_name
-    {
-        let _ = write!(
-            out,
-            "<p class=\"ts-post__replying\">{}</p>",
-            esc(&m.with("ts-thread-replying-to", &[name]))
-        );
+    reply_href: Option<String>,
+) -> PostModel {
+    PostModel {
+        id: p.id,
+        depth: p.depth.min(MAX_DEPTH),
+        replying_to: (p.depth > MAX_DEPTH)
+            .then_some(parent_name)
+            .flatten()
+            .map(|name| m.with("ts-thread-replying-to", &[name])),
+        post_html: p.html.clone(),
+        hidden: m.get("ts-thread-text-hidden"),
+        event: p.status.as_ref().map(|st| {
+            let closed = !matches!(st.as_str(), "open" | "in-progress" | "blocked");
+            Event {
+                text: m.with(
+                    "ts-thread-set-status",
+                    &[p.author.as_deref().unwrap_or("?")],
+                ),
+                chip: chip_model(m, st, closed),
+            }
+        }),
+        signature: signature_model(m, p, &thread.title),
+        reply: reply_href.map(|href| choice(href, m.get("ts-thread-reply"))),
     }
-    match &p.html {
-        Some(h) => out.push_str(h),
-        None => {
-            let _ = write!(
-                out,
-                "<p class=\"ts-post__hidden\">{}</p>",
-                esc(&m.get("ts-thread-text-hidden"))
-            );
-        }
-    }
-    if let Some(st) = &p.status {
-        let closed = !matches!(st.as_str(), "open" | "in-progress" | "blocked");
-        let who = p.author.as_deref().unwrap_or("?");
-        let _ = write!(
-            out,
-            "<p class=\"ts-post__event\">{} {}</p>",
-            esc(&m.with("ts-thread-set-status", &[who])),
-            chip(m, st, closed)
-        );
-    }
-    out.push_str(&signature(m, p, &thread.title));
-    if let Some(href) = reply_href {
-        let _ = write!(
-            out,
-            "<p class=\"ts-post__actions\">{}</p>",
-            link(
-                href,
-                &esc(&m.get("ts-thread-reply")),
-                "class=\"ts-post__reply\""
-            )
-        );
-    }
-    out.push_str("</div>");
-    out
 }
 
 /// The posts of a thread in tree order, with each standing collapse drawn as a
 /// `<details>` at the place of its first post, under the collapsing post's text.
 /// `reply` makes a post's Reply link.
-fn posts_html(m: &Messages, t: &ThreadView, reply: &dyn Fn(&PostView) -> Option<String>) -> String {
+fn posts_model(
+    m: &Messages,
+    t: &ThreadView,
+    reply: &dyn Fn(&PostView) -> Option<String>,
+) -> Vec<PostItem> {
     let by_id: std::collections::HashMap<u64, &PostView> =
         t.posts.iter().map(|p| (p.id, p)).collect();
     // The posts that collapse a standing range: shown at the place of the range's first.
@@ -236,39 +450,39 @@ fn posts_html(m: &Messages, t: &ThreadView, reply: &dyn Fn(&PostView) -> Option<
         }
     }
     let collapsers: std::collections::HashSet<u64> = at_first.values().map(|p| p.id).collect();
-    let mut s = String::new();
+    let mut items = Vec::new();
     let mut open_until: Vec<u64> = Vec::new();
     for p in &t.posts {
         if collapsers.contains(&p.id) {
             continue;
         }
         if let Some(c) = at_first.get(&p.id) {
-            let _ = write!(
-                s,
-                "<details class=\"ts-hat\" style=\"--ts-depth:{}\"><summary>{}<span class=\"ts-hat__by\">{}</span></summary>",
-                p.depth.min(MAX_DEPTH),
-                c.html.as_deref().unwrap_or_default(),
-                esc(&m.with(
+            items.push(PostItem::HatOpen {
+                depth: p.depth.min(MAX_DEPTH),
+                post_html: c.html.clone().unwrap_or_default(),
+                by: m.with(
                     "ts-thread-collapsed-by",
-                    &[c.author.as_deref().unwrap_or("?")]
-                ))
-            );
+                    &[c.author.as_deref().unwrap_or("?")],
+                ),
+            });
             open_until.push(c.collapse.map_or(p.id, |(_, last)| last));
         }
         let parent = p
             .in_reply_to
             .and_then(|r| by_id.get(&r))
             .and_then(|q| q.author.as_deref());
-        s.push_str(&post_html(m, p, t, parent, reply(p).as_deref()));
+        items.push(PostItem::Post {
+            post: post_model(m, p, t, parent, reply(p)),
+        });
         while open_until.last() == Some(&p.id) {
             open_until.pop();
-            s.push_str("</details>");
+            items.push(PostItem::HatClose);
         }
     }
     for _ in open_until {
-        s.push_str("</details>");
+        items.push(PostItem::HatClose);
     }
-    s
+    items
 }
 
 /// "Latest comment … · n comments · n people in discussion".
@@ -295,32 +509,31 @@ fn status_set(t: &ThreadView) -> bool {
 
 /// The markup line under a text area.
 fn markup_line(m: &Messages, markup: &str) -> String {
-    let key = if markup == "wikitext" {
+    m.get(if markup == "wikitext" {
         "ts-thread-markup-wikitext"
     } else {
         "ts-thread-markup-markdown"
-    };
-    format!("<p class=\"ts-composer__markup\">{}</p>", esc(&m.get(key)))
+    })
 }
 
-/// A text area with its label.
-fn text_area(id: &str, name: &str, label: &str, value: &str, rows: u8) -> String {
-    format!(
-        "<div class=\"cdx-field\"><div class=\"cdx-label\"><label class=\"cdx-label__label\" for=\"{id}\"><span class=\"cdx-label__label__text\">{}</span></label></div><div class=\"cdx-field__control\"><div class=\"cdx-text-area\"><textarea class=\"cdx-text-area__textarea\" id=\"{id}\" name=\"{name}\" rows=\"{rows}\" dir=\"auto\" spellcheck=\"true\" required>{}</textarea></div></div></div>",
-        esc(label),
-        esc(&format!("\n{value}"))
-    )
+fn text_area(id: &str, name: &str, label: &str, value: &str, rows: u8) -> TextArea {
+    TextArea {
+        id: id.to_string(),
+        name: name.to_string(),
+        label: label.to_string(),
+        value: format!("\n{value}"),
+        rows,
+    }
 }
 
-fn submit(label: &str) -> String {
+fn submit(label: &str) -> ButtonModel {
     Button {
         label,
         kind: "submit",
         action: ButtonAction::Progressive,
         weight: Weight::Primary,
     }
-    .render()
-    .unwrap_or_default()
+    .model()
 }
 
 /// The reply form of a thread page.
@@ -332,46 +545,32 @@ fn reply_form(
     reply_to: Option<&PostView>,
     text: &str,
     status: &str,
-) -> String {
+) -> ReplyForm {
     let label = match reply_to {
         Some(p) => m.with("ts-thread-reply-to", &[p.author.as_deref().unwrap_or("?")]),
         None => m.get("ts-thread-reply-thread"),
     };
-    let mut s = format!(
-        "<form class=\"ts-composer\" id=\"reply\" method=\"post\" action=\"/w/index.php?title=Thread:{}&amp;action=reply\"><input type=\"hidden\" name=\"wpEditToken\" value=\"{}\">",
-        title_url(&t.title),
-        esc(token)
-    );
-    if let Some(p) = reply_to {
-        let _ = write!(
-            s,
-            "<input type=\"hidden\" name=\"replyto\" value=\"{}\">",
-            p.id
-        );
+    ReplyForm {
+        action: format!(
+            "/w/index.php?title=Thread:{}&action=reply",
+            title_url(&t.title)
+        ),
+        token: token.to_string(),
+        reply_to: reply_to.map(|p| p.id),
+        text: text_area("ts-reply-text", "wpTextbox1", &label, text, 5),
+        status_label: m.get("ts-thread-status"),
+        no_change: m.get("ts-thread-status-nochange"),
+        statuses: STATUSES
+            .iter()
+            .map(|st| StatusOption {
+                value: (*st).to_string(),
+                label: status_label(m, st),
+                selected: *st == status,
+            })
+            .collect(),
+        markup: markup_line(m, markup),
+        submit: submit(&m.get("ts-thread-reply")),
     }
-    s.push_str(&text_area("ts-reply-text", "wpTextbox1", &label, text, 5));
-    let _ = write!(
-        s,
-        "<div class=\"ts-composer__bar\"><div class=\"ts-composer__status\"><label for=\"ts-reply-status\">{}</label> <select class=\"cdx-select\" id=\"ts-reply-status\" name=\"status\"><option value=\"\">{}</option>",
-        esc(&m.get("ts-thread-status")),
-        esc(&m.get("ts-thread-status-nochange"))
-    );
-    for st in STATUSES {
-        let _ = write!(
-            s,
-            "<option value=\"{st}\"{}>{}</option>",
-            if *st == status { " selected" } else { "" },
-            esc(&status_label(m, st))
-        );
-    }
-    s.push_str("</select></div>");
-    s.push_str(&markup_line(m, markup));
-    let _ = write!(
-        s,
-        "<div class=\"ts-composer__actions\">{}</div></div></form>",
-        submit(&m.get("ts-thread-reply"))
-    );
-    s
 }
 
 /// The new-thread form of a talk page.
@@ -382,37 +581,26 @@ fn topic_form(
     token: &str,
     subject: &str,
     text: &str,
-) -> String {
-    let mut s = format!(
-        "<form class=\"ts-composer\" id=\"new-topic\" method=\"post\" action=\"/w/index.php?title={}&amp;action=addtopic\"><input type=\"hidden\" name=\"wpEditToken\" value=\"{}\">",
-        title_url(talk),
-        esc(token)
-    );
-    let _ = write!(
-        s,
-        "<div class=\"cdx-field\"><div class=\"cdx-label\"><label class=\"cdx-label__label\" for=\"ts-topic-subject\"><span class=\"cdx-label__label__text\">{}</span></label></div><div class=\"cdx-field__control\"><div class=\"cdx-text-input\"><input class=\"cdx-text-input__input\" id=\"ts-topic-subject\" name=\"wpSummary\" value=\"{}\" required autocomplete=\"off\"></div></div></div>",
-        esc(&m.get("ts-thread-subject")),
-        esc(subject)
-    );
-    s.push_str(&text_area(
-        "ts-topic-text",
-        "wpTextbox1",
-        &m.get("ts-thread-description"),
-        text,
-        6,
-    ));
-    let _ = write!(
-        s,
-        "<div class=\"ts-composer__bar\">{}<div class=\"ts-composer__actions\">{}{}</div></div></form>",
-        markup_line(m, markup),
-        link(
-            &format!("/wiki/{}", title_url(talk)),
-            &esc(&m.get("ts-thread-cancel")),
-            "class=\"cdx-button cdx-button--fake-button cdx-button--fake-button--enabled\""
+) -> TopicForm {
+    TopicForm {
+        action: format!("/w/index.php?title={}&action=addtopic", title_url(talk)),
+        token: token.to_string(),
+        subject_label: m.get("ts-thread-subject"),
+        subject: subject.to_string(),
+        text: text_area(
+            "ts-topic-text",
+            "wpTextbox1",
+            &m.get("ts-thread-description"),
+            text,
+            6,
         ),
-        submit(&m.get("ts-talk-add-topic"))
-    );
-    s
+        markup: markup_line(m, markup),
+        cancel: choice(
+            format!("/wiki/{}", title_url(talk)),
+            m.get("ts-thread-cancel"),
+        ),
+        submit: submit(&m.get("ts-talk-add-topic")),
+    }
 }
 
 /// A fresh CSRF token, the page made the viewer's alone.
@@ -427,21 +615,16 @@ async fn token(
     Ok((t.value.value, t.set_cookies))
 }
 
-fn login_line(cx: &Context, title: &str, key: &str) -> String {
-    if !cx.features.has(crate::features::Feature::Login) {
-        return String::new();
-    }
-    format!(
-        "<p class=\"ts-composer__login\">{}</p>",
-        link(
-            &format!(
+fn login_line(cx: &Context, title: &str, key: &str) -> Option<Choice> {
+    cx.features.has(crate::features::Feature::Login).then(|| {
+        choice(
+            format!(
                 "/w/index.php?title=Special:UserLogin&returnto={}",
                 title_url(title)
             ),
-            &esc(&cx.m.get(key)),
-            ""
+            cx.m.get(key),
         )
-    )
+    })
 }
 
 fn talk_tabs(m: &Messages, talk: &str, subject: &str) -> Vec<Tab> {
@@ -534,7 +717,7 @@ async fn history(
                 true,
             ),
         },
-        body: crate::entity::history::body_here(m, &cx.site, &prefixed, &ask, id, &page),
+        body: crate::entity::history::body_here(&cx, &prefixed, &ask, id, &page),
         ..Page::default()
     })
 }
@@ -647,7 +830,7 @@ async fn talk(
     // The talk page of a subject that does not exist does not exist either (14 §1.3).
     if subject_id.is_none() && talk_id.is_none() && !user_talk {
         return pages::respond(&cx, headers, StatusCode::NOT_FOUND, |m| Page {
-            body: pages::message(MessageKind::Notice, &m.get("ts-talk-no-subject")),
+            body: cx.message(MessageKind::Notice, &m.get("ts-talk-no-subject")),
             tabs: talk_tabs(m, &prefixed, &subject),
             returnto: Some(prefixed.clone()),
             title: prefixed.clone(),
@@ -723,55 +906,37 @@ async fn talk(
     };
     let watch = crate::watch::control(site, &cx, incoming, &prefixed).await;
     let r = pages::respond(&cx, headers, status, |m| {
-        let mut body = String::from("<div class=\"ts-talk\">");
         let pinned = threads
             .iter()
             .filter(|t| t.attached_to(tid).is_some_and(|a| a.pinned.is_some()))
             .count();
-        let _ = write!(
-            body,
-            "<div class=\"ts-talk__bar\"><p class=\"ts-talk__summary\">{}</p>",
-            esc(&m.with(
-                "ts-talk-summary",
-                &[&threads.len().to_string(), &pinned.to_string()]
-            ))
+        let body = cx.draw(
+            "discussion/talk.html",
+            TalkPage {
+                summary: m.with(
+                    "ts-talk-summary",
+                    &[&threads.len().to_string(), &pinned.to_string()],
+                ),
+                add: (can_add && !adding).then(|| {
+                    choice(
+                        format!("/wiki/{}?action=addtopic#new-topic", title_url(&prefixed)),
+                        m.get("ts-talk-add-topic"),
+                    )
+                }),
+                notice: kept
+                    .notice
+                    .as_deref()
+                    .map(|n| message_model(MessageKind::Error, n)),
+                form: (adding && can_add)
+                    .then(|| topic_form(m, &prefixed, &markup, &tok, kept.subject, kept.text)),
+                login: (adding && !can_add && cx.user.is_none())
+                    .then(|| login_line(&cx, &prefixed, "ts-thread-login"))
+                    .flatten(),
+                empty: (threads.is_empty() && !adding)
+                    .then(|| message_model(MessageKind::Notice, &m.get("ts-talk-empty"))),
+                threads: threads.iter().map(|t| listed_thread(m, t, tid)).collect(),
+            },
         );
-        if can_add && !adding {
-            let _ = write!(
-                body,
-                "<a class=\"cdx-button cdx-button--fake-button cdx-button--fake-button--enabled cdx-button--action-progressive cdx-button--weight-primary\" href=\"/wiki/{}?action=addtopic#new-topic\">{}</a>",
-                title_url(&prefixed),
-                esc(&m.get("ts-talk-add-topic"))
-            );
-        }
-        body.push_str("</div>");
-        if let Some(n) = &kept.notice {
-            body.push_str(&pages::message(MessageKind::Error, n));
-        }
-        if adding {
-            if can_add {
-                body.push_str(&topic_form(
-                    m,
-                    &prefixed,
-                    &markup,
-                    &tok,
-                    kept.subject,
-                    kept.text,
-                ));
-            } else if cx.user.is_none() {
-                body.push_str(&login_line(&cx, &prefixed, "ts-thread-login"));
-            }
-        }
-        if threads.is_empty() && !adding {
-            body.push_str(&pages::message(
-                MessageKind::Notice,
-                &m.get("ts-talk-empty"),
-            ));
-        }
-        for t in &threads {
-            body.push_str(&listed_thread(m, t, tid));
-        }
-        body.push_str("</div>");
         Page {
             title: prefixed.clone(),
             returnto: Some(prefixed.clone()),
@@ -818,75 +983,49 @@ fn order(threads: &mut [ThreadView], talk_id: u64, by_activity: bool) {
 }
 
 /// One thread on a talk page.
-fn listed_thread(m: &Messages, t: &ThreadView, talk_id: u64) -> String {
+fn listed_thread(m: &Messages, t: &ThreadView, talk_id: u64) -> ListedThread {
     let here = t.attached_to(talk_id);
-    let pinned = here.is_some_and(|a| a.pinned.is_some());
-    let mut s = format!(
-        "<section class=\"ts-thread\" id=\"thread-{}\"><div class=\"ts-thread__head\">",
-        t.id
-    );
-    if pinned {
-        let _ = write!(
-            s,
-            "<span class=\"ts-thread__pin\" role=\"img\" aria-label=\"{0}\" title=\"{0}\"></span>",
-            esc(&m.get("ts-thread-pinned"))
-        );
-    }
-    let _ = write!(
-        s,
-        "<h2 class=\"ts-thread__subject\">{}</h2>",
-        link(&thread_href(&t.title), &esc(&t.subject), "")
-    );
-    if status_set(t) {
-        s.push_str(&chip(m, &t.status, t.closed));
-    }
-    s.push_str("</div>");
-    let mut line = meta(m, t);
     let elsewhere: Vec<&triplespace_client::Attached> = std::iter::once(&t.home)
         .chain(&t.listings)
         .filter(|a| a.talk_page_id != Some(talk_id))
         .collect();
     let started_here = t.home.talk_page_id == Some(talk_id);
-    let mut extra = String::new();
-    if !started_here && let Some(h) = &t.home.title {
-        let _ = write!(
-            extra,
-            " · {} {}",
-            esc(&m.get("ts-thread-started-on")),
-            link(&format!("/wiki/{}", title_url(h)), &esc(h), "")
-        );
+    let elsewhere = if !started_here && let Some(h) = &t.home.title {
+        Some(Elsewhere {
+            label: m.get("ts-thread-started-on"),
+            pages: vec![page_link(h)],
+        })
     } else if !elsewhere.is_empty() {
-        let names: Vec<String> = elsewhere
-            .iter()
-            .filter_map(|a| a.title.as_ref())
-            .map(|n| link(&format!("/wiki/{}", title_url(n)), &esc(n), ""))
-            .collect();
-        let _ = write!(
-            extra,
-            " · {} {}",
-            esc(&m.get("ts-thread-also-on")),
-            names.join(", ")
-        );
-    }
-    line = esc(&line);
-    let _ = write!(s, "<p class=\"ts-thread__meta\">{line}{extra}</p>");
-    let posts = posts_html(m, t, &|p| {
-        Some(format!("{}?replyto={}#reply", thread_href(&t.title), p.id))
-    });
-    if t.closed {
-        let _ = write!(
-            s,
-            "<details class=\"ts-thread__closed\"><summary>{}</summary>{posts}</details>",
-            esc(&m.with(
-                "ts-thread-show",
-                &[&status_label(m, &t.status), &t.posts.len().to_string()]
-            ))
-        );
+        Some(Elsewhere {
+            label: m.get("ts-thread-also-on"),
+            pages: elsewhere
+                .iter()
+                .filter_map(|a| a.title.as_deref())
+                .map(page_link)
+                .collect(),
+        })
     } else {
-        s.push_str(&posts);
+        None
+    };
+    ListedThread {
+        id: t.id,
+        pinned: here
+            .is_some_and(|a| a.pinned.is_some())
+            .then(|| m.get("ts-thread-pinned")),
+        subject: choice(thread_href(&t.title), t.subject.clone()),
+        chip: status_set(t).then(|| chip_model(m, &t.status, t.closed)),
+        meta: meta(m, t),
+        elsewhere,
+        closed: t.closed.then(|| {
+            m.with(
+                "ts-thread-show",
+                &[&status_label(m, &t.status), &t.posts.len().to_string()],
+            )
+        }),
+        posts: posts_model(m, t, &|p| {
+            Some(format!("{}?replyto={}#reply", thread_href(&t.title), p.id))
+        }),
     }
-    s.push_str("</section>");
-    s
 }
 
 /// A thread page.
@@ -933,69 +1072,48 @@ async fn thread(
     };
     let watch = crate::watch::control(site, &cx, incoming, &format!("Thread:{}", t.title)).await;
     let r = pages::respond(&cx, headers, status, |m| {
-        let mut body = String::from(
-            "<div class=\"ts-thread-page\"><div class=\"ts-thread-page__head\"><dl class=\"ts-thread-page__where\">",
-        );
-        if let Some(h) = &t.home.title {
-            let _ = write!(
-                body,
-                "<div><dt>{}</dt><dd>{}</dd></div>",
-                esc(&m.get("ts-thread-home")),
-                link(&format!("/wiki/{}", title_url(h)), &esc(h), "")
-            );
-        }
-        let also: Vec<String> = t
-            .listings
-            .iter()
-            .filter_map(|a| a.title.as_ref())
-            .map(|n| link(&format!("/wiki/{}", title_url(n)), &esc(n), ""))
-            .collect();
-        if !also.is_empty() {
-            let _ = write!(
-                body,
-                "<div><dt>{}</dt><dd>{}</dd></div>",
-                esc(&m.get("ts-thread-also-on")),
-                also.join(", ")
-            );
-        }
-        let _ = write!(
-            body,
-            "</dl><p class=\"ts-thread-page__state\">{} <span class=\"ts-thread__meta\">{}</span></p></div>",
-            chip(m, &t.status, t.closed),
-            esc(&meta(m, &t))
-        );
         let title = t.title.clone();
-        body.push_str("<div class=\"ts-thread-page__posts\">");
-        body.push_str(&posts_html(m, &t, &|p| {
-            cx.user
-                .as_ref()
-                .map(|_| format!("{}?replyto={}#reply", thread_href(&title), p.id))
-        }));
-        body.push_str("</div>");
-        if let Some(n) = &kept.notice {
-            body.push_str(&pages::message(MessageKind::Error, n));
-        }
-        if cx.user.is_some() {
-            let reply_to = kept
-                .reply_to
-                .and_then(|r| t.posts.iter().find(|p| p.id == r));
-            body.push_str(&reply_form(
-                m,
-                &t,
-                &markup,
-                &tok,
-                reply_to,
-                kept.text,
-                kept.status,
-            ));
-        } else {
-            body.push_str(&login_line(
-                &cx,
-                &format!("Thread:{}", t.title),
-                "ts-thread-login",
-            ));
-        }
-        body.push_str("</div>");
+        let body = cx.draw(
+            "discussion/thread.html",
+            ThreadPage {
+                home: t
+                    .home
+                    .title
+                    .as_deref()
+                    .map(|h| (m.get("ts-thread-home"), page_link(h))),
+                also: {
+                    let also: Vec<Choice> = t
+                        .listings
+                        .iter()
+                        .filter_map(|a| a.title.as_deref())
+                        .map(page_link)
+                        .collect();
+                    (!also.is_empty()).then(|| (m.get("ts-thread-also-on"), also))
+                },
+                chip: chip_model(m, &t.status, t.closed),
+                meta: meta(m, &t),
+                posts: posts_model(m, &t, &|p| {
+                    cx.user
+                        .as_ref()
+                        .map(|_| format!("{}?replyto={}#reply", thread_href(&title), p.id))
+                }),
+                notice: kept
+                    .notice
+                    .as_deref()
+                    .map(|n| message_model(MessageKind::Error, n)),
+                form: cx.user.as_ref().map(|_| {
+                    let reply_to = kept
+                        .reply_to
+                        .and_then(|r| t.posts.iter().find(|p| p.id == r));
+                    reply_form(m, &t, &markup, &tok, reply_to, kept.text, kept.status)
+                }),
+                login: cx
+                    .user
+                    .is_none()
+                    .then(|| login_line(&cx, &format!("Thread:{}", t.title), "ts-thread-login"))
+                    .flatten(),
+            },
+        );
         let full = format!("Thread:{}", t.title);
         Page {
             title: full.clone(),
@@ -1204,19 +1322,35 @@ mod tests {
             posts: vec![post(1, 0, "Hollis"), p2, p3, hat],
             ..ThreadView::default()
         };
-        let html = posts_html(&m, &t, &|_| None);
-        let hat_at = html.find("<details class=\"ts-hat\"").unwrap();
-        assert!(html.find("Post 1").unwrap() < hat_at);
-        assert!(hat_at < html.find("Post 2").unwrap());
-        assert!(html.find("Post 3").unwrap() < html.rfind("</details>").unwrap());
-        assert!(html.contains("<p>Off topic</p>"));
+        let items = posts_model(&m, &t, &|_| None);
+        let kinds: Vec<String> = items
+            .iter()
+            .map(|i| match i {
+                PostItem::HatOpen { post_html, .. } => format!("hat({post_html})"),
+                PostItem::Post { post } => format!("post {}", post.id),
+                PostItem::HatClose => "close".into(),
+            })
+            .collect();
         assert_eq!(
-            html.matches("id=\"post-4\"").count(),
-            0,
-            "the collapsing post is the hat's summary"
+            kinds,
+            [
+                "post 1",
+                "hat(<p>Off topic</p>)",
+                "post 2",
+                "post 3",
+                "close"
+            ],
+            "the hat wraps its range at the place of its first post; the collapsing post is its summary"
         );
-        assert!(html.contains("Hollis"), "{html}");
-        assert!(html.contains("10:01, 21 October 2026 (UTC)"), "{html}");
+        let PostItem::Post { post } = &items[0] else {
+            unreachable!()
+        };
+        let author = post.signature.author.as_ref().expect("an author");
+        assert_eq!(author.user.label, "Hollis");
+        assert_eq!(
+            post.signature.time.as_ref().map(|t| t.label.as_str()),
+            Some("10:01, 21 October 2026 (UTC)")
+        );
     }
 
     #[test]

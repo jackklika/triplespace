@@ -45,7 +45,8 @@ async fn fresh_database() -> String {
 }
 
 fn fixture() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/librarybase-sample.xml.gz")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../docs/samples/librarybase/dump/librarybase-sample.xml.gz")
 }
 
 async fn query(database: &str, sql: &str) -> Vec<tokio_postgres::Row> {
@@ -199,7 +200,7 @@ async fn a_source_is_declared_loaded_and_read_on_its_tenant() {
     .await;
     assert_eq!(
         loaded.len(),
-        244,
+        254,
         "every entity of the sample, as tenant rows"
     );
     assert!(

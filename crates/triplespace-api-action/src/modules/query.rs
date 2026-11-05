@@ -913,6 +913,16 @@ async fn siteinfo(ctx: &mut Ctx, query: &mut Map<String, Value>) -> Result<(), A
                 t["thread"] = json!({
                     "markup": setting("thread.markup").unwrap_or_else(|| "markdown".into()),
                 });
+                // The wiki's skins (0097 §8): its default, and the ones it offers where it
+                // has narrowed them; the site holds the skins themselves.
+                let mut skins = json!({ "default": setting("skins.default") });
+                if let Some(available) = settings
+                    .value("skins.available")
+                    .and_then(|v| v.as_array().cloned())
+                {
+                    skins["available"] = json!(available);
+                }
+                t["skins"] = skins;
                 if ctx.app.config().mode == Mode::Development {
                     t["insecure"] = json!(true);
                 }
@@ -991,6 +1001,7 @@ async fn siteinfo(ctx: &mut Ctx, query: &mut Map<String, Value>) -> Result<(), A
                     "tenant"
                         | "api_version"
                         | "theme"
+                        | "skins"
                         | "visibility"
                         | "login"
                         | "auth"

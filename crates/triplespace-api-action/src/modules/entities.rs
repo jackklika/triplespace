@@ -55,7 +55,10 @@ pub fn parse_id(text: &str) -> Result<EntityId, ApiError> {
 
 /// Whether a client may read an entity of this form: a local one, a foreign one of a
 /// registered provider, a keyed one.
-fn check_form(id: &EntityId, registry: &scatter_providers::Registry) -> Result<(), ApiError> {
+pub(crate) fn check_form(
+    id: &EntityId,
+    registry: &scatter_providers::Registry,
+) -> Result<(), ApiError> {
     // A colon prefix is a keyed type or one of the tenant's sources (0078 §3); nothing
     // else is an ID.
     if id.form() == IdForm::Keyed

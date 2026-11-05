@@ -427,13 +427,7 @@ fn revision_row(
             if want("user") {
                 m.insert(
                     "user".into(),
-                    json!(
-                        row.actor
-                            .name
-                            .clone()
-                            .or_else(|| row.actor.key.clone())
-                            .unwrap_or_else(|| "(erased)".into())
-                    ),
+                    json!(crate::activity::user_name(row).unwrap_or_else(|| "(erased)".into())),
                 );
             }
             if want("userid") {

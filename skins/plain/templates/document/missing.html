@@ -1,0 +1,3 @@
+{#- A title with no page. -#}
+{%- import "codex.html" as codex -%}
+{{ codex.message(notice) }}{% if create %}<p><a href="{{ create.href }}">{{ create.label }}</a></p>{% endif %}

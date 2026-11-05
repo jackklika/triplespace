@@ -1,0 +1,11 @@
+/* The typefaces of the type set `mainframe` (docs/registry/themes.toml; ADR 0086 §3), made for the
+   palette `greenbar`: VT323 for headings over Overpass and Overpass Mono. Served from the site's
+   own origin, as the content security policy requires (ADR 0034 §11), inside the type set's
+   stylesheet. SIL Open Font License 1.1. */
+@import '@fontsource/vt323/400.css';
+@import '@fontsource/overpass/400.css';
+@import '@fontsource/overpass/400-italic.css';
+@import '@fontsource/overpass/500.css';
+@import '@fontsource/overpass/600.css';
+@import '@fontsource/overpass-mono/400.css';
+@import '@fontsource/overpass-mono/500.css';

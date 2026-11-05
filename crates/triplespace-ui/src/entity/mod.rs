@@ -29,8 +29,8 @@
 mod chart;
 pub mod diff;
 pub mod history;
+pub mod model;
 mod notes;
-mod shapes;
 mod values;
 mod view;
 
@@ -348,7 +348,7 @@ fn missing(cx: &Context, headers: &HeaderMap, title: &str) -> Response {
     let title = title.to_string();
     pages::respond(cx, headers, StatusCode::NOT_FOUND, move |m| Page {
         returnto: Some(title.clone()),
-        body: pages::message(
+        body: cx.message(
             MessageKind::Warning,
             &m.with("ts-entity-missing", &[&title]),
         ),
@@ -529,6 +529,101 @@ pub async fn serve(
     }
 }
 
+/// A part of the entity page the skin draws (19 §5.10): a template of `entity/` and the
+/// model it takes.
+pub(super) enum Part {
+    Statements,
+    Identifiers,
+    Terms,
+    Sitelinks,
+    Labels,
+    Identity(Option<model::Restricted>),
+    GroupAlone(String),
+}
+
+/// What each template of `entity/` takes.
+#[derive(serde::Serialize)]
+#[serde(untagged)]
+#[allow(clippy::large_enum_variant)]
+enum Ctx {
+    Statements {
+        heading: String,
+        tab: model::StatementsTab,
+    },
+    Identifiers {
+        tab: model::IdentifiersTab,
+    },
+    Terms {
+        terms: model::Terms,
+    },
+    Sitelinks {
+        sitelinks: model::SitelinksModel,
+    },
+    Labels {
+        table: crate::codex::TableModel,
+    },
+    Identity {
+        identity: model::Identity,
+    },
+    Group {
+        group: model::GroupModel,
+    },
+}
+
+/// Draws a part of the page through the skin ([`Context::draw`]; group 3 switched on
+/// 2026-10-30).
+pub(super) fn draw(r: &Render<'_>, cx: &Context, part: &Part) -> String {
+    let (template, model) = match part {
+        Part::Statements => {
+            let tab = r.statements_tab_model();
+            (
+                "entity/statements.html",
+                Ctx::Statements {
+                    heading: tab.heading.clone(),
+                    tab,
+                },
+            )
+        }
+        Part::Identifiers => (
+            "entity/identifiers.html",
+            Ctx::Identifiers {
+                tab: r.identifiers_model(),
+            },
+        ),
+        Part::Terms => (
+            "entity/terms.html",
+            Ctx::Terms {
+                terms: r.terms_model(),
+            },
+        ),
+        Part::Sitelinks => (
+            "entity/sitelinks.html",
+            Ctx::Sitelinks {
+                sitelinks: r.sitelinks_model(),
+            },
+        ),
+        Part::Labels => (
+            "entity/labels.html",
+            Ctx::Labels {
+                table: r.labels_model(),
+            },
+        ),
+        Part::Identity(restricted) => (
+            "entity/identity.html",
+            Ctx::Identity {
+                identity: r.identity_model(restricted.clone()),
+            },
+        ),
+        Part::GroupAlone(p) => (
+            "entity/group.html",
+            Ctx::Group {
+                group: r.group_alone_model(p),
+            },
+        ),
+    };
+    cx.draw(template, model)
+}
+
 /// `action=render`: one region, or the Statements tab without the frame (0057 §8).
 fn region(
     r: &Render<'_>,
@@ -543,16 +638,17 @@ fn region(
     {
         return pages::build_skew();
     }
-    let html = match query.get("region").map(String::as_str) {
-        None | Some("statements") => r.statements_tab(),
-        Some("terms") => r.terms(),
-        Some("identifiers") => r.identifiers(),
-        Some("sitelinks") => r.sitelinks(),
+    let part = match query.get("region").map(String::as_str) {
+        None | Some("statements") => Part::Statements,
+        Some("terms") => Part::Terms,
+        Some("identifiers") => Part::Identifiers,
+        Some("sitelinks") => Part::Sitelinks,
         Some(region) => match region.strip_prefix("statements/") {
-            Some(p) if EntityId::parse(p).is_ok() => r.group_alone(p),
+            Some(p) if EntityId::parse(p).is_ok() => Part::GroupAlone(p.to_string()),
             _ => return pages::unknown_region(region),
         },
     };
+    let html = draw(r, cx, &part);
     pages::fragment(cx, headers, StatusCode::OK, move || html)
 }
 
@@ -597,15 +693,13 @@ fn page(
     let mut body = match tab {
         // The Protect form is its own page (`action=protect`, `moderation`); the entity
         // page never shows it as current.
-        TabName::Statements => r.statements_tab(),
-        TabName::Identifiers => r.identifiers(),
-        TabName::Sitelinks => r.sitelinks(),
-        TabName::Labels => r.labels(),
+        TabName::Statements => draw(r, cx, &Part::Statements),
+        TabName::Identifiers => draw(r, cx, &Part::Identifiers),
+        TabName::Sitelinks => draw(r, cx, &Part::Sitelinks),
+        TabName::Labels => draw(r, cx, &Part::Labels),
         TabName::History => match history {
-            Some((ask, page)) => {
-                history::body(&cx.m, &cx.site, &canonical_title, ask, r.provenance, page)
-            }
-            None => pages::message(MessageKind::Warning, &cx.m.get("ts-history-none")),
+            Some((ask, page)) => history::body(cx, &canonical_title, ask, r.provenance, page),
+            None => cx.message(MessageKind::Warning, &cx.m.get("ts-history-none")),
         },
     };
     if r.editable {
@@ -623,15 +717,16 @@ fn page(
         has_history,
     );
     let actions = actions(&cx.m, &canonical_title, cx.moderation_tabs());
-    let (display, mut identity, terms, doc_title) = (
+    let restricted = visibility.map(|v| model::Restricted {
+        tip: crate::frame::restricted_tip(&cx.m, &v.groups, &v.sets),
+        text: cx.m.get("ts-restricted"),
+    });
+    let (display, identity, terms, doc_title) = (
         r.display_title(),
-        r.identity(),
-        r.terms(),
+        draw(r, cx, &Part::Identity(restricted)),
+        draw(r, cx, &Part::Terms),
         r.document_title(),
     );
-    if let Some(v) = visibility {
-        identity.push_str(&crate::frame::restricted_pill(&cx.m, &v.groups, &v.sets));
-    }
     pages::respond(cx, headers, StatusCode::OK, move |_| Page {
         title: display,
         title_lang,
@@ -645,6 +740,40 @@ fn page(
         watch,
         ..Page::default()
     })
+}
+
+/// Timing of the entity page's parts, for the skin migration's budget: run by the
+/// `profile_entity_rendering` test. Prints to stderr.
+#[doc(hidden)]
+pub fn profile(r: &Render<'_>, skin: &crate::skin::Skin, rounds: u32) {
+    use std::time::Instant;
+    let time = |f: &dyn Fn()| {
+        let t = Instant::now();
+        for _ in 0..rounds {
+            f();
+        }
+        t.elapsed().as_micros() / u128::from(rounds)
+    };
+    let model = time(&|| {
+        let _ = r.statements_tab_model();
+    });
+    let tab = r.statements_tab_model();
+    let convert = time(&|| {
+        let _ = minijinja::value::Value::from(minijinja::value::Serde(&tab));
+    });
+    let render = time(&|| {
+        let _ = skin.render(
+            "entity/statements.html",
+            r.m,
+            Ctx::Statements {
+                heading: tab.heading.clone(),
+                tab: tab.clone(),
+            },
+        );
+    });
+    eprintln!(
+        "statements tab: model {model} us; serde->Value {convert} us; clone+convert+render {render} us"
+    );
 }
 
 #[cfg(test)]

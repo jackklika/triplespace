@@ -2,7 +2,9 @@
 # Client compatibility (test plan §1.3–1.5): a database loaded from the Librarybase sample
 # fixture, the API on its own, a bot account with a key, and then the three client checks —
 # WikibaseIntegrator (api_check.py --wbi-login), Pywikibot (pwb_check.py) and
-# WikidataIntegrator (wdi_check.py) — each as a hard pass/fail.
+# WikidataIntegrator (wdi_check.py) — each as a hard pass/fail. First, before any client
+# writes, every entity the fixture adopted is compared with the fixture itself
+# (api_check.py --compare-dump): content, page ID, lastrevid and every revision's history.
 #
 #   TRIPLESPACE_TEST_DATABASE_URL=postgres://… tools/client_compat.sh
 #
@@ -26,8 +28,8 @@ url="${admin%/*}/$db"
 port="${PORT:-18280}"
 api="http://127.0.0.1:$port"
 tenant=librarybase
-checks="${CHECKS:-wbi pwb wdi}"
-fixture="${FIXTURE:-$root/crates/triplespace-server/tests/fixtures/librarybase-sample.xml.gz}"
+checks="${CHECKS:-dump wbi pwb wdi}"
+fixture="${FIXTURE:-$root/docs/samples/librarybase/dump/librarybase-sample.xml.gz}"
 work="$(mktemp -d)"
 pids=()
 cleanup() {
@@ -106,6 +108,9 @@ export PYWIKIBOT_NO_USER_CONFIG=1
 
 for c in $checks; do
 	case $c in
+	dump) run "Adopted as the fixture has it (api_check.py --compare-dump)" "$python" "$here/api_check.py" \
+		--api "$api" --tenant $tenant --db "$url" --sample "$(psql "$url" -Atc "SELECT count(*) FROM view.entity WHERE tenant = '$tenant'")" \
+		--compare-dump "$fixture" ;;
 	wbi) run "WikibaseIntegrator (api_check.py)" "$python" "$here/api_check.py" --api "$api" --tenant $tenant \
 		--db "$url" --ids "$item" --sample 10 --wbi-login "$login" --wbi-create-property ;;
 	pwb) run "Pywikibot (pwb_check.py)" "$python" "$here/pwb_check.py" --api "$api" --tenant $tenant \
@@ -113,7 +118,7 @@ for c in $checks; do
 	wdi) run "WikidataIntegrator (wdi_check.py)" "$python" "$here/wdi_check.py" --api "$api" \
 		--login "$login" --item "$item" --item-floor "$item_floor" ;;
 	*)
-		echo "unknown check $c (wbi, pwb, wdi)"
+		echo "unknown check $c (dump, wbi, pwb, wdi)"
 		exit 2
 		;;
 	esac

@@ -9,10 +9,12 @@ expression: main
 <form class="ts-changes-form" action="/w/index.php" method="get" aria-label="Filter the changes">
 <input type="hidden" name="title" value="Special:Contributions/Alice bot">
 <input type="hidden" name="filtered" value="1">
-<label class="ts-changes-form__field">
-<span>User</span> <input class="cdx-text-input__input" type="text" name="target" value="Alice bot">
+<label class="ts-form-field">
+<span>User</span> <div class="cdx-text-input">
+<input class="cdx-text-input__input" type="text" name="target" value="Alice bot">
+</div>
 </label>
-<fieldset class="ts-changes-form__kinds">
+<fieldset class="ts-form-group">
 <legend>Show</legend>
 <label class="cdx-checkbox cdx-checkbox--inline">
 <input class="cdx-checkbox__input" type="checkbox" name="kind" value="edit" checked>
@@ -45,7 +47,7 @@ expression: main
 <span class="cdx-checkbox__label">Bot edits</span>
 </label>
 </fieldset>
-<label class="ts-changes-form__field">
+<label class="ts-form-field">
 <span>Namespace</span> <select class="cdx-select" name="namespace">
 <option value="" selected>All</option>
 <option value="120">Items</option>
@@ -53,7 +55,7 @@ expression: main
 <option value="210">Domains</option>
 </select>
 </label>
-<label class="ts-changes-form__field">
+<label class="ts-form-field">
 <span>Period</span> <select class="cdx-select" name="days">
 <option value="1">1 day</option>
 <option value="3">3 days</option>
@@ -63,7 +65,7 @@ expression: main
 <option value="90">90 days</option>
 </select>
 </label>
-<label class="ts-changes-form__field">
+<label class="ts-form-field">
 <span>Rows</span> <select class="cdx-select" name="limit">
 <option value="50" selected>50</option>
 <option value="100">100</option>

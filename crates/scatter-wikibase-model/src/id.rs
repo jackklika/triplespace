@@ -9,6 +9,11 @@
 //! | Foreign | Two-letter provider code, one-letter type code, and the rest in the type's grammar | `WDQ42`, `MBAb10bbbfc-…` |
 //! | Keyed | The keyed type's name, a colon, and the normalized key | `domain:en.wikipedia.org` |
 //!
+//! On `L` only, a local or foreign ID may end in a lexeme part suffix, `-F` or `-S` and
+//! digits, naming a form or a sense of the lexeme (0066 §4): `L3-F1`, `WDL3-S2`, and in the
+//! input form `LLL3-F1`. The part letter is canonical uppercase. A part is an entity value
+//! and a statement subject, never an entity of its own ([`EntityId::lexeme_part`]).
+//!
 //! No minted ID contains a colon and every keyed ID does. This module classifies and
 //! canonicalizes IDs by their *shape*; whether a foreign prefix or a keyed prefix is
 //! registered, and whether the rest is valid under its grammar, is checked against the
@@ -66,6 +71,42 @@ pub enum IdParseError {
     Statement(String),
 }
 
+/// Which part of a lexeme a lexeme part ID names (0066 §4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LexemePart {
+    /// A form, `L1-F1`.
+    Form,
+    /// A sense, `L1-S1`.
+    Sense,
+}
+
+impl LexemePart {
+    /// The Wikibase `entity-type` of the part's ID in an entity value: `form` or `sense`.
+    #[must_use]
+    pub const fn entity_type(self) -> &'static str {
+        match self {
+            Self::Form => "form",
+            Self::Sense => "sense",
+        }
+    }
+}
+
+/// The canonical rest of a local ID after its type letter: digits, and on `L` only a
+/// lexeme part suffix, `-F` or `-S` and digits, with the part letter uppercased (0066 §4).
+/// `None` if `rest` is neither.
+fn local_rest(letter: u8, rest: &str) -> Option<String> {
+    let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+    let Some((number, part)) = rest.split_once('-') else {
+        return digits(rest).then(|| rest.to_string());
+    };
+    if letter != b'L' || !digits(number) {
+        return None;
+    }
+    let kind = part.as_bytes().first()?.to_ascii_uppercase();
+    ((kind == b'F' || kind == b'S') && digits(&part[1..]))
+        .then(|| format!("{number}-{}{}", kind as char, &part[1..]))
+}
+
 impl EntityId {
     /// Parses an ID by shape, canonicalizing case: the prefix of a minted ID is uppercased
     /// and a keyed ID's type name is lowercased. The rest is kept as given, because its
@@ -104,13 +145,13 @@ impl EntityId {
             let letter = b[0].to_ascii_uppercase();
             if b[1].to_ascii_uppercase() == letter && b[2].to_ascii_uppercase() == letter {
                 // Tenant-relative (0044 §1): `QQQ5` is this tenant's `Q5`. The rest must be
-                // digits (0044 §2); `QQQb10…` is not an ID.
-                if !b[3..].iter().all(u8::is_ascii_digit) {
-                    return Err(IdParseError::Local(s.to_string()));
-                }
-                let mut out = String::with_capacity(s.len() - 2);
+                // a local ID's rest (0044 §2): `QQQb10…` is not an ID, `LLL3-F1` is
+                // `L3-F1` (0066 §4).
+                let rest = local_rest(letter, &s[3..])
+                    .ok_or_else(|| IdParseError::Local(s.to_string()))?;
+                let mut out = String::with_capacity(rest.len() + 1);
                 out.push(letter as char);
-                out.push_str(&s[3..]);
+                out.push_str(&rest);
                 return Ok(Self(out));
             }
             // Foreign: three letters, then the rest in the type's grammar.
@@ -118,12 +159,11 @@ impl EntityId {
             out.push_str(&s[3..]);
             return Ok(Self(out));
         }
-        if !b[1..].iter().all(u8::is_ascii_digit) {
-            return Err(IdParseError::Local(s.to_string()));
-        }
+        let letter = b[0].to_ascii_uppercase();
+        let rest = local_rest(letter, &s[1..]).ok_or_else(|| IdParseError::Local(s.to_string()))?;
         let mut out = String::with_capacity(s.len());
-        out.push(b[0].to_ascii_uppercase() as char);
-        out.push_str(&s[1..]);
+        out.push(letter as char);
+        out.push_str(&rest);
         Ok(Self(out))
     }
 
@@ -201,10 +241,42 @@ impl EntityId {
         match (self.form(), self.type_code()?) {
             (_, 'Q') => Some("item"),
             (_, 'P') => Some("property"),
-            (_, 'L') => Some("lexeme"),
+            (_, 'L') => Some(
+                self.lexeme_part()
+                    .map_or("lexeme", |(_, part)| part.entity_type()),
+            ),
             (IdForm::Local, 'M') => Some("mediainfo"),
             _ => None,
         }
+    }
+
+    /// For the ID of a lexeme's form or sense (`L1-F1`, `WDL1-S2`; 0066 §4), the lexeme's
+    /// ID and which part it is. Parts are not entities of their own: they belong to the
+    /// lexeme's record stream, and `L1-F1` and `L1` are different IDs of it.
+    ///
+    /// ```
+    /// use scatter_wikibase_model::{EntityId, LexemePart};
+    /// let f = EntityId::parse("l1-f2").unwrap();
+    /// assert_eq!(f.as_str(), "L1-F2");
+    /// let (lexeme, part) = f.lexeme_part().unwrap();
+    /// assert_eq!((lexeme.as_str(), part), ("L1", LexemePart::Form));
+    /// assert_eq!(f.implied_entity_type(), Some("form"));
+    /// assert_eq!(f.numeric_id(), None);
+    /// assert!(EntityId::parse("L1").unwrap().lexeme_part().is_none());
+    /// assert!(EntityId::parse("Q1-F1").is_err());
+    /// ```
+    #[must_use]
+    pub fn lexeme_part(&self) -> Option<(Self, LexemePart)> {
+        if self.form() == IdForm::Keyed || self.type_code() != Some('L') {
+            return None;
+        }
+        let (lexeme, part) = self.0.rsplit_once('-')?;
+        let kind = match part.as_bytes().first()?.to_ascii_uppercase() {
+            b'F' => LexemePart::Form,
+            b'S' => LexemePart::Sense,
+            _ => return None,
+        };
+        Some((Self(lexeme.to_string()), kind))
     }
 
     /// Whether this is a derived local ID, one not minted from a sequence of its own but
@@ -525,11 +597,75 @@ mod tests {
 
     #[test]
     fn rejections_by_shape() {
+        for s in ["", "5", "Q", "Q5a", "QQ", "QQQ", ":x", "domain:", "a b:c"] {
+            assert!(EntityId::parse(s).is_err(), "{s:?}");
+        }
+    }
+
+    /// A form or sense of a lexeme (0066 §4): a suffix on `L` only, in the local, input and
+    /// foreign forms, canonical with its part letter uppercase.
+    #[test]
+    fn lexeme_part_ids() {
+        for (written, canonical, form, lexeme, kind) in [
+            ("L1-F1", "L1-F1", IdForm::Local, "L1", "form"),
+            ("l470-s1", "L470-S1", IdForm::Local, "L470", "sense"),
+            ("LLL3-f2", "L3-F2", IdForm::Local, "L3", "form"),
+            (
+                "wdl252247-F2",
+                "WDL252247-F2",
+                IdForm::Foreign,
+                "WDL252247",
+                "form",
+            ),
+        ] {
+            let id = EntityId::parse(written).unwrap();
+            assert_eq!((id.as_str(), id.form()), (canonical, form), "{written}");
+            let (base, part) = id.lexeme_part().unwrap();
+            assert_eq!(
+                (base.as_str(), part.entity_type()),
+                (lexeme, kind),
+                "{written}"
+            );
+            assert_eq!(id.implied_entity_type(), Some(kind));
+            assert_eq!(
+                id.numeric_id(),
+                None,
+                "no numeric-id, as Wikibase writes them"
+            );
+            assert_eq!(id.type_code(), Some('L'));
+        }
+        assert_eq!(
+            EntityId::parse("L1").unwrap().implied_entity_type(),
+            Some("lexeme")
+        );
+        assert!(EntityId::parse("L1").unwrap().lexeme_part().is_none());
+        assert!(
+            EntityId::parse("domain:l1-f1")
+                .unwrap()
+                .lexeme_part()
+                .is_none()
+        );
+        // On `L` only, one suffix, `F` or `S` and digits.
         for s in [
-            "", "5", "Q", "Q5a", "QQ", "QQQ", ":x", "domain:", "a b:c", "L1-F1",
+            "Q1-F1", "P1-S1", "QQQ1-F1", "L1-", "L1-F", "L-F1", "L1-X1", "L1-F1-S1", "L1-Fa",
+            "L1F1",
         ] {
             assert!(EntityId::parse(s).is_err(), "{s:?}");
         }
+        // The provider's grammar takes the suffix for its lexeme type only.
+        let p = ProviderRegistry::default_registry();
+        let k = KeyedRegistry::default_registry();
+        let v = |s: &str| EntityId::parse(s).unwrap().validate(p, k);
+        assert_eq!(v("WDL1-f1").unwrap().as_str(), "WDL1-F1");
+        assert_eq!(v("WDL1-S12").unwrap().as_str(), "WDL1-S12");
+        assert!(v("WDQ1-F1").is_err());
+        assert!(v("WDL1-X1").is_err());
+        // A statement on a part, as Wikibase writes it (wikibase-compat §2).
+        let sid = StatementId::parse("L1-F1$8a3c0c6b-0b7e-4f1e-9d2b-3f4e5a6b7c8d").unwrap();
+        assert_eq!(
+            sid.subject(),
+            Subject::Entity(EntityId::parse("L1-F1").unwrap())
+        );
     }
 
     #[test]

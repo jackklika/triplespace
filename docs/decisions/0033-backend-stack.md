@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-09-27
-- **Updated:** 2026-10-31 (A24)
+- **Updated:** 2026-11-04 (A25)
 - **Author:** James Hare / Claude
 - **Changes:** [0005](0005-crate-organization.md)
 - **Uses:** [0006](0006-log-integrity-and-erasure.md), [0007](0007-actor-identity.md), [0011](0011-logs.md), [0012](0012-api-requirements.md), [0013](0013-postgres-storage.md), [0014](0014-caches-and-search.md), [0015](0015-record-format-and-partition-registry.md), [0019](0019-discussions.md), [0021](0021-notifications.md), [0022](0022-federation.md), [0025](0025-oauth-server.md), [0027](0027-preferences-and-portability.md), [0030](0030-edit-filters.md), [0032](0032-sparql-update-stream.md), [0034](0034-frontend-stack.md)
@@ -30,7 +30,7 @@ This ADR records the rest. The frontend is in 0034.
 
 ### 2. Language and toolchain
 
-*Changed by A12.*
+*Changed by A12, A24.*
 
 *Current text: [22](../architecture/22-crates-and-stack.md) §4.2.*
 
@@ -42,7 +42,7 @@ This ADR records the rest. The frontend is in 0034.
 
 ### 4. Postgres
 
-*Changed by A9, A20, A24.*
+*Changed by A9, A20, A25.*
 
 *Current text: [03](../architecture/03-storage-caches-and-search.md) §1.4, §5.*
 
@@ -400,7 +400,14 @@ Replaced text ([22](../architecture/22-crates-and-stack.md) §3.4, as it stood):
 - **Change:** extends §12
 - **Summary:** An instance's deployment configuration can be kept in a `.env` file instead of ad-hoc environment variables and long command lines. `triplespace`, `triplespace-server` and `triplespace-web` read it into the environment with `dotenvy` when they start, before `clap` parses their flags, so every flag bound to a `TRIPLESPACE_*` variable, and every variable read directly such as `TRIPLESPACE_OWNER_PASSWORD`, can be set there. A flag wins over the environment and the environment over the file, which never overrides a variable already set. The file read is the one `TRIPLESPACE_ENV_FILE` names, which must exist, else `.env` in the working directory if there is one; a file that cannot be read or parsed stops the binary. The chapter text is [23](../architecture/23-configuration-and-registry.md) §5.1.
 
-### A24. TLS to Postgres when the URL says `sslmode=require`
+### A24. mimalloc is the binaries' allocator
+
+- **Date:** 2026-11-04
+- **Source:** Direct: James, design discussion of 2026-11-04
+- **Change:** extends §2
+- **Summary:** The three binaries (`triplespace`, `triplespace-server`, `triplespace-web`) set mimalloc (the `mimalloc` crate, MIT, bundling the C library) as the global allocator, behind a default `mimalloc` feature; without it they use the system allocator, for heap tools. Library crates set none. Measured on the 2M Wikidata benchmark's 20k slice, the same binary under glibc, jemalloc and mimalloc by `LD_PRELOAD`: CPU −20% with jemalloc and −26% with mimalloc, wall about −9% and −16%, peak RSS 49 MB, 128 MB and 85 MB. mimalloc was chosen for the larger gain at the smaller memory cost, and because it builds on Linux, macOS and Windows where jemalloc does not support MSVC (`docs/testing/performance.md` §8).
+
+### A25. TLS to Postgres when the URL says `sslmode=require`
 
 - **Date:** 2026-10-31
 - **Source:** Direct: Claude, while building TLS to a managed Postgres, 2026-10-31; unconfirmed

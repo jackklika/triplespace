@@ -5,53 +5,68 @@
 //! or one created here) takes this one's place ([`crate::document`]); this one is shown
 //! while there is none, and where the API serves no pages.
 
-use std::fmt::Write as _;
-
-use askama::Template as _;
-
-use crate::codex::SearchInput;
+use crate::codex::{SearchInput, SearchModel};
+use crate::entity::history::Choice;
 use crate::features::Feature;
 use crate::frame::Page;
-use crate::html::{esc, link};
 use crate::pages::Context;
 
-/// The generated main page's body.
+/// The generated main page as Plain's `home.html` draws it.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct HomePage {
+    /// "Welcome to …".
+    pub lead: String,
+    /// The search form, where the wiki serves search.
+    pub search: Option<HomeSearch>,
+    /// To the special pages.
+    pub more: Choice,
+    /// Says the page is generated, and which title replaces it.
+    pub generated: String,
+}
+
+/// The main page's search form.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct HomeSearch {
+    /// The form's accessible name.
+    pub label: String,
+    /// The search box.
+    pub input: SearchModel,
+    /// What to search for.
+    pub hint: String,
+}
+
+/// The generated main page's model.
 #[must_use]
-pub fn body(cx: &Context) -> String {
+pub fn model(cx: &Context) -> HomePage {
     let m = &cx.m;
     let name = &cx.site.sitename;
-    let mut s = format!(
-        "<div class=\"ts-home\"><p class=\"ts-home__lead\">{}</p>",
-        esc(&m.with("ts-home-lead", &[name]))
-    );
-    if cx.features.has(Feature::Search) {
-        let _ = write!(
-            s,
-            "<form class=\"ts-home__search\" role=\"search\" aria-label=\"{}\" action=\"/w/index.php\" method=\"get\"><input type=\"hidden\" name=\"title\" value=\"Special:Search\">{}</form><p class=\"ts-home__hint\">{}</p>",
-            esc(&m.with("ts-home-search-label", &[name])),
-            SearchInput {
+    HomePage {
+        lead: m.with("ts-home-lead", &[name]),
+        search: cx.features.has(Feature::Search).then(|| HomeSearch {
+            label: m.with("ts-home-search-label", &[name]),
+            input: SearchInput {
                 name: "search",
                 value: "",
                 placeholder: &m.get("ts-search-placeholder"),
                 label: &m.get("ts-search-label"),
                 button: &m.get("ts-search-button"),
             }
-            .render()
-            .unwrap_or_default(),
-            esc(&m.get("ts-home-hint"))
-        );
+            .model(),
+            hint: m.get("ts-home-hint"),
+        }),
+        more: Choice {
+            href: "/wiki/Special:SpecialPages".into(),
+            label: m.get("ts-home-specialpages"),
+            current: false,
+        },
+        generated: m.with("ts-home-generated", &[&cx.site.mainpage]),
     }
-    let _ = write!(
-        s,
-        "<p class=\"ts-home__more\">{}</p><p class=\"ts-home__generated\">{}</p></div>",
-        link(
-            "/wiki/Special:SpecialPages",
-            &esc(&m.get("ts-home-specialpages")),
-            ""
-        ),
-        esc(&m.with("ts-home-generated", &[&cx.site.mainpage]))
-    );
-    s
+}
+
+/// The generated main page's body, as the skin draws it.
+#[must_use]
+pub fn content(cx: &Context) -> String {
+    cx.draw("home.html", model(cx))
 }
 
 /// The generated main page: the site's name as its heading, its own title in the
@@ -62,7 +77,7 @@ pub fn page(cx: &Context) -> Page {
         title: cx.site.sitename.clone(),
         doc_title: Some(cx.site.mainpage.clone()),
         returnto: Some(cx.site.mainpage.clone()),
-        body: body(cx),
+        body: content(cx),
         ..Page::default()
     }
 }

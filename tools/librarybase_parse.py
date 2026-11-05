@@ -2,7 +2,7 @@
 """Download a wiki's own `action=parse` renders of its wikitext pages, as golden fixtures
 for the built-in renderer (architecture 11 §1.2; claude/librarybase-wikitext-subset.md).
 
-    tools/librarybase_parse.py crates/scatter-wikitext/tests/fixtures/librarybase
+    tools/librarybase_parse.py docs/samples/librarybase/parse
     tools/librarybase_parse.py OUT --history          # every revision, not just the latest
     tools/librarybase_parse.py OUT --api https://example.org/w/api.php --namespaces 4
 

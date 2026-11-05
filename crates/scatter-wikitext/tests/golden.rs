@@ -30,8 +30,14 @@ use scatter_wikitext::html::url_encode_title;
 use scatter_wikitext::{Config, ConfigSource, Interwiki, Namespace, PageInfo, Resolver, Title};
 use scatter_wikitext_expand::{ExpandHost, Transcluded, expand_for_view};
 
+/// Librarybase's pages and its own renders of them (`docs/samples/librarybase/parse/`).
 fn fixtures() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/librarybase")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/samples/librarybase/parse")
+}
+
+/// This renderer's expected departures from Librarybase's renders, beside the test.
+fn known_differences() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/librarybase/known-differences.txt")
 }
 
 /// Librarybase's namespaces: MediaWiki's, Wikibase's Item and Property, EntitySchema,
@@ -289,7 +295,7 @@ fn first_difference(a: &str, b: &str) -> String {
 }
 
 fn known() -> BTreeMap<u64, String> {
-    std::fs::read_to_string(fixtures().join("known-differences.txt"))
+    std::fs::read_to_string(known_differences())
         .unwrap_or_default()
         .lines()
         .filter(|l| !l.trim().is_empty() && !l.starts_with('#'))

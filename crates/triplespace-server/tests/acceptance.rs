@@ -36,6 +36,7 @@ const DUMP_XML: &str = r#"<mediawiki xmlns="http://www.mediawiki.org/xml/export-
   <page><title>Item:Q6</title><ns>120</ns><id>12</id>
     <revision><id>41877</id><timestamp>2026-09-20T14:02:11Z</timestamp>
       <contributor><username>Bob</username><id>9</id></contributor>
+      <comment>/* wbeditentity-create-item:0| */ Six</comment>
       <model>wikibase-item</model><format>application/json</format>
       <text xml:space="preserve">{"type":"item","id":"Q6","labels":{"en":{"language":"en","value":"Six &amp; more"}},"descriptions":{"en":{"language":"en","value":"a number"}},"claims":{"P12":[{"mainsnak":{"snaktype":"value","property":"P12","datatype":"string","datavalue":{"value":"six","type":"string"}},"type":"statement","rank":"normal","id":"Q6$11111111-1111-1111-1111-111111111111"}]}}</text>
     </revision></page>
@@ -822,9 +823,11 @@ async fn a_bot_logs_in_reads_and_edits() {
     .await;
     assert_eq!(status, StatusCode::OK, "{history}");
     let hist = history["rows"].as_array().unwrap();
+    // The entity came from a load (a dump sync), which is one `job` row and never a row
+    // per entity (03 §4.6; 0013 §5.5); the local edit is a row.
     assert!(
-        hist.iter().any(|r| r["kind"] == "sync") && hist.iter().any(|r| r["kind"] == "edit"),
-        "a mirrored entity's history has its sync and the local edit: {history}"
+        hist.iter().all(|r| r["kind"] != "sync") && hist.iter().any(|r| r["kind"] == "edit"),
+        "a loaded mirrored entity's history has the local edit and no sync rows: {history}"
     );
     assert!(
         hist.iter()
@@ -907,7 +910,12 @@ async fn a_bot_logs_in_reads_and_edits() {
     );
     assert!(revs.iter().any(|r| r["user"] == "Alice bot"));
     let oldest = revs.last().unwrap();
-    assert_eq!(oldest["comment"], "/* adopt */", "{oldest}");
+    // An adopted revision shows the source's own summary, with no `adopt` before it
+    // (0035 A12).
+    assert_eq!(
+        oldest["comment"], "/* wbeditentity-create-item:0| */ Six",
+        "{oldest}"
+    );
     let old = c
         .get(&format!(
             "action=query&prop=revisions&revids={}&rvprop=ids|content&rvslots=main&format=json&formatversion=2",
@@ -1040,21 +1048,30 @@ async fn a_bot_logs_in_reads_and_edits() {
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     assert_eq!(err["code"], "revision-not-found");
-    let sync = hist.iter().find(|r| r["kind"] == "sync").unwrap();
-    let (status, _, put) = send(
+    // A load's mirror record has no activity row (03 §4.6), so no change view: found
+    // through its version cursor, it is not served here. Its history and changes belong to
+    // `view.entity_history` (03 §4.2), which is not built; the entity itself is served.
+    let row = conn
+        .query_one(
+            "SELECT p.partition, s.\"offset\" FROM view.entity_source s
+             JOIN log.partition p ON p.tenant IS NOT DISTINCT FROM nullif(s.tenant, '') AND p.name = s.graph
+             WHERE s.entity_id = 'domain:wikipedia.org' AND s.graph = 'mirror/internetdomains'",
+            &[],
+        )
+        .await
+        .unwrap();
+    let (partition, offset): (i64, i64) = (row.get(0), row.get(1));
+    let (status, _, err) = send(
         &c.router,
         &format!(
-            "/w/rest.php/triplespace/v0/entity/domain:wikipedia.org/changes/{}/{}",
-            sync["record"]["partition"], sync["record"]["offset"]
+            "/w/rest.php/triplespace/v0/entity/domain:wikipedia.org/changes/{}/{offset}",
+            partition.cast_unsigned()
         ),
         &[],
     )
     .await;
-    assert_eq!(status, StatusCode::OK, "{put}");
-    assert_eq!(put["source"], "mirror/internetdomains");
-    assert_eq!(put["revision"]["op"], "put");
-    assert!(put["diff"].is_null());
-    assert_eq!(put["after"]["id"], "domain:wikipedia.org");
+    assert_eq!(status, StatusCode::NOT_FOUND, "{err}");
+    assert_eq!(err["code"], "change-not-found");
     let (status, _, err) = send(
         &c.router,
         &format!("/w/rest.php/triplespace/v0/entity/Q7/changes/{p}/{o}"),

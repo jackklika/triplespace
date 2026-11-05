@@ -1,0 +1,8 @@
+{#- Special:EditWatchlist: every watch, a box beside each, and Remove selected. -#}
+<div class="ts-watchlist"><nav class="ts-watchlist__tabs" aria-label="{{ tabs.label }}">{% for t in tabs.items %}{% if not loop.first %} {% endif %}<a class="ts-watchlist__tab" href="{{ t.href }}"{% if t.current %} aria-current="page"{% endif %}>{{ t.label }}</a>{% endfor %}</nav>
+{%- if empty %}<p class="ts-empty">{{ empty }}</p>{% else -%}
+<p>{{ count }}</p><form method="post" action="{{ action }}"><input type="hidden" name="wpEditToken" value="{{ token }}"><table class="cdx-table__table ts-editwatchlist"><caption class="ts-visually-hidden">{{ caption }}</caption><thead><tr>{% for c in columns %}<th scope="col">{{ c }}</th>{% endfor %}</tr></thead><tbody>
+{%- for w in watches %}<tr><td><span class="cdx-checkbox"><span class="cdx-checkbox__wrapper"><input class="cdx-checkbox__input" type="checkbox" id="ts-unwatch-{{ w.i }}" name="titles" value="{{ w.title }}"><span class="cdx-checkbox__icon"></span><span class="cdx-checkbox__label cdx-label"><label class="cdx-label__label" for="ts-unwatch-{{ w.i }}"><span class="cdx-label__label__text ts-visually-hidden">{{ w.remove }}</span></label></span></span></span></td><td><a href="{{ w.href }}">{{ w.title }}</a></td><td>{{ w.expires }}</td><td>{{ w.notify }}</td></tr>{% endfor -%}
+</tbody></table><button class="cdx-button cdx-button--action-destructive" type="submit">{{ remove }}</button></form>
+{%- endif -%}
+</div>

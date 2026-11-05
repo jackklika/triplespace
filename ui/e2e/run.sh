@@ -7,6 +7,8 @@
 #
 # Needs the binaries built (`cargo build -p triplespace-cli -p triplespace-server
 # -p triplespace-web`; BIN overrides target/debug) and `ui/dist` built before them.
+#
+# `E2E_WORK` names the working directory and keeps it, with `api.log` and `web-*.log`.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -15,11 +17,12 @@ bin="${BIN:-$root/target/debug}"
 admin="${TRIPLESPACE_TEST_DATABASE_URL:?set TRIPLESPACE_TEST_DATABASE_URL}"
 db=tse2e
 url="${admin%/*}/$db"
-work="$(mktemp -d)"
+work="${E2E_WORK:-$(mktemp -d)}"
+mkdir -p "$work"
 pids=()
 cleanup() {
 	for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done
-	rm -rf "$work"
+	[ -n "${E2E_WORK:-}" ] || rm -rf "$work"
 }
 trap cleanup EXIT
 
@@ -43,6 +46,22 @@ sed "s/2026-09-20T14:02:11Z/$yesterday/g" "$fixtures/site-entities.xml" > "$work
 	--source https://librarybase.org/ --version test --frozen --counters item=6,property=12 >/dev/null
 "$bin/triplespace" sync --provider internetdomains --dump "$fixtures/internetdomains.json" \
 	--version 20261001 >/dev/null
+# A load writes no activity rows for its records (ADR 0013 §5.5); the follower's records are
+# the `sync` rows the history tab and recent changes show. So the follower then reads one
+# upstream edit from a stand-in for the wiki's api.php (wiki.mjs), and stops.
+node "$here/wiki.mjs" 18190 "$fixtures/internetdomains.json" &
+wiki=$!
+pids+=($wiki)
+for _ in $(seq 50); do
+	if curl -sf -o /dev/null 'http://127.0.0.1:18190/w/api.php?action=query&meta=siteinfo'; then break; fi
+	sleep 0.2
+done
+"$bin/triplespace" follow --provider internetdomains --api http://127.0.0.1:18190/w/api.php \
+	--once --anonymous --key-file "$work/k.key" >"$work/follow.log" 2>&1 || {
+	echo "--- follow log"; cat "$work/follow.log"
+	exit 1
+}
+kill "$wiki" 2>/dev/null || true
 
 "$bin/triplespace-server" --listen 127.0.0.1:18180 --key-file "$work/k.key" --mode development \
 	--dev-tenant librarybase --trusted-proxy 127.0.0.1 --ui off >"$work/api.log" 2>&1 &

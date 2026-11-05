@@ -1,0 +1,1523 @@
+---
+source: crates/triplespace-ui/tests/codex_macros.rs
+expression: out
+---
+Boolean None None None false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean None None None true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean None None Some("(inherit)") false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean None None Some("(inherit)") true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean None Some("x-help") None false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean None Some("x-help") None true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean None Some("x-help") Some("(inherit)") false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean None Some("x-help") Some("(inherit)") true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Bool(true)) None None false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" checked><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Bool(true)) None None true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" checked><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Bool(true)) None Some("(inherit)") false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" checked><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Bool(true)) None Some("(inherit)") true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" checked><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Bool(true)) Some("x-help") None false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" checked aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Bool(true)) Some("x-help") None true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" checked aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Bool(true)) Some("x-help") Some("(inherit)") false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" checked aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Bool(true)) Some("x-help") Some("(inherit)") true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" checked aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(String("dark & \"deep\"")) None None false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(String("dark & \"deep\"")) None None true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(String("dark & \"deep\"")) None Some("(inherit)") false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(String("dark & \"deep\"")) None Some("(inherit)") true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(String("dark & \"deep\"")) Some("x-help") None false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(String("dark & \"deep\"")) Some("x-help") None true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(String("dark & \"deep\"")) Some("x-help") Some("(inherit)") false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(String("dark & \"deep\"")) Some("x-help") Some("(inherit)") true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Number(20)) None None false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Number(20)) None None true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Number(20)) None Some("(inherit)") false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Number(20)) None Some("(inherit)") true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Number(20)) Some("x-help") None false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Number(20)) Some("x-help") None true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Number(20)) Some("x-help") Some("(inherit)") false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Number(20)) Some("x-help") Some("(inherit)") true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(String("twenty <b>")) None None false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(String("twenty <b>")) None None true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(String("twenty <b>")) None Some("(inherit)") false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(String("twenty <b>")) None Some("(inherit)") true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(String("twenty <b>")) Some("x-help") None false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(String("twenty <b>")) Some("x-help") None true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(String("twenty <b>")) Some("x-help") Some("(inherit)") false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(String("twenty <b>")) Some("x-help") Some("(inherit)") true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Array [String("en"), String("de"), String("</textarea><script>")]) None None false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Array [String("en"), String("de"), String("</textarea><script>")]) None None true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Array [String("en"), String("de"), String("</textarea><script>")]) None Some("(inherit)") false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Array [String("en"), String("de"), String("</textarea><script>")]) None Some("(inherit)") true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") None false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") None true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") Some("(inherit)") false
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Boolean Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") Some("(inherit)") true
+<span class="cdx-checkbox cdx-checkbox--inline"><input class="cdx-checkbox__input" type="checkbox" id="x&quot;id" name="v.a&amp;b" value="1" aria-describedby="x-help"><span class="cdx-checkbox__icon"></span></span>
+
+Choice None None None false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="light">light</option><option value="dark &amp; &quot;deep&quot;">dark &amp; &quot;deep&quot;</option></select>
+
+Choice None None None true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;">Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice None None Some("(inherit)") false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="" selected>(inherit)</option><option value="light">light</option><option value="dark &amp; &quot;deep&quot;">dark &amp; &quot;deep&quot;</option></select>
+
+Choice None None Some("(inherit)") true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="" selected>(inherit)</option><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;">Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice None Some("x-help") None false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="light">light</option><option value="dark &amp; &quot;deep&quot;">dark &amp; &quot;deep&quot;</option></select>
+
+Choice None Some("x-help") None true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;">Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice None Some("x-help") Some("(inherit)") false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="" selected>(inherit)</option><option value="light">light</option><option value="dark &amp; &quot;deep&quot;">dark &amp; &quot;deep&quot;</option></select>
+
+Choice None Some("x-help") Some("(inherit)") true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="" selected>(inherit)</option><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;">Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Bool(true)) None None false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="light">light</option><option value="dark &amp; &quot;deep&quot;">dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Bool(true)) None None true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;">Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Bool(true)) None Some("(inherit)") false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="" selected>(inherit)</option><option value="light">light</option><option value="dark &amp; &quot;deep&quot;">dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Bool(true)) None Some("(inherit)") true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="" selected>(inherit)</option><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;">Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Bool(true)) Some("x-help") None false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="light">light</option><option value="dark &amp; &quot;deep&quot;">dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Bool(true)) Some("x-help") None true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;">Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Bool(true)) Some("x-help") Some("(inherit)") false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="" selected>(inherit)</option><option value="light">light</option><option value="dark &amp; &quot;deep&quot;">dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Bool(true)) Some("x-help") Some("(inherit)") true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="" selected>(inherit)</option><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;">Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(String("dark & \"deep\"")) None None false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="light">light</option><option value="dark &amp; &quot;deep&quot;" selected>dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(String("dark & \"deep\"")) None None true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;" selected>Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(String("dark & \"deep\"")) None Some("(inherit)") false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="">(inherit)</option><option value="light">light</option><option value="dark &amp; &quot;deep&quot;" selected>dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(String("dark & \"deep\"")) None Some("(inherit)") true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="">(inherit)</option><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;" selected>Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(String("dark & \"deep\"")) Some("x-help") None false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="light">light</option><option value="dark &amp; &quot;deep&quot;" selected>dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(String("dark & \"deep\"")) Some("x-help") None true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;" selected>Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(String("dark & \"deep\"")) Some("x-help") Some("(inherit)") false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="">(inherit)</option><option value="light">light</option><option value="dark &amp; &quot;deep&quot;" selected>dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(String("dark & \"deep\"")) Some("x-help") Some("(inherit)") true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="">(inherit)</option><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;" selected>Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Number(20)) None None false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="light">light</option><option value="dark &amp; &quot;deep&quot;">dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Number(20)) None None true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;">Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Number(20)) None Some("(inherit)") false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="" selected>(inherit)</option><option value="light">light</option><option value="dark &amp; &quot;deep&quot;">dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Number(20)) None Some("(inherit)") true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="" selected>(inherit)</option><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;">Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Number(20)) Some("x-help") None false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="light">light</option><option value="dark &amp; &quot;deep&quot;">dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Number(20)) Some("x-help") None true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;">Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Number(20)) Some("x-help") Some("(inherit)") false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="" selected>(inherit)</option><option value="light">light</option><option value="dark &amp; &quot;deep&quot;">dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Number(20)) Some("x-help") Some("(inherit)") true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="" selected>(inherit)</option><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;">Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(String("twenty <b>")) None None false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="light">light</option><option value="dark &amp; &quot;deep&quot;">dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(String("twenty <b>")) None None true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;">Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(String("twenty <b>")) None Some("(inherit)") false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="">(inherit)</option><option value="light">light</option><option value="dark &amp; &quot;deep&quot;">dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(String("twenty <b>")) None Some("(inherit)") true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="">(inherit)</option><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;">Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(String("twenty <b>")) Some("x-help") None false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="light">light</option><option value="dark &amp; &quot;deep&quot;">dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(String("twenty <b>")) Some("x-help") None true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;">Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(String("twenty <b>")) Some("x-help") Some("(inherit)") false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="">(inherit)</option><option value="light">light</option><option value="dark &amp; &quot;deep&quot;">dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(String("twenty <b>")) Some("x-help") Some("(inherit)") true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="">(inherit)</option><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;">Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Array [String("en"), String("de"), String("</textarea><script>")]) None None false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="light">light</option><option value="dark &amp; &quot;deep&quot;">dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Array [String("en"), String("de"), String("</textarea><script>")]) None None true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;">Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Array [String("en"), String("de"), String("</textarea><script>")]) None Some("(inherit)") false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="" selected>(inherit)</option><option value="light">light</option><option value="dark &amp; &quot;deep&quot;">dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Array [String("en"), String("de"), String("</textarea><script>")]) None Some("(inherit)") true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b"><option value="" selected>(inherit)</option><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;">Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") None false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="light">light</option><option value="dark &amp; &quot;deep&quot;">dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") None true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;">Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") Some("(inherit)") false
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="" selected>(inherit)</option><option value="light">light</option><option value="dark &amp; &quot;deep&quot;">dark &amp; &quot;deep&quot;</option></select>
+
+Choice Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") Some("(inherit)") true
+<select class="cdx-select" id="x&quot;id" name="v.a&amp;b" aria-describedby="x-help"><option value="" selected>(inherit)</option><option value="light">Mode: light</option><option value="dark &amp; &quot;deep&quot;">Mode: dark &amp; &quot;deep&quot;</option></select>
+
+Integer None None None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value=""></div>
+
+Integer None None None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value=""></div>
+
+Integer None None Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value=""></div>
+
+Integer None None Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value=""></div>
+
+Integer None Some("x-help") None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="" aria-describedby="x-help"></div>
+
+Integer None Some("x-help") None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="" aria-describedby="x-help"></div>
+
+Integer None Some("x-help") Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="" aria-describedby="x-help"></div>
+
+Integer None Some("x-help") Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="" aria-describedby="x-help"></div>
+
+Integer Some(Bool(true)) None None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="true"></div>
+
+Integer Some(Bool(true)) None None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="true"></div>
+
+Integer Some(Bool(true)) None Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="true"></div>
+
+Integer Some(Bool(true)) None Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="true"></div>
+
+Integer Some(Bool(true)) Some("x-help") None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="true" aria-describedby="x-help"></div>
+
+Integer Some(Bool(true)) Some("x-help") None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="true" aria-describedby="x-help"></div>
+
+Integer Some(Bool(true)) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="true" aria-describedby="x-help"></div>
+
+Integer Some(Bool(true)) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="true" aria-describedby="x-help"></div>
+
+Integer Some(String("dark & \"deep\"")) None None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="dark &amp; &quot;deep&quot;"></div>
+
+Integer Some(String("dark & \"deep\"")) None None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="dark &amp; &quot;deep&quot;"></div>
+
+Integer Some(String("dark & \"deep\"")) None Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="dark &amp; &quot;deep&quot;"></div>
+
+Integer Some(String("dark & \"deep\"")) None Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="dark &amp; &quot;deep&quot;"></div>
+
+Integer Some(String("dark & \"deep\"")) Some("x-help") None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="dark &amp; &quot;deep&quot;" aria-describedby="x-help"></div>
+
+Integer Some(String("dark & \"deep\"")) Some("x-help") None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="dark &amp; &quot;deep&quot;" aria-describedby="x-help"></div>
+
+Integer Some(String("dark & \"deep\"")) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="dark &amp; &quot;deep&quot;" aria-describedby="x-help"></div>
+
+Integer Some(String("dark & \"deep\"")) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="dark &amp; &quot;deep&quot;" aria-describedby="x-help"></div>
+
+Integer Some(Number(20)) None None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="20"></div>
+
+Integer Some(Number(20)) None None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="20"></div>
+
+Integer Some(Number(20)) None Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="20"></div>
+
+Integer Some(Number(20)) None Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="20"></div>
+
+Integer Some(Number(20)) Some("x-help") None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="20" aria-describedby="x-help"></div>
+
+Integer Some(Number(20)) Some("x-help") None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="20" aria-describedby="x-help"></div>
+
+Integer Some(Number(20)) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="20" aria-describedby="x-help"></div>
+
+Integer Some(Number(20)) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="20" aria-describedby="x-help"></div>
+
+Integer Some(String("twenty <b>")) None None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="twenty &lt;b&gt;"></div>
+
+Integer Some(String("twenty <b>")) None None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="twenty &lt;b&gt;"></div>
+
+Integer Some(String("twenty <b>")) None Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="twenty &lt;b&gt;"></div>
+
+Integer Some(String("twenty <b>")) None Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="twenty &lt;b&gt;"></div>
+
+Integer Some(String("twenty <b>")) Some("x-help") None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="twenty &lt;b&gt;" aria-describedby="x-help"></div>
+
+Integer Some(String("twenty <b>")) Some("x-help") None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="twenty &lt;b&gt;" aria-describedby="x-help"></div>
+
+Integer Some(String("twenty <b>")) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="twenty &lt;b&gt;" aria-describedby="x-help"></div>
+
+Integer Some(String("twenty <b>")) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="twenty &lt;b&gt;" aria-describedby="x-help"></div>
+
+Integer Some(Array [String("en"), String("de"), String("</textarea><script>")]) None None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]"></div>
+
+Integer Some(Array [String("en"), String("de"), String("</textarea><script>")]) None None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]"></div>
+
+Integer Some(Array [String("en"), String("de"), String("</textarea><script>")]) None Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]"></div>
+
+Integer Some(Array [String("en"), String("de"), String("</textarea><script>")]) None Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]"></div>
+
+Integer Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]" aria-describedby="x-help"></div>
+
+Integer Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]" aria-describedby="x-help"></div>
+
+Integer Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]" aria-describedby="x-help"></div>
+
+Integer Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="number" step="1" id="x&quot;id" name="v.a&amp;b" value="[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]" aria-describedby="x-help"></div>
+
+Line None None None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value=""></div>
+
+Line None None None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value=""></div>
+
+Line None None Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value=""></div>
+
+Line None None Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value=""></div>
+
+Line None Some("x-help") None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="" aria-describedby="x-help"></div>
+
+Line None Some("x-help") None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="" aria-describedby="x-help"></div>
+
+Line None Some("x-help") Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="" aria-describedby="x-help"></div>
+
+Line None Some("x-help") Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="" aria-describedby="x-help"></div>
+
+Line Some(Bool(true)) None None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="true"></div>
+
+Line Some(Bool(true)) None None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="true"></div>
+
+Line Some(Bool(true)) None Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="true"></div>
+
+Line Some(Bool(true)) None Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="true"></div>
+
+Line Some(Bool(true)) Some("x-help") None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="true" aria-describedby="x-help"></div>
+
+Line Some(Bool(true)) Some("x-help") None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="true" aria-describedby="x-help"></div>
+
+Line Some(Bool(true)) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="true" aria-describedby="x-help"></div>
+
+Line Some(Bool(true)) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="true" aria-describedby="x-help"></div>
+
+Line Some(String("dark & \"deep\"")) None None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="dark &amp; &quot;deep&quot;"></div>
+
+Line Some(String("dark & \"deep\"")) None None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="dark &amp; &quot;deep&quot;"></div>
+
+Line Some(String("dark & \"deep\"")) None Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="dark &amp; &quot;deep&quot;"></div>
+
+Line Some(String("dark & \"deep\"")) None Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="dark &amp; &quot;deep&quot;"></div>
+
+Line Some(String("dark & \"deep\"")) Some("x-help") None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="dark &amp; &quot;deep&quot;" aria-describedby="x-help"></div>
+
+Line Some(String("dark & \"deep\"")) Some("x-help") None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="dark &amp; &quot;deep&quot;" aria-describedby="x-help"></div>
+
+Line Some(String("dark & \"deep\"")) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="dark &amp; &quot;deep&quot;" aria-describedby="x-help"></div>
+
+Line Some(String("dark & \"deep\"")) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="dark &amp; &quot;deep&quot;" aria-describedby="x-help"></div>
+
+Line Some(Number(20)) None None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="20"></div>
+
+Line Some(Number(20)) None None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="20"></div>
+
+Line Some(Number(20)) None Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="20"></div>
+
+Line Some(Number(20)) None Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="20"></div>
+
+Line Some(Number(20)) Some("x-help") None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="20" aria-describedby="x-help"></div>
+
+Line Some(Number(20)) Some("x-help") None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="20" aria-describedby="x-help"></div>
+
+Line Some(Number(20)) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="20" aria-describedby="x-help"></div>
+
+Line Some(Number(20)) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="20" aria-describedby="x-help"></div>
+
+Line Some(String("twenty <b>")) None None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="twenty &lt;b&gt;"></div>
+
+Line Some(String("twenty <b>")) None None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="twenty &lt;b&gt;"></div>
+
+Line Some(String("twenty <b>")) None Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="twenty &lt;b&gt;"></div>
+
+Line Some(String("twenty <b>")) None Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="twenty &lt;b&gt;"></div>
+
+Line Some(String("twenty <b>")) Some("x-help") None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="twenty &lt;b&gt;" aria-describedby="x-help"></div>
+
+Line Some(String("twenty <b>")) Some("x-help") None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="twenty &lt;b&gt;" aria-describedby="x-help"></div>
+
+Line Some(String("twenty <b>")) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="twenty &lt;b&gt;" aria-describedby="x-help"></div>
+
+Line Some(String("twenty <b>")) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="twenty &lt;b&gt;" aria-describedby="x-help"></div>
+
+Line Some(Array [String("en"), String("de"), String("</textarea><script>")]) None None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]"></div>
+
+Line Some(Array [String("en"), String("de"), String("</textarea><script>")]) None None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]"></div>
+
+Line Some(Array [String("en"), String("de"), String("</textarea><script>")]) None Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]"></div>
+
+Line Some(Array [String("en"), String("de"), String("</textarea><script>")]) None Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]"></div>
+
+Line Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") None false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]" aria-describedby="x-help"></div>
+
+Line Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") None true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]" aria-describedby="x-help"></div>
+
+Line Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]" aria-describedby="x-help"></div>
+
+Line Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-input"><input class="cdx-text-input__input" type="text" id="x&quot;id" name="v.a&amp;b" value="[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]" aria-describedby="x-help"></div>
+
+Text None None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2"></textarea></div>
+
+Text None None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2"></textarea></div>
+
+Text None None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2"></textarea></div>
+
+Text None None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2"></textarea></div>
+
+Text None Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help"></textarea></div>
+
+Text None Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help"></textarea></div>
+
+Text None Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help"></textarea></div>
+
+Text None Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help"></textarea></div>
+
+Text Some(Bool(true)) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">true</textarea></div>
+
+Text Some(Bool(true)) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">true</textarea></div>
+
+Text Some(Bool(true)) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">true</textarea></div>
+
+Text Some(Bool(true)) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">true</textarea></div>
+
+Text Some(Bool(true)) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">true</textarea></div>
+
+Text Some(Bool(true)) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">true</textarea></div>
+
+Text Some(Bool(true)) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">true</textarea></div>
+
+Text Some(Bool(true)) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">true</textarea></div>
+
+Text Some(String("dark & \"deep\"")) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">dark &amp; &quot;deep&quot;</textarea></div>
+
+Text Some(String("dark & \"deep\"")) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">dark &amp; &quot;deep&quot;</textarea></div>
+
+Text Some(String("dark & \"deep\"")) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">dark &amp; &quot;deep&quot;</textarea></div>
+
+Text Some(String("dark & \"deep\"")) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">dark &amp; &quot;deep&quot;</textarea></div>
+
+Text Some(String("dark & \"deep\"")) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">dark &amp; &quot;deep&quot;</textarea></div>
+
+Text Some(String("dark & \"deep\"")) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">dark &amp; &quot;deep&quot;</textarea></div>
+
+Text Some(String("dark & \"deep\"")) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">dark &amp; &quot;deep&quot;</textarea></div>
+
+Text Some(String("dark & \"deep\"")) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">dark &amp; &quot;deep&quot;</textarea></div>
+
+Text Some(Number(20)) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">20</textarea></div>
+
+Text Some(Number(20)) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">20</textarea></div>
+
+Text Some(Number(20)) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">20</textarea></div>
+
+Text Some(Number(20)) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">20</textarea></div>
+
+Text Some(Number(20)) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">20</textarea></div>
+
+Text Some(Number(20)) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">20</textarea></div>
+
+Text Some(Number(20)) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">20</textarea></div>
+
+Text Some(Number(20)) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">20</textarea></div>
+
+Text Some(String("twenty <b>")) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">twenty &lt;b&gt;</textarea></div>
+
+Text Some(String("twenty <b>")) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">twenty &lt;b&gt;</textarea></div>
+
+Text Some(String("twenty <b>")) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">twenty &lt;b&gt;</textarea></div>
+
+Text Some(String("twenty <b>")) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">twenty &lt;b&gt;</textarea></div>
+
+Text Some(String("twenty <b>")) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">twenty &lt;b&gt;</textarea></div>
+
+Text Some(String("twenty <b>")) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">twenty &lt;b&gt;</textarea></div>
+
+Text Some(String("twenty <b>")) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">twenty &lt;b&gt;</textarea></div>
+
+Text Some(String("twenty <b>")) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">twenty &lt;b&gt;</textarea></div>
+
+Text Some(Array [String("en"), String("de"), String("</textarea><script>")]) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]</textarea></div>
+
+Text Some(Array [String("en"), String("de"), String("</textarea><script>")]) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]</textarea></div>
+
+Text Some(Array [String("en"), String("de"), String("</textarea><script>")]) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]</textarea></div>
+
+Text Some(Array [String("en"), String("de"), String("</textarea><script>")]) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]</textarea></div>
+
+Text Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]</textarea></div>
+
+Text Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]</textarea></div>
+
+Text Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]</textarea></div>
+
+Text Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]</textarea></div>
+
+Lines None None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2"></textarea></div>
+
+Lines None None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2"></textarea></div>
+
+Lines None None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2"></textarea></div>
+
+Lines None None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2"></textarea></div>
+
+Lines None Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help"></textarea></div>
+
+Lines None Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help"></textarea></div>
+
+Lines None Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help"></textarea></div>
+
+Lines None Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help"></textarea></div>
+
+Lines Some(Bool(true)) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">true</textarea></div>
+
+Lines Some(Bool(true)) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">true</textarea></div>
+
+Lines Some(Bool(true)) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">true</textarea></div>
+
+Lines Some(Bool(true)) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">true</textarea></div>
+
+Lines Some(Bool(true)) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">true</textarea></div>
+
+Lines Some(Bool(true)) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">true</textarea></div>
+
+Lines Some(Bool(true)) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">true</textarea></div>
+
+Lines Some(Bool(true)) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">true</textarea></div>
+
+Lines Some(String("dark & \"deep\"")) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">dark &amp; &quot;deep&quot;</textarea></div>
+
+Lines Some(String("dark & \"deep\"")) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">dark &amp; &quot;deep&quot;</textarea></div>
+
+Lines Some(String("dark & \"deep\"")) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">dark &amp; &quot;deep&quot;</textarea></div>
+
+Lines Some(String("dark & \"deep\"")) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">dark &amp; &quot;deep&quot;</textarea></div>
+
+Lines Some(String("dark & \"deep\"")) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">dark &amp; &quot;deep&quot;</textarea></div>
+
+Lines Some(String("dark & \"deep\"")) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">dark &amp; &quot;deep&quot;</textarea></div>
+
+Lines Some(String("dark & \"deep\"")) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">dark &amp; &quot;deep&quot;</textarea></div>
+
+Lines Some(String("dark & \"deep\"")) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">dark &amp; &quot;deep&quot;</textarea></div>
+
+Lines Some(Number(20)) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">20</textarea></div>
+
+Lines Some(Number(20)) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">20</textarea></div>
+
+Lines Some(Number(20)) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">20</textarea></div>
+
+Lines Some(Number(20)) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">20</textarea></div>
+
+Lines Some(Number(20)) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">20</textarea></div>
+
+Lines Some(Number(20)) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">20</textarea></div>
+
+Lines Some(Number(20)) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">20</textarea></div>
+
+Lines Some(Number(20)) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">20</textarea></div>
+
+Lines Some(String("twenty <b>")) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">twenty &lt;b&gt;</textarea></div>
+
+Lines Some(String("twenty <b>")) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">twenty &lt;b&gt;</textarea></div>
+
+Lines Some(String("twenty <b>")) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">twenty &lt;b&gt;</textarea></div>
+
+Lines Some(String("twenty <b>")) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">twenty &lt;b&gt;</textarea></div>
+
+Lines Some(String("twenty <b>")) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">twenty &lt;b&gt;</textarea></div>
+
+Lines Some(String("twenty <b>")) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">twenty &lt;b&gt;</textarea></div>
+
+Lines Some(String("twenty <b>")) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">twenty &lt;b&gt;</textarea></div>
+
+Lines Some(String("twenty <b>")) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">twenty &lt;b&gt;</textarea></div>
+
+Lines Some(Array [String("en"), String("de"), String("</textarea><script>")]) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+Lines Some(Array [String("en"), String("de"), String("</textarea><script>")]) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+Lines Some(Array [String("en"), String("de"), String("</textarea><script>")]) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+Lines Some(Array [String("en"), String("de"), String("</textarea><script>")]) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+Lines Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3" aria-describedby="x-help">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+Lines Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3" aria-describedby="x-help">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+Lines Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3" aria-describedby="x-help">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+Lines Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3" aria-describedby="x-help">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+IntegerLines None None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2"></textarea></div>
+
+IntegerLines None None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2"></textarea></div>
+
+IntegerLines None None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2"></textarea></div>
+
+IntegerLines None None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2"></textarea></div>
+
+IntegerLines None Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help"></textarea></div>
+
+IntegerLines None Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help"></textarea></div>
+
+IntegerLines None Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help"></textarea></div>
+
+IntegerLines None Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help"></textarea></div>
+
+IntegerLines Some(Bool(true)) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">true</textarea></div>
+
+IntegerLines Some(Bool(true)) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">true</textarea></div>
+
+IntegerLines Some(Bool(true)) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">true</textarea></div>
+
+IntegerLines Some(Bool(true)) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">true</textarea></div>
+
+IntegerLines Some(Bool(true)) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">true</textarea></div>
+
+IntegerLines Some(Bool(true)) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">true</textarea></div>
+
+IntegerLines Some(Bool(true)) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">true</textarea></div>
+
+IntegerLines Some(Bool(true)) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">true</textarea></div>
+
+IntegerLines Some(String("dark & \"deep\"")) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">dark &amp; &quot;deep&quot;</textarea></div>
+
+IntegerLines Some(String("dark & \"deep\"")) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">dark &amp; &quot;deep&quot;</textarea></div>
+
+IntegerLines Some(String("dark & \"deep\"")) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">dark &amp; &quot;deep&quot;</textarea></div>
+
+IntegerLines Some(String("dark & \"deep\"")) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">dark &amp; &quot;deep&quot;</textarea></div>
+
+IntegerLines Some(String("dark & \"deep\"")) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">dark &amp; &quot;deep&quot;</textarea></div>
+
+IntegerLines Some(String("dark & \"deep\"")) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">dark &amp; &quot;deep&quot;</textarea></div>
+
+IntegerLines Some(String("dark & \"deep\"")) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">dark &amp; &quot;deep&quot;</textarea></div>
+
+IntegerLines Some(String("dark & \"deep\"")) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">dark &amp; &quot;deep&quot;</textarea></div>
+
+IntegerLines Some(Number(20)) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">20</textarea></div>
+
+IntegerLines Some(Number(20)) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">20</textarea></div>
+
+IntegerLines Some(Number(20)) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">20</textarea></div>
+
+IntegerLines Some(Number(20)) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">20</textarea></div>
+
+IntegerLines Some(Number(20)) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">20</textarea></div>
+
+IntegerLines Some(Number(20)) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">20</textarea></div>
+
+IntegerLines Some(Number(20)) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">20</textarea></div>
+
+IntegerLines Some(Number(20)) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">20</textarea></div>
+
+IntegerLines Some(String("twenty <b>")) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">twenty &lt;b&gt;</textarea></div>
+
+IntegerLines Some(String("twenty <b>")) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">twenty &lt;b&gt;</textarea></div>
+
+IntegerLines Some(String("twenty <b>")) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">twenty &lt;b&gt;</textarea></div>
+
+IntegerLines Some(String("twenty <b>")) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">twenty &lt;b&gt;</textarea></div>
+
+IntegerLines Some(String("twenty <b>")) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">twenty &lt;b&gt;</textarea></div>
+
+IntegerLines Some(String("twenty <b>")) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">twenty &lt;b&gt;</textarea></div>
+
+IntegerLines Some(String("twenty <b>")) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">twenty &lt;b&gt;</textarea></div>
+
+IntegerLines Some(String("twenty <b>")) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">twenty &lt;b&gt;</textarea></div>
+
+IntegerLines Some(Array [String("en"), String("de"), String("</textarea><script>")]) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+IntegerLines Some(Array [String("en"), String("de"), String("</textarea><script>")]) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+IntegerLines Some(Array [String("en"), String("de"), String("</textarea><script>")]) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+IntegerLines Some(Array [String("en"), String("de"), String("</textarea><script>")]) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+IntegerLines Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3" aria-describedby="x-help">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+IntegerLines Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3" aria-describedby="x-help">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+IntegerLines Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3" aria-describedby="x-help">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+IntegerLines Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3" aria-describedby="x-help">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+Namespaces None None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2"></textarea></div>
+
+Namespaces None None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2"></textarea></div>
+
+Namespaces None None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2"></textarea></div>
+
+Namespaces None None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2"></textarea></div>
+
+Namespaces None Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help"></textarea></div>
+
+Namespaces None Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help"></textarea></div>
+
+Namespaces None Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help"></textarea></div>
+
+Namespaces None Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help"></textarea></div>
+
+Namespaces Some(Bool(true)) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">true</textarea></div>
+
+Namespaces Some(Bool(true)) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">true</textarea></div>
+
+Namespaces Some(Bool(true)) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">true</textarea></div>
+
+Namespaces Some(Bool(true)) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">true</textarea></div>
+
+Namespaces Some(Bool(true)) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">true</textarea></div>
+
+Namespaces Some(Bool(true)) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">true</textarea></div>
+
+Namespaces Some(Bool(true)) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">true</textarea></div>
+
+Namespaces Some(Bool(true)) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">true</textarea></div>
+
+Namespaces Some(String("dark & \"deep\"")) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">dark &amp; &quot;deep&quot;</textarea></div>
+
+Namespaces Some(String("dark & \"deep\"")) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">dark &amp; &quot;deep&quot;</textarea></div>
+
+Namespaces Some(String("dark & \"deep\"")) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">dark &amp; &quot;deep&quot;</textarea></div>
+
+Namespaces Some(String("dark & \"deep\"")) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">dark &amp; &quot;deep&quot;</textarea></div>
+
+Namespaces Some(String("dark & \"deep\"")) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">dark &amp; &quot;deep&quot;</textarea></div>
+
+Namespaces Some(String("dark & \"deep\"")) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">dark &amp; &quot;deep&quot;</textarea></div>
+
+Namespaces Some(String("dark & \"deep\"")) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">dark &amp; &quot;deep&quot;</textarea></div>
+
+Namespaces Some(String("dark & \"deep\"")) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">dark &amp; &quot;deep&quot;</textarea></div>
+
+Namespaces Some(Number(20)) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">20</textarea></div>
+
+Namespaces Some(Number(20)) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">20</textarea></div>
+
+Namespaces Some(Number(20)) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">20</textarea></div>
+
+Namespaces Some(Number(20)) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">20</textarea></div>
+
+Namespaces Some(Number(20)) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">20</textarea></div>
+
+Namespaces Some(Number(20)) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">20</textarea></div>
+
+Namespaces Some(Number(20)) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">20</textarea></div>
+
+Namespaces Some(Number(20)) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">20</textarea></div>
+
+Namespaces Some(String("twenty <b>")) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">twenty &lt;b&gt;</textarea></div>
+
+Namespaces Some(String("twenty <b>")) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">twenty &lt;b&gt;</textarea></div>
+
+Namespaces Some(String("twenty <b>")) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">twenty &lt;b&gt;</textarea></div>
+
+Namespaces Some(String("twenty <b>")) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2">twenty &lt;b&gt;</textarea></div>
+
+Namespaces Some(String("twenty <b>")) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">twenty &lt;b&gt;</textarea></div>
+
+Namespaces Some(String("twenty <b>")) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">twenty &lt;b&gt;</textarea></div>
+
+Namespaces Some(String("twenty <b>")) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">twenty &lt;b&gt;</textarea></div>
+
+Namespaces Some(String("twenty <b>")) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" aria-describedby="x-help">twenty &lt;b&gt;</textarea></div>
+
+Namespaces Some(Array [String("en"), String("de"), String("</textarea><script>")]) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+Namespaces Some(Array [String("en"), String("de"), String("</textarea><script>")]) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+Namespaces Some(Array [String("en"), String("de"), String("</textarea><script>")]) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+Namespaces Some(Array [String("en"), String("de"), String("</textarea><script>")]) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+Namespaces Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3" aria-describedby="x-help">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+Namespaces Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3" aria-describedby="x-help">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+Namespaces Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3" aria-describedby="x-help">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+Namespaces Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="3" aria-describedby="x-help">en
+de
+&lt;/textarea&gt;&lt;script&gt;</textarea></div>
+
+Json None None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false"></textarea></div>
+
+Json None None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false"></textarea></div>
+
+Json None None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false"></textarea></div>
+
+Json None None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false"></textarea></div>
+
+Json None Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false" aria-describedby="x-help"></textarea></div>
+
+Json None Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false" aria-describedby="x-help"></textarea></div>
+
+Json None Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false" aria-describedby="x-help"></textarea></div>
+
+Json None Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false" aria-describedby="x-help"></textarea></div>
+
+Json Some(Bool(true)) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false">true</textarea></div>
+
+Json Some(Bool(true)) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false">true</textarea></div>
+
+Json Some(Bool(true)) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false">true</textarea></div>
+
+Json Some(Bool(true)) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false">true</textarea></div>
+
+Json Some(Bool(true)) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false" aria-describedby="x-help">true</textarea></div>
+
+Json Some(Bool(true)) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false" aria-describedby="x-help">true</textarea></div>
+
+Json Some(Bool(true)) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false" aria-describedby="x-help">true</textarea></div>
+
+Json Some(Bool(true)) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false" aria-describedby="x-help">true</textarea></div>
+
+Json Some(String("dark & \"deep\"")) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false">dark &amp; &quot;deep&quot;</textarea></div>
+
+Json Some(String("dark & \"deep\"")) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false">dark &amp; &quot;deep&quot;</textarea></div>
+
+Json Some(String("dark & \"deep\"")) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false">dark &amp; &quot;deep&quot;</textarea></div>
+
+Json Some(String("dark & \"deep\"")) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false">dark &amp; &quot;deep&quot;</textarea></div>
+
+Json Some(String("dark & \"deep\"")) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false" aria-describedby="x-help">dark &amp; &quot;deep&quot;</textarea></div>
+
+Json Some(String("dark & \"deep\"")) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false" aria-describedby="x-help">dark &amp; &quot;deep&quot;</textarea></div>
+
+Json Some(String("dark & \"deep\"")) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false" aria-describedby="x-help">dark &amp; &quot;deep&quot;</textarea></div>
+
+Json Some(String("dark & \"deep\"")) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false" aria-describedby="x-help">dark &amp; &quot;deep&quot;</textarea></div>
+
+Json Some(Number(20)) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false">20</textarea></div>
+
+Json Some(Number(20)) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false">20</textarea></div>
+
+Json Some(Number(20)) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false">20</textarea></div>
+
+Json Some(Number(20)) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false">20</textarea></div>
+
+Json Some(Number(20)) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false" aria-describedby="x-help">20</textarea></div>
+
+Json Some(Number(20)) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false" aria-describedby="x-help">20</textarea></div>
+
+Json Some(Number(20)) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false" aria-describedby="x-help">20</textarea></div>
+
+Json Some(Number(20)) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false" aria-describedby="x-help">20</textarea></div>
+
+Json Some(String("twenty <b>")) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false">twenty &lt;b&gt;</textarea></div>
+
+Json Some(String("twenty <b>")) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false">twenty &lt;b&gt;</textarea></div>
+
+Json Some(String("twenty <b>")) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false">twenty &lt;b&gt;</textarea></div>
+
+Json Some(String("twenty <b>")) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false">twenty &lt;b&gt;</textarea></div>
+
+Json Some(String("twenty <b>")) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false" aria-describedby="x-help">twenty &lt;b&gt;</textarea></div>
+
+Json Some(String("twenty <b>")) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false" aria-describedby="x-help">twenty &lt;b&gt;</textarea></div>
+
+Json Some(String("twenty <b>")) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false" aria-describedby="x-help">twenty &lt;b&gt;</textarea></div>
+
+Json Some(String("twenty <b>")) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="2" spellcheck="false" aria-describedby="x-help">twenty &lt;b&gt;</textarea></div>
+
+Json Some(Array [String("en"), String("de"), String("</textarea><script>")]) None None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="5" spellcheck="false">[
+  &quot;en&quot;,
+  &quot;de&quot;,
+  &quot;&lt;/textarea&gt;&lt;script&gt;&quot;
+]</textarea></div>
+
+Json Some(Array [String("en"), String("de"), String("</textarea><script>")]) None None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="5" spellcheck="false">[
+  &quot;en&quot;,
+  &quot;de&quot;,
+  &quot;&lt;/textarea&gt;&lt;script&gt;&quot;
+]</textarea></div>
+
+Json Some(Array [String("en"), String("de"), String("</textarea><script>")]) None Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="5" spellcheck="false">[
+  &quot;en&quot;,
+  &quot;de&quot;,
+  &quot;&lt;/textarea&gt;&lt;script&gt;&quot;
+]</textarea></div>
+
+Json Some(Array [String("en"), String("de"), String("</textarea><script>")]) None Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="5" spellcheck="false">[
+  &quot;en&quot;,
+  &quot;de&quot;,
+  &quot;&lt;/textarea&gt;&lt;script&gt;&quot;
+]</textarea></div>
+
+Json Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") None false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="5" spellcheck="false" aria-describedby="x-help">[
+  &quot;en&quot;,
+  &quot;de&quot;,
+  &quot;&lt;/textarea&gt;&lt;script&gt;&quot;
+]</textarea></div>
+
+Json Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") None true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="5" spellcheck="false" aria-describedby="x-help">[
+  &quot;en&quot;,
+  &quot;de&quot;,
+  &quot;&lt;/textarea&gt;&lt;script&gt;&quot;
+]</textarea></div>
+
+Json Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") Some("(inherit)") false
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="5" spellcheck="false" aria-describedby="x-help">[
+  &quot;en&quot;,
+  &quot;de&quot;,
+  &quot;&lt;/textarea&gt;&lt;script&gt;&quot;
+]</textarea></div>
+
+Json Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") Some("(inherit)") true
+<div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="x&quot;id" name="v.a&amp;b" rows="5" spellcheck="false" aria-describedby="x-help">[
+  &quot;en&quot;,
+  &quot;de&quot;,
+  &quot;&lt;/textarea&gt;&lt;script&gt;&quot;
+]</textarea></div>
+
+ReadOnly None None None false
+<span id="x&quot;id"></span>
+
+ReadOnly None None None true
+<span id="x&quot;id"></span>
+
+ReadOnly None None Some("(inherit)") false
+<span id="x&quot;id"></span>
+
+ReadOnly None None Some("(inherit)") true
+<span id="x&quot;id"></span>
+
+ReadOnly None Some("x-help") None false
+<span id="x&quot;id"></span>
+
+ReadOnly None Some("x-help") None true
+<span id="x&quot;id"></span>
+
+ReadOnly None Some("x-help") Some("(inherit)") false
+<span id="x&quot;id"></span>
+
+ReadOnly None Some("x-help") Some("(inherit)") true
+<span id="x&quot;id"></span>
+
+ReadOnly Some(Bool(true)) None None false
+<span id="x&quot;id">true</span>
+
+ReadOnly Some(Bool(true)) None None true
+<span id="x&quot;id">true</span>
+
+ReadOnly Some(Bool(true)) None Some("(inherit)") false
+<span id="x&quot;id">true</span>
+
+ReadOnly Some(Bool(true)) None Some("(inherit)") true
+<span id="x&quot;id">true</span>
+
+ReadOnly Some(Bool(true)) Some("x-help") None false
+<span id="x&quot;id">true</span>
+
+ReadOnly Some(Bool(true)) Some("x-help") None true
+<span id="x&quot;id">true</span>
+
+ReadOnly Some(Bool(true)) Some("x-help") Some("(inherit)") false
+<span id="x&quot;id">true</span>
+
+ReadOnly Some(Bool(true)) Some("x-help") Some("(inherit)") true
+<span id="x&quot;id">true</span>
+
+ReadOnly Some(String("dark & \"deep\"")) None None false
+<span id="x&quot;id">dark &amp; &quot;deep&quot;</span>
+
+ReadOnly Some(String("dark & \"deep\"")) None None true
+<span id="x&quot;id">dark &amp; &quot;deep&quot;</span>
+
+ReadOnly Some(String("dark & \"deep\"")) None Some("(inherit)") false
+<span id="x&quot;id">dark &amp; &quot;deep&quot;</span>
+
+ReadOnly Some(String("dark & \"deep\"")) None Some("(inherit)") true
+<span id="x&quot;id">dark &amp; &quot;deep&quot;</span>
+
+ReadOnly Some(String("dark & \"deep\"")) Some("x-help") None false
+<span id="x&quot;id">dark &amp; &quot;deep&quot;</span>
+
+ReadOnly Some(String("dark & \"deep\"")) Some("x-help") None true
+<span id="x&quot;id">dark &amp; &quot;deep&quot;</span>
+
+ReadOnly Some(String("dark & \"deep\"")) Some("x-help") Some("(inherit)") false
+<span id="x&quot;id">dark &amp; &quot;deep&quot;</span>
+
+ReadOnly Some(String("dark & \"deep\"")) Some("x-help") Some("(inherit)") true
+<span id="x&quot;id">dark &amp; &quot;deep&quot;</span>
+
+ReadOnly Some(Number(20)) None None false
+<span id="x&quot;id">20</span>
+
+ReadOnly Some(Number(20)) None None true
+<span id="x&quot;id">20</span>
+
+ReadOnly Some(Number(20)) None Some("(inherit)") false
+<span id="x&quot;id">20</span>
+
+ReadOnly Some(Number(20)) None Some("(inherit)") true
+<span id="x&quot;id">20</span>
+
+ReadOnly Some(Number(20)) Some("x-help") None false
+<span id="x&quot;id">20</span>
+
+ReadOnly Some(Number(20)) Some("x-help") None true
+<span id="x&quot;id">20</span>
+
+ReadOnly Some(Number(20)) Some("x-help") Some("(inherit)") false
+<span id="x&quot;id">20</span>
+
+ReadOnly Some(Number(20)) Some("x-help") Some("(inherit)") true
+<span id="x&quot;id">20</span>
+
+ReadOnly Some(String("twenty <b>")) None None false
+<span id="x&quot;id">twenty &lt;b&gt;</span>
+
+ReadOnly Some(String("twenty <b>")) None None true
+<span id="x&quot;id">twenty &lt;b&gt;</span>
+
+ReadOnly Some(String("twenty <b>")) None Some("(inherit)") false
+<span id="x&quot;id">twenty &lt;b&gt;</span>
+
+ReadOnly Some(String("twenty <b>")) None Some("(inherit)") true
+<span id="x&quot;id">twenty &lt;b&gt;</span>
+
+ReadOnly Some(String("twenty <b>")) Some("x-help") None false
+<span id="x&quot;id">twenty &lt;b&gt;</span>
+
+ReadOnly Some(String("twenty <b>")) Some("x-help") None true
+<span id="x&quot;id">twenty &lt;b&gt;</span>
+
+ReadOnly Some(String("twenty <b>")) Some("x-help") Some("(inherit)") false
+<span id="x&quot;id">twenty &lt;b&gt;</span>
+
+ReadOnly Some(String("twenty <b>")) Some("x-help") Some("(inherit)") true
+<span id="x&quot;id">twenty &lt;b&gt;</span>
+
+ReadOnly Some(Array [String("en"), String("de"), String("</textarea><script>")]) None None false
+<span id="x&quot;id">[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]</span>
+
+ReadOnly Some(Array [String("en"), String("de"), String("</textarea><script>")]) None None true
+<span id="x&quot;id">[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]</span>
+
+ReadOnly Some(Array [String("en"), String("de"), String("</textarea><script>")]) None Some("(inherit)") false
+<span id="x&quot;id">[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]</span>
+
+ReadOnly Some(Array [String("en"), String("de"), String("</textarea><script>")]) None Some("(inherit)") true
+<span id="x&quot;id">[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]</span>
+
+ReadOnly Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") None false
+<span id="x&quot;id">[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]</span>
+
+ReadOnly Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") None true
+<span id="x&quot;id">[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]</span>
+
+ReadOnly Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") Some("(inherit)") false
+<span id="x&quot;id">[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]</span>
+
+ReadOnly Some(Array [String("en"), String("de"), String("</textarea><script>")]) Some("x-help") Some("(inherit)") true
+<span id="x&quot;id">[&quot;en&quot;,&quot;de&quot;,&quot;&lt;/textarea&gt;&lt;script&gt;&quot;]</span>

@@ -319,9 +319,13 @@ async fn reserve(cx: &PgCx, tenant: &str, page: i64, acl: Option<&Acl>) -> Resul
         Some(r) => {
             let ns = i32::try_from(r.namespace).map_err(|e| e.to_string())?;
             cx.execute(
-                "INSERT INTO view.page (tenant, page_id, ns, title, content_model, reserved)
-                 VALUES ($1, $2, $3, $4, '', true)
-                 ON CONFLICT DO NOTHING",
+                concat!(
+                    "INSERT INTO view.page (tenant, page_id, ns, title, content_model, reserved, random)
+                 VALUES ($1, $2, $3, $4, '', true, ",
+                    crate::page_random_sql!(),
+                    ")
+                 ON CONFLICT DO NOTHING"
+                ),
                 &[&tenant, &page, &ns, &r.title],
             )
             .await

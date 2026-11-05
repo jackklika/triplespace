@@ -1,0 +1,5 @@
+{#- Special:SpecialPages (0047 §1, §9; 21 §1.1): the special pages the site offers the
+    viewer, under the special-page registry's headings, each with what it is for. The
+    headings carry MediaWiki's class and ids, which gadgets and user scripts use. -#}
+{%- if groups %}{% for g in groups %}<section class="ts-specialpages__group" aria-labelledby="mw-specialpagesgroup-{{ g.key }}"><h2 class="mw-specialpagesgroup" id="mw-specialpagesgroup-{{ g.key }}">{{ g.heading }}</h2><ul class="ts-specialpages">{% for p in g.pages %}<li><p class="ts-specialpages__name"><a href="{{ p.href }}">{{ p.label }}</a></p><p class="ts-specialpages__description">{{ p.description }}</p></li>{% endfor %}</ul></section>{% endfor %}
+{%- else %}<p class="ts-empty">{{ empty }}</p>{% endif %}

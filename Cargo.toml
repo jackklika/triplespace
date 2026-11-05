@@ -111,6 +111,8 @@ indexmap = { version = "2", features = ["serde"] }
 # references, MD5 for RDF value nodes. Not used for anything Triplespace secures.
 sha1 = "0.10"
 md-5 = "0.10"
+# The binaries' process allocator (0033 §2, A24).
+mimalloc = { version = "0.1.52", default-features = false }
 # Statement keys (0004 §8), signing-key IDs (0015 §1) and, later, the log's SHA-256 (0006 §2)
 sha2 = "0.10"
 # Password hashing (0033 §6: Argon2id) and keyed token derivation for sessions (0024 §4)
@@ -160,7 +162,7 @@ pollster = "1"
 tokio = { version = "1", default-features = false }
 tokio-postgres = { version = "0.7", features = ["with-serde_json-1"] }
 deadpool-postgres = "0.14"
-# Postgres over TLS when the database URL says `sslmode=require` (0033 A24): rustls on
+# Postgres over TLS when the database URL says `sslmode=require` (0033 A25): rustls on
 # aws-lc-rs, the one crypto provider (0033 §6), with the platform's roots as the web tier uses
 rustls = { version = "0.23", default-features = false, features = ["std", "tls12", "aws_lc_rs"] }
 rustls-platform-verifier = "0.7"
@@ -174,11 +176,12 @@ http-body-util = "0.1"
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "http2"] }
 # Sealing secrets at rest (0088 §3): XChaCha20-Poly1305
 chacha20poly1305 = "0.11"
-# Server-rendered pages (0034 §2): compiled templates; the built frontend embedded (0034 §8)
-# Without `config`, which reads an askama.toml (there is none) through the unmaintained
-# basic-toml (RUSTSEC-2026-0374); `path = ` templates come with the derive regardless.
 similar = { version = "2.7", default-features = false, features = ["text"] }
-askama = { version = "0.16", default-features = false, features = ["derive", "std", "urlencode"] }
+# Skins (0097 §8): templates parsed when a skin is loaded, rendered with autoescape on, with
+# no access to files, the network or the environment; manifests carry semantic versions.
+minijinja = { version = "3", features = ["serde"] }
+semver = "1"
+# The built frontend embedded (0034 §8)
 rust-embed = { version = "8", features = ["include-exclude"] }
 
 [workspace.lints.rust]

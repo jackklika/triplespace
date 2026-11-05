@@ -199,7 +199,7 @@ vocabulary! {
 }
 
 vocabulary! {
-    /// The Wikibase ontology (`docs/api/snapshots/wikibase-ontology-1.0.owl`).
+    /// The Wikibase ontology (`docs/samples/wikibase-1.43/wikibase-ontology-1.0.owl`).
     wikibase, "http://wikiba.se/ontology#", "wikibase" {
         ITEM = "Item";
         PROPERTY = "Property";

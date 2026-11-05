@@ -260,7 +260,9 @@ fn read<T: serde::de::DeserializeOwned>(r: &ApiResponse, what: &str) -> Result<T
 }
 
 /// A save's answer: the value, or the refusals; a status the API never answers a save
-/// with is an error.
+/// with is an error. `404` is a refusal too: what the save named is gone or was never
+/// there (a set retired, a request already decided, a member the set does not hold), and
+/// the form says so.
 pub(crate) fn saved<T: serde::de::DeserializeOwned>(
     r: &ApiResponse,
     what: &str,
@@ -269,6 +271,7 @@ pub(crate) fn saved<T: serde::de::DeserializeOwned>(
         StatusCode::OK => Ok(Saved::Ok(read(r, what)?)),
         StatusCode::BAD_REQUEST
         | StatusCode::FORBIDDEN
+        | StatusCode::NOT_FOUND
         | StatusCode::CONFLICT
         | StatusCode::UNAUTHORIZED => {
             let v: Value = serde_json::from_slice(&r.body).unwrap_or(Value::Null);
@@ -430,6 +433,14 @@ mod tests {
         );
         assert!(
             matches!(saved::<Value>(&r, "t").unwrap(), Saved::Refused(e) if e[0].code == "badtoken")
+        );
+        // What the save named is gone: a refusal the form shows, not an unreadable answer.
+        let r = response(
+            StatusCode::NOT_FOUND,
+            &serde_json::json!({"code": "ts-no-target", "message": "The set does not hold it."}),
+        );
+        assert!(
+            matches!(saved::<Value>(&r, "t").unwrap(), Saved::Refused(e) if e[0].code == "ts-no-target")
         );
         let r = response(StatusCode::INTERNAL_SERVER_ERROR, &serde_json::json!({}));
         assert!(saved::<Value>(&r, "t").is_err());

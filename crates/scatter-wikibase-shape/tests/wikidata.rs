@@ -1,4 +1,4 @@
-//! The fixtures of 0003 §10, from the Wikidata snapshots in `docs/api/snapshots`: Los
+//! The fixtures of 0003 §10, from the Wikidata snapshots in `docs/samples/wikidata`: Los
 //! Angeles' population (Series) and head of government (Timeline), Pluto's classes (best
 //! and deprecated values), Astana's names and capital status, and manganese's ionic
 //! radii (a Table with a Matrix view).
@@ -11,7 +11,7 @@ use scatter_wikibase_shape::{Group, Roles, Shape, Thresholds, classify};
 
 fn entity(q: &str) -> Model {
     let path = format!(
-        "{}/../../docs/api/snapshots/wikidata-{q}.json",
+        "{}/../../docs/samples/wikidata/wikidata-{q}.json",
         env!("CARGO_MANIFEST_DIR")
     );
     let v: serde_json::Value =

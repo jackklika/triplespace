@@ -78,7 +78,7 @@ async fn setup() -> Option<(String, PathBuf)> {
         database: database.clone(),
         tenant: TENANT.into(),
         dump: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/librarybase-wikitext.xml.gz"),
+            .join("../../docs/samples/librarybase/dump/librarybase-wikitext.xml.gz"),
         source: format!("https://{HOST}/"),
         version: Some("LibrarybaseWikitext-20261010030044".into()),
         frozen: true,

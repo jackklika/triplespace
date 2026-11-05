@@ -35,7 +35,7 @@ As with the API contract, statements here were checked against running software,
 3. **RDF dumps.** RDF was produced with `repo/maintenance/dumpRdf.php` (the `full-dump` and `truthy-dump` flavors) and with `Special:EntityData/Q9.ttl?flavor=full`.
 4. **Comparison.** The emitted vocabulary was compared mechanically against `ontology.owl` using rdflib.
 
-Statements marked **(observed)** come from these outputs. Snapshots are committed in `docs/api/snapshots/`:
+Statements marked **(observed)** come from these outputs. Snapshots are committed in `docs/samples/wikibase-1.43/`:
 
 | File | Contents |
 |---|---|
@@ -150,6 +150,7 @@ Wikibase hashes PHP serializations, in the pre-PHP-7.4 `Serializable` wrapper `C
 | `quantity`, bounded | `C:24:"DataValues\QuantityValue":L:{a:4:{i:0;D(amount)i:1;S(unit)i:2;D(upperBound)i:3;D(lowerBound)}}` with `D(x) = C:24:"DataValues\DecimalValue":L:{S(x)}` |
 | `quantity`, unbounded | `C:33:"DataValues\UnboundedQuantityValue":L:{a:2:{i:0;D(amount)i:1;S(unit)}}` |
 | `wikibase-entityid` | `C:39:"Wikibase\DataModel\Entity\EntityIdValue":L:{C:<len>:"<ID class>":L:{Q3}}`, the class `Wikibase\DataModel\Entity\ItemId`, `…\NumericPropertyId`, `Wikibase\Lexeme\Domain\Model\LexemeId` / `FormId` / `SenseId` or `Wikibase\MediaInfo\DataModel\MediaInfoId` by `entity-type` |
+| `wikibase-entityid` with `entity-type` `entity-schema` | `C:50:"EntitySchema\Wikibase\DataValues\EntitySchemaValue":L:{O:40:"EntitySchema\Domain\Model\EntitySchemaId":1:{S("\0EntitySchema\Domain\Model\EntitySchemaId\0id")S(E3)}}`: the EntitySchema extension's value is a `DataValueObject`, not an `EntityIdValue`, and its ID is a plain PHP object with one private property (`\0` is a NUL byte). Checked against Wikidata's hashes (2026-10-26 dump) |
 
 The ID inside an entity value is the one the source wrote: Wikidata hashes `Q3`, so a mirrored `WDQ3` is hashed as `Q3` (`Hasher::mirrored_from("WD")`). Everything else in a hash is bytes the JSON carries verbatim, which is why the guard of 0006 §2 can compare on every entity.
 
@@ -541,7 +542,7 @@ Primary:
 - WikibaseEDTF: <https://github.com/ProfessionalWiki/WikibaseEDTF> (3.0.0, and head `23d233c`)
 - EDTF PHP library: <https://github.com/ProfessionalWiki/EDTF> (3.1.0)
 - EDTF specification: [Library of Congress, Extended Date/Time Format](https://www.loc.gov/standards/datetime/)
-- Snapshots in `docs/api/snapshots/` (§1.2)
+- Snapshots in `docs/samples/wikibase-1.43/` (§1.2)
 
 Secondary, not fetched for this revision (mediawiki.org and wikidata.org are unreachable from the build environment), but cited by the primary sources:
 

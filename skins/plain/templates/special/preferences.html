@@ -1,0 +1,17 @@
+{#- Special:Preferences (0085 §5; 19 §2.6): one form per group of `preferences.toml`, each
+    row `forms.html`'s `setting`, and **Restore all defaults**; for a reader not logged in,
+    the way to log in and the Appearance menu. The tabs are the frame's. -#}
+{%- import "codex.html" as codex -%}
+{%- import "forms.html" as forms -%}
+{%- if anonymous -%}
+{{ codex.message(anonymous.notice) }}{% if anonymous.login %}<p><a href="{{ anonymous.login.href }}">{{ anonymous.login.label }}</a></p>{% endif %}<p>{{ anonymous.appearance }}</p>
+{%- else -%}
+<div class="ts-settings ts-preferences">{% if restored %}{{ codex.message(restored) }}{% endif -%}
+{%- for sec in sections %}<section class="ts-settings__section" id="{{ sec.id }}" aria-labelledby="{{ sec.id }}-title"><h2 id="{{ sec.id }}-title">{{ sec.title }}</h2>
+{%- if sec.saved %}{{ codex.message(sec.saved) }}{% endif -%}
+{%- if sec.note %}<p>{{ sec.note }}</p>{% endif -%}
+{%- for e in sec.errors %}{{ codex.message(e) }}{% endfor -%}
+<form class="ts-settings__form" method="post" action="/w/index.php?title=Special:Preferences"><input type="hidden" name="section" value="{{ sec.id }}"><input type="hidden" name="token" value="{{ sec.token }}"><input type="hidden" name="keys" value="{{ sec.keys }}">{% for r in sec.rows %}{{ forms.setting(r) }}{% endfor %}<div class="ts-settings__save">{{ codex.button(sec.save) }}</div></form></section>{% endfor -%}
+{%- if restore %}<section class="ts-settings__section" id="restore"><form class="ts-settings__form" method="post" action="/w/index.php?title=Special:Preferences"><input type="hidden" name="section" value="restore"><input type="hidden" name="token" value="{{ restore.token }}"><input type="hidden" name="reset_all" value="1"><p>{{ restore.intro }}</p>{{ codex.button(restore.button) }}</form></section>{% endif -%}
+</div>
+{%- endif -%}

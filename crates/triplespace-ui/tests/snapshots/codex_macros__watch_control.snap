@@ -1,0 +1,291 @@
+---
+source: crates/triplespace-ui/tests/codex_macros.rs
+expression: out
+---
+<div class="ts-watch">
+<details class="ts-menu ts-watch__menu">
+<summary class="cdx-button cdx-button--fake-button cdx-button--fake-button--enabled cdx-button--weight-quiet">
+<svg class="ts-watch__icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+<path d="M20 7h-7L10 0 7 7H0l5.46 5.47-1.64 7 6.18-3.7 6.18 3.73-1.63-7zm-10 6.9-3.58 2.15.95-4.07-3.17-3.17h4.14L10 5.15l1.66 3.66h4.14l-3.17 3.17.95 4.07z"/>
+</svg>Watch</summary>
+<div class="ts-menu__items ts-watch__panel">
+<form class="ts-watch__form" method="post" action="/w/index.php?title=Item:Q6&amp;action=watch">
+<input type="hidden" name="wpEditToken" value="c+\">
+<input type="hidden" name="notifyfield" value="1">
+<fieldset class="cdx-field">
+<legend class="cdx-label">
+<span class="cdx-label__label__text">Watch this page</span>
+</legend>
+<span class="cdx-radio">
+<span class="cdx-radio__wrapper">
+<input class="cdx-radio__input" type="radio" id="ts-watch-span-0" name="expiry" value="infinite" checked>
+<span class="cdx-radio__icon">
+</span>
+<span class="cdx-radio__label cdx-label">
+<label class="cdx-label__label" for="ts-watch-span-0">
+<span class="cdx-label__label__text">Permanently</span>
+</label>
+</span>
+</span>
+</span>
+<span class="cdx-radio">
+<span class="cdx-radio__wrapper">
+<input class="cdx-radio__input" type="radio" id="ts-watch-span-1" name="expiry" value="1 week">
+<span class="cdx-radio__icon">
+</span>
+<span class="cdx-radio__label cdx-label">
+<label class="cdx-label__label" for="ts-watch-span-1">
+<span class="cdx-label__label__text">For a week</span>
+</label>
+</span>
+</span>
+</span>
+<span class="cdx-radio">
+<span class="cdx-radio__wrapper">
+<input class="cdx-radio__input" type="radio" id="ts-watch-span-2" name="expiry" value="1 month">
+<span class="cdx-radio__icon">
+</span>
+<span class="cdx-radio__label cdx-label">
+<label class="cdx-label__label" for="ts-watch-span-2">
+<span class="cdx-label__label__text">For a month</span>
+</label>
+</span>
+</span>
+</span>
+<span class="cdx-radio">
+<span class="cdx-radio__wrapper">
+<input class="cdx-radio__input" type="radio" id="ts-watch-span-3" name="expiry" value="3 months">
+<span class="cdx-radio__icon">
+</span>
+<span class="cdx-radio__label cdx-label">
+<label class="cdx-label__label" for="ts-watch-span-3">
+<span class="cdx-label__label__text">For three months</span>
+</label>
+</span>
+</span>
+</span>
+<span class="cdx-radio">
+<span class="cdx-radio__wrapper">
+<input class="cdx-radio__input" type="radio" id="ts-watch-span-4" name="expiry" value="6 months">
+<span class="cdx-radio__icon">
+</span>
+<span class="cdx-radio__label cdx-label">
+<label class="cdx-label__label" for="ts-watch-span-4">
+<span class="cdx-label__label__text">For six months</span>
+</label>
+</span>
+</span>
+</span>
+</fieldset>
+<span class="cdx-checkbox">
+<span class="cdx-checkbox__wrapper">
+<input class="cdx-checkbox__input" type="checkbox" id="ts-watch-notify" name="notify" value="1">
+<span class="cdx-checkbox__icon">
+</span>
+<span class="cdx-checkbox__label cdx-label">
+<label class="cdx-label__label" for="ts-watch-notify">
+<span class="cdx-label__label__text">Notify me of changes</span>
+</label>
+</span>
+</span>
+</span>
+<button class="cdx-button cdx-button--action-progressive cdx-button--weight-primary" type="submit">Watch</button>
+</form>
+</div>
+</details>
+</div>
+
+<div class="ts-watch">
+<details class="ts-menu ts-watch__menu">
+<summary class="cdx-button cdx-button--fake-button cdx-button--fake-button--enabled cdx-button--weight-quiet ts-watch--on" title="Watched until 6 November 2026">
+<svg class="ts-watch__icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+<path d="M20 7h-7L10 0 7 7H0l5.46 5.47-1.64 7 6.18-3.7 6.18 3.73-1.63-7z"/>
+</svg>Watching</summary>
+<div class="ts-menu__items ts-watch__panel">
+<form class="ts-watch__form" method="post" action="/w/index.php?title=Talk:A_%26_B&amp;action=watch">
+<input type="hidden" name="wpEditToken" value="t">
+<input type="hidden" name="notifyfield" value="1">
+<fieldset class="cdx-field">
+<legend class="cdx-label">
+<span class="cdx-label__label__text">Watch this page</span>
+</legend>
+<span class="cdx-radio">
+<span class="cdx-radio__wrapper">
+<input class="cdx-radio__input" type="radio" id="ts-watch-span-0" name="expiry" value="infinite">
+<span class="cdx-radio__icon">
+</span>
+<span class="cdx-radio__label cdx-label">
+<label class="cdx-label__label" for="ts-watch-span-0">
+<span class="cdx-label__label__text">Permanently</span>
+</label>
+</span>
+</span>
+</span>
+<span class="cdx-radio">
+<span class="cdx-radio__wrapper">
+<input class="cdx-radio__input" type="radio" id="ts-watch-span-1" name="expiry" value="1 week">
+<span class="cdx-radio__icon">
+</span>
+<span class="cdx-radio__label cdx-label">
+<label class="cdx-label__label" for="ts-watch-span-1">
+<span class="cdx-label__label__text">For a week</span>
+</label>
+</span>
+</span>
+</span>
+<span class="cdx-radio">
+<span class="cdx-radio__wrapper">
+<input class="cdx-radio__input" type="radio" id="ts-watch-span-2" name="expiry" value="1 month">
+<span class="cdx-radio__icon">
+</span>
+<span class="cdx-radio__label cdx-label">
+<label class="cdx-label__label" for="ts-watch-span-2">
+<span class="cdx-label__label__text">For a month</span>
+</label>
+</span>
+</span>
+</span>
+<span class="cdx-radio">
+<span class="cdx-radio__wrapper">
+<input class="cdx-radio__input" type="radio" id="ts-watch-span-3" name="expiry" value="3 months">
+<span class="cdx-radio__icon">
+</span>
+<span class="cdx-radio__label cdx-label">
+<label class="cdx-label__label" for="ts-watch-span-3">
+<span class="cdx-label__label__text">For three months</span>
+</label>
+</span>
+</span>
+</span>
+<span class="cdx-radio">
+<span class="cdx-radio__wrapper">
+<input class="cdx-radio__input" type="radio" id="ts-watch-span-4" name="expiry" value="6 months">
+<span class="cdx-radio__icon">
+</span>
+<span class="cdx-radio__label cdx-label">
+<label class="cdx-label__label" for="ts-watch-span-4">
+<span class="cdx-label__label__text">For six months</span>
+</label>
+</span>
+</span>
+</span>
+</fieldset>
+<span class="cdx-checkbox">
+<span class="cdx-checkbox__wrapper">
+<input class="cdx-checkbox__input" type="checkbox" id="ts-watch-notify" name="notify" value="1" checked>
+<span class="cdx-checkbox__icon">
+</span>
+<span class="cdx-checkbox__label cdx-label">
+<label class="cdx-label__label" for="ts-watch-notify">
+<span class="cdx-label__label__text">Notify me of changes</span>
+</label>
+</span>
+</span>
+</span>
+<button class="cdx-button cdx-button--action-progressive cdx-button--weight-primary" type="submit">Save</button>
+</form>
+<p class="ts-watch__until">Watched until 6 November 2026</p>
+<form class="ts-watch__stop" method="post" action="/w/index.php?title=Talk:A_%26_B&amp;action=unwatch">
+<input type="hidden" name="wpEditToken" value="t">
+<button class="cdx-button cdx-button--action-destructive cdx-button--weight-quiet" type="submit">Unwatch</button>
+</form>
+</div>
+</details>
+</div>
+
+<div class="ts-watch">
+<details class="ts-menu ts-watch__menu">
+<summary class="cdx-button cdx-button--fake-button cdx-button--fake-button--enabled cdx-button--weight-quiet ts-watch--on">
+<svg class="ts-watch__icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+<path d="M20 7h-7L10 0 7 7H0l5.46 5.47-1.64 7 6.18-3.7 6.18 3.73-1.63-7z"/>
+</svg>Watching</summary>
+<div class="ts-menu__items ts-watch__panel">
+<form class="ts-watch__form" method="post" action="/w/index.php?title=Item:Q6&amp;action=watch">
+<input type="hidden" name="wpEditToken" value="t">
+<input type="hidden" name="notifyfield" value="1">
+<fieldset class="cdx-field">
+<legend class="cdx-label">
+<span class="cdx-label__label__text">Watch this page</span>
+</legend>
+<span class="cdx-radio">
+<span class="cdx-radio__wrapper">
+<input class="cdx-radio__input" type="radio" id="ts-watch-span-0" name="expiry" value="infinite" checked>
+<span class="cdx-radio__icon">
+</span>
+<span class="cdx-radio__label cdx-label">
+<label class="cdx-label__label" for="ts-watch-span-0">
+<span class="cdx-label__label__text">Permanently</span>
+</label>
+</span>
+</span>
+</span>
+<span class="cdx-radio">
+<span class="cdx-radio__wrapper">
+<input class="cdx-radio__input" type="radio" id="ts-watch-span-1" name="expiry" value="1 week">
+<span class="cdx-radio__icon">
+</span>
+<span class="cdx-radio__label cdx-label">
+<label class="cdx-label__label" for="ts-watch-span-1">
+<span class="cdx-label__label__text">For a week</span>
+</label>
+</span>
+</span>
+</span>
+<span class="cdx-radio">
+<span class="cdx-radio__wrapper">
+<input class="cdx-radio__input" type="radio" id="ts-watch-span-2" name="expiry" value="1 month">
+<span class="cdx-radio__icon">
+</span>
+<span class="cdx-radio__label cdx-label">
+<label class="cdx-label__label" for="ts-watch-span-2">
+<span class="cdx-label__label__text">For a month</span>
+</label>
+</span>
+</span>
+</span>
+<span class="cdx-radio">
+<span class="cdx-radio__wrapper">
+<input class="cdx-radio__input" type="radio" id="ts-watch-span-3" name="expiry" value="3 months">
+<span class="cdx-radio__icon">
+</span>
+<span class="cdx-radio__label cdx-label">
+<label class="cdx-label__label" for="ts-watch-span-3">
+<span class="cdx-label__label__text">For three months</span>
+</label>
+</span>
+</span>
+</span>
+<span class="cdx-radio">
+<span class="cdx-radio__wrapper">
+<input class="cdx-radio__input" type="radio" id="ts-watch-span-4" name="expiry" value="6 months">
+<span class="cdx-radio__icon">
+</span>
+<span class="cdx-radio__label cdx-label">
+<label class="cdx-label__label" for="ts-watch-span-4">
+<span class="cdx-label__label__text">For six months</span>
+</label>
+</span>
+</span>
+</span>
+</fieldset>
+<span class="cdx-checkbox">
+<span class="cdx-checkbox__wrapper">
+<input class="cdx-checkbox__input" type="checkbox" id="ts-watch-notify" name="notify" value="1">
+<span class="cdx-checkbox__icon">
+</span>
+<span class="cdx-checkbox__label cdx-label">
+<label class="cdx-label__label" for="ts-watch-notify">
+<span class="cdx-label__label__text">Notify me of changes</span>
+</label>
+</span>
+</span>
+</span>
+<button class="cdx-button cdx-button--action-progressive cdx-button--weight-primary" type="submit">Save</button>
+</form>
+<form class="ts-watch__stop" method="post" action="/w/index.php?title=Item:Q6&amp;action=unwatch">
+<input type="hidden" name="wpEditToken" value="t">
+<button class="cdx-button cdx-button--action-destructive cdx-button--weight-quiet" type="submit">Unwatch</button>
+</form>
+</div>
+</details>
+</div>

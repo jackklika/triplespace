@@ -20,7 +20,7 @@
 //! equals what upstream served either way.
 //!
 //! What is verified: every snak hash, the reference hash and every value-node hash in
-//! `docs/api/snapshots` (Wikibase for MediaWiki 1.43), in this crate's tests.
+//! `docs/samples/wikibase-1.43` and `docs/samples/wikidata`, in this crate's tests.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -65,6 +65,8 @@ const DECIMAL_VALUE: &str = "DataValues\\DecimalValue";
 const QUANTITY_VALUE: &str = "DataValues\\QuantityValue";
 const UNBOUNDED_QUANTITY_VALUE: &str = "DataValues\\UnboundedQuantityValue";
 const ENTITY_ID_VALUE: &str = "Wikibase\\DataModel\\Entity\\EntityIdValue";
+const ENTITY_SCHEMA_VALUE: &str = "EntitySchema\\Wikibase\\DataValues\\EntitySchemaValue";
+const ENTITY_SCHEMA_ID: &str = "EntitySchema\\Domain\\Model\\EntitySchemaId";
 const VALUE_SNAK: &str = "Wikibase\\DataModel\\Snak\\PropertyValueSnak";
 const SOME_VALUE_SNAK: &str = "Wikibase\\DataModel\\Snak\\PropertySomeValueSnak";
 const NO_VALUE_SNAK: &str = "Wikibase\\DataModel\\Snak\\PropertyNoValueSnak";
@@ -120,6 +122,17 @@ impl Hasher {
     pub fn value_serialization(&self, value: &DataValue) -> String {
         match value {
             DataValue::String(s) => php::class_wrapper(STRING_VALUE, s),
+            // The EntitySchema extension's value is not an `EntityIdValue`, though its
+            // JSON looks like one: an `EntitySchemaValue` (a `DataValueObject`) whose
+            // `serialize()` is PHP's `serialize()` of a plain `EntitySchemaId` object with
+            // one private `$id` (0006 §2). Checked against Wikidata's own snak hashes.
+            DataValue::EntityId(e) if e.entity_type == "entity-schema" => {
+                let mut data = format!("O:{}:\"{ENTITY_SCHEMA_ID}\":1:{{", ENTITY_SCHEMA_ID.len());
+                php::serialize_str(&mut data, &format!("\0{ENTITY_SCHEMA_ID}\0id"));
+                php::serialize_str(&mut data, self.source_form(&e.id));
+                data.push('}');
+                php::class_wrapper(ENTITY_SCHEMA_VALUE, &data)
+            }
             DataValue::EntityId(e) => {
                 let inner =
                     php::class_wrapper(entity_id_class(&e.entity_type), self.source_form(&e.id));
@@ -392,6 +405,36 @@ mod tests {
         serde_json::from_str(json).unwrap()
     }
 
+    /// An EntitySchema value hashes as the EntitySchema extension serializes it (0006 §2),
+    /// not as an `EntityIdValue`: two qualifiers on Wikidata properties, with the hashes
+    /// Wikidata wrote for them in the 2026-10-26 dump, as stored here and as mirrored.
+    #[test]
+    fn entity_schema_values_hash_as_the_extension_serializes_them() {
+        for (property, schema, wikidata) in [
+            ("P12861", "E13", "992aaa1ed52a6b8f0aa31f65774ce65826aa1301"),
+            ("P12886", "E1", "cf92ee168427e91beb5eff58971a5e0f6d1382ca"),
+        ] {
+            let json = |p: &str, e: &str| {
+                format!(
+                    r#"{{"snaktype":"value","property":"{p}","datavalue":{{"value":{{"id":"{e}","entity-type":"entity-schema"}},"type":"wikibase-entityid"}},"datatype":"entity-schema"}}"#
+                )
+            };
+            assert_eq!(
+                Hasher::local().snak(&snak(&json(property, schema))),
+                wikidata,
+                "{property} {schema}"
+            );
+            assert_eq!(
+                Hasher::mirrored_from("WD").snak(&snak(&json(
+                    &format!("WD{property}"),
+                    &format!("WD{schema}")
+                ))),
+                wikidata,
+                "{property} {schema}, mirrored"
+            );
+        }
+    }
+
     #[test]
     fn serializations_are_the_php_forms() {
         let h = Hasher::local();
@@ -417,7 +460,7 @@ mod tests {
 
     #[test]
     fn value_node_hashes_match_the_rdf_dump() {
-        // v: nodes in docs/api/snapshots/wikibase-rdf-full-dump.ttl.
+        // v: nodes in docs/samples/wikibase-1.43/wikibase-rdf-full-dump.ttl.
         let h = Hasher::local();
         let time = DataValue::Time(Time {
             time: "+1952-03-11T00:00:00Z".into(),

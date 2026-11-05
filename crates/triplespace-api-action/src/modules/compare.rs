@@ -34,7 +34,6 @@ use triplespace_projections::feed::{self, Direction, Feed, TargetSet, target_kin
 use crate::activity::{comment_text, user_id, viewer, visibility};
 use crate::api::Ctx;
 use crate::entity_json::iso8601;
-use crate::modules::entities::parse_id;
 use crate::modules::pageset::{self, PageAsk};
 use crate::modules::revisions::content_at;
 use crate::pages::{self, Site};
@@ -189,9 +188,7 @@ async fn side(ctx: &Ctx, site: &Site, prefix: &str) -> Result<Option<Rev>, ApiEr
         };
         (ask, None)
     } else if let Some(t) = p("title") {
-        let ask = if pages::names_entity(site, t)
-            && let Ok(id) = parse_id(t)
-        {
+        let ask = if let Some(id) = pages::entity_of_title(site, t) {
             entity(ctx, &id).await?
         } else {
             let title = pages::resolve_title(site, t)
@@ -320,12 +317,7 @@ fn side_fields(out: &mut Map<String, Value>, prefix: &str, rev: &Rev, props: &[S
         if row.visibility & visibility::USER != 0 || row.actor.hidden {
             flag(out, key("userhidden"));
         } else {
-            let name = row
-                .actor
-                .name
-                .clone()
-                .or_else(|| row.actor.key.clone())
-                .unwrap_or_default();
+            let name = crate::activity::user_name(row).unwrap_or_default();
             out.insert(key("user"), json!(name));
             out.insert(key("userid"), json!(user_id(row.actor.key.as_deref())));
         }

@@ -1,0 +1,16 @@
+{#- Special:Notifications (0021 §6; 19 §6.2): the viewer's inbox as a page. -#}
+{%- import "codex.html" as codex -%}
+
+{#- Mark as read, or Mark all as read. -#}
+{%- macro mark(f) -%}
+<form class="ts-notif__mark" method="post" action="{{ f.action }}"><input type="hidden" name="wpEditToken" value="{{ f.token }}"><input type="hidden" name="{{ f.name }}" value="{{ f.value }}">{% if f.unread %}<input type="hidden" name="unread" value="1">{% endif %}<button class="cdx-button cdx-button--weight-quiet cdx-button--size-small" type="submit">{{ f.label }}</button></form>
+{%- endmacro -%}
+
+<div class="ts-notifications"><div class="ts-notifications__bar"><nav class="ts-notifications__filters" aria-label="{{ filters.label }}">{% for f in filters.items %}{% if not loop.first %} {% endif %}<a class="ts-notifications__filter" href="{{ f.href }}"{% if f.current %} aria-current="page"{% endif %}>{{ f.label }}</a>{% endfor %}</nav>{% if markall %}{{ mark(markall) }}{% endif %}</div>
+{%- if empty %}{{ codex.message(empty) }}{% else -%}
+<ul class="ts-notifications__list">
+{%- for n in items %}<li class="ts-notif ts-notif--{{ n.reason }}{% if n.unread %} ts-notif--unread{% endif %}"><p class="ts-notif__text">{% for p in n.sentence %}{% if p.kind == "link" %}<a href="{{ p.href }}"{% if p.class %} class="{{ p.class }}"{% endif %}>{{ p.text }}</a>{% else %}{{ p.text }}{% endif %}{% endfor %}</p><p class="ts-notif__meta"><time datetime="{{ n.datetime }}">{{ n.time }}</time>{% if n.talk %} · <a href="{{ n.talk.href }}">{{ n.talk.label }}</a>{% endif %}</p>{% if n.mark %}{{ mark(n.mark) }}{% endif %}</li>{% endfor -%}
+</ul>
+{%- endif -%}
+{%- if older %}<p class="ts-notifications__more"><a href="{{ older.href }}">{{ older.label }}</a></p>{% endif -%}
+</div>

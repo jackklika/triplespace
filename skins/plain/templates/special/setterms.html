@@ -1,0 +1,10 @@
+{#- Wikibase's term forms (0047 §5; 21 §3.1): Special:SetLabel, SetDescription, SetAliases
+    and SetLabelDescriptionAliases. The form asks for the entity and language by GET, then
+    holds the terms and posts; a refusal above it; or, for a reader, the way to log in. -#}
+{%- import "codex.html" as codex -%}
+<div class="ts-set-terms">
+{%- if gate %}{{ codex.message(gate.notice) }}{% if gate.login %}<p><a href="{{ gate.login.href }}">{{ gate.login.label }}</a></p>{% endif -%}
+{%- else %}{% for n in notices %}{{ codex.message(n) }}{% endfor %}{% set f = form -%}
+<p>{{ f.intro }}</p><form class="ts-form" method="{{ f.method }}" action="{{ f.action }}">{% if f.token %}<input type="hidden" name="token" value="{{ f.token }}">{% else %}<input type="hidden" name="title" value="{{ f.title }}">{% endif -%}
+{%- for x in f.fields %}{{ codex.field(x) }}{% endfor %}<div class="ts-form__actions">{{ codex.button(f.submit) }}</div></form>
+{%- endif %}</div>

@@ -31,6 +31,7 @@ use crate::features::Features;
 use crate::frame::{self, Chrome, Page, title_url};
 use crate::i18n::{self, Messages};
 use crate::routes::{self, Target};
+use crate::skin::Skin;
 use crate::theme::Theme;
 use crate::{MIN_API_VERSION, Site, assets};
 use crate::{document, entity, home, moderation, special};
@@ -117,6 +118,10 @@ pub struct Context {
     /// A signed-in viewer's unread notifications, for the bell and the orange bar
     /// (19 §6.2); `None` where the API serves none or did not answer.
     pub notifications: Option<Counts>,
+    /// The skin that draws the page (0097 §8): `useskin=`, the reader's `ui.skin`, the
+    /// wiki's `skins.default`, in that order, among the skins the wiki offers; `None`
+    /// only when no skin at all is loaded.
+    pub skin: Option<std::sync::Arc<Skin>>,
 }
 
 impl Context {
@@ -138,6 +143,22 @@ impl Context {
         self.rights.iter().any(|r| r == right)
     }
 
+    /// Draws a part of a page with the skin (19 §5.10): the template named, one of the
+    /// contract's, over the model it takes and the page's `msg`. A template that fails
+    /// is an empty part and a line in the log, not a failed page.
+    #[must_use]
+    pub fn draw(&self, template: &str, model: impl serde::Serialize) -> String {
+        draw_part(self.skin.as_deref(), &self.m, template, model)
+    }
+
+    /// A Codex message alone, the whole body of a page that says one thing: a refusal, a
+    /// title with no page, a call that failed (19 §5.10), as the skin's `message.html`
+    /// draws it.
+    #[must_use]
+    pub fn message(&self, kind: MessageKind, text: &str) -> String {
+        drawn_message(self.skin.as_deref(), &self.m, kind, text)
+    }
+
     /// What the frame needs of the site.
     #[must_use]
     pub fn chrome(&self) -> Chrome<'_> {
@@ -153,6 +174,36 @@ impl Context {
                 .filter(|_| self.features.has(Feature::Notifications)),
         }
     }
+}
+
+/// [`Context::draw`], for a page drawn before there is a context.
+fn draw_part(
+    skin: Option<&Skin>,
+    m: &Messages,
+    template: &str,
+    model: impl serde::Serialize,
+) -> String {
+    let Some(skin) = skin else {
+        eprintln!("triplespace-ui: no skin is loaded");
+        return String::new();
+    };
+    skin.render(template, m, model).unwrap_or_else(|e| {
+        eprintln!(
+            "triplespace-ui: the skin `{}` failed on {template}: {e:#}",
+            skin.name()
+        );
+        String::new()
+    })
+}
+
+/// [`Context::message`], for a page drawn before there is a context.
+fn drawn_message(skin: Option<&Skin>, m: &Messages, kind: MessageKind, text: &str) -> String {
+    draw_part(
+        skin,
+        m,
+        "message.html",
+        serde_json::json!({ "message": Message::block(kind, text).model() }),
+    )
 }
 
 /// The browser's request, as the client forwards it.
@@ -186,9 +237,10 @@ pub async fn context(
     } else {
         (client.siteinfo(incoming).await, None, None)
     };
-    let si = si.map_err(|e| unavailable(incoming, &e, failure_key(&e)))?;
+    let si = si.map_err(|e| unavailable(site, incoming, &e, failure_key(&e)))?;
     if si.value.api_version < MIN_API_VERSION {
         return Err(unavailable(
+            site,
             incoming,
             &ClientError::Unexpected(format!(
                 "the API's api_version is {}; this site needs {MIN_API_VERSION}",
@@ -204,7 +256,7 @@ pub async fn context(
     let mut groups = Vec::new();
     let user = match ui {
         Some(ui) => {
-            let ui = ui.map_err(|e| unavailable(incoming, &e, failure_key(&e)))?;
+            let ui = ui.map_err(|e| unavailable(site, incoming, &e, failure_key(&e)))?;
             inputs.push(ui.cache);
             if !ui.value.anon {
                 // A page drawn for a signed-in viewer is theirs alone, whatever its
@@ -237,6 +289,20 @@ pub async fn context(
         Messages::for_language(&lang).with_overrides(si.value.interface.clone(), &si.value.lang);
     let theme = Theme::from_info(si.value.theme.as_ref()).with_chips(&si.value.providers);
     let features = Features::of(&si.value);
+    let pref_skin = prefs
+        .as_ref()
+        .and_then(|p| p.get("ui.skin"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string);
+    let skin = site
+        .skins()
+        .choose(
+            query.get("useskin").map(String::as_str),
+            pref_skin.as_deref(),
+            si.value.skins.default.as_deref(),
+            si.value.skins.available.as_deref(),
+        )
+        .cloned();
     Ok(Context {
         site: si.value,
         user,
@@ -249,6 +315,7 @@ pub async fn context(
         rights,
         groups,
         notifications,
+        skin,
     })
 }
 
@@ -264,7 +331,7 @@ fn failure_key(error: &ClientError) -> &'static str {
 /// The page when the frame's own calls fail, with the shipped theme and the reason: `503`
 /// with `Retry-After` when the API is away or too old, `502` when it answered something
 /// the site cannot read, which waiting will not mend.
-fn unavailable(incoming: &Incoming, error: &ClientError, key: &str) -> Response {
+fn unavailable(site: &Site, incoming: &Incoming, error: &ClientError, key: &str) -> Response {
     let unreadable = key == "ts-api-unexpected";
     if unreadable {
         eprintln!("triplespace-ui: the API's answer could not be read: {error}");
@@ -274,11 +341,6 @@ fn unavailable(incoming: &Incoming, error: &ClientError, key: &str) -> Response 
     let m = Messages::for_language("en");
     let sitename = incoming.host().unwrap_or("Triplespace").to_string();
     let text = m.get(key);
-    let page = Page {
-        title: m.get("ts-api-unavailable-title"),
-        body: message(MessageKind::Error, &text),
-        ..Page::default()
-    };
     let none = Features::default();
     let chrome = Chrome {
         sitename: &sitename,
@@ -288,9 +350,24 @@ fn unavailable(incoming: &Incoming, error: &ClientError, key: &str) -> Response 
         account_requests: None,
         notifications: None,
     };
-    let html = match frame::render(&m, &chrome, &Theme::shipped(), None, &page) {
+    let Some(skin) = site.skins().choose(None, None, None, None) else {
+        eprintln!("triplespace-ui: no skin is loaded");
+        return (StatusCode::INTERNAL_SERVER_ERROR, "Internal error\n").into_response();
+    };
+    let page = Page {
+        title: m.get("ts-api-unavailable-title"),
+        body: drawn_message(Some(skin), &m, MessageKind::Error, &text),
+        ..Page::default()
+    };
+    let html = match frame::render(skin, &m, &chrome, &Theme::shipped(), None, &page) {
         Ok(h) => h,
-        Err(e) => return render_failed(&e),
+        Err(e) => {
+            eprintln!(
+                "triplespace-ui: the skin `{}` failed to render: {e:#}",
+                skin.name()
+            );
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Internal error\n").into_response();
+        }
     };
     let mut r = (
         StatusCode::SERVICE_UNAVAILABLE,
@@ -324,7 +401,7 @@ pub fn api_failed(cx: &Context, headers: &HeaderMap, error: &ClientError) -> Res
     };
     let mut r = respond(cx, headers, status, |m| Page {
         title: m.get("ts-api-unavailable-title"),
-        body: message(MessageKind::Error, &m.get(key)),
+        body: cx.message(MessageKind::Error, &m.get(key)),
         ..Page::default()
     });
     let h = r.headers_mut();
@@ -337,21 +414,22 @@ pub fn api_failed(cx: &Context, headers: &HeaderMap, error: &ClientError) -> Res
     r
 }
 
-fn render_failed(e: &askama::Error) -> Response {
-    eprintln!("triplespace-ui: a template failed to render: {e}");
-    (StatusCode::INTERNAL_SERVER_ERROR, "Internal error\n").into_response()
-}
-
-/// A Codex message, as HTML.
-pub fn message(kind: MessageKind, text: &str) -> String {
-    use askama::Template as _;
-    Message::block(kind, text).render().unwrap_or_default()
-}
-
-/// The composed `ETag`, if every input had one.
-fn composed_etag(m: &Messages, status: StatusCode, inputs: &[CacheInfo]) -> Option<String> {
+/// The composed `ETag`, if every input had one. The build it hashes is the binary's
+/// and, where the skin draws the page, the skin's name and version (0097 §15), so a
+/// skin upgrade or a change of skin is build skew.
+fn composed_etag(
+    m: &Messages,
+    status: StatusCode,
+    inputs: &[CacheInfo],
+    skin: Option<&str>,
+) -> Option<String> {
     let mut h = Sha256::new();
-    for part in [assets::build_id(), m.lang(), status.as_str()] {
+    for part in [
+        assets::build_id(),
+        m.lang(),
+        status.as_str(),
+        skin.unwrap_or_default(),
+    ] {
         h.update(part.as_bytes());
         h.update([0]);
     }
@@ -413,7 +491,8 @@ fn revalidated(
     headers: &HeaderMap,
     status: StatusCode,
 ) -> (Option<String>, Option<Response>) {
-    let etag = composed_etag(&cx.m, status, &cx.inputs);
+    let skin_build = cx.skin.as_ref().map(|s| s.build());
+    let etag = composed_etag(&cx.m, status, &cx.inputs, skin_build.as_deref());
     if status == StatusCode::OK
         && let Some(e) = &etag
         && not_modified(headers, e)
@@ -439,9 +518,9 @@ pub fn respond(
         return r;
     }
     let page = build(&cx.m);
-    let html = match frame::render(&cx.m, &cx.chrome(), &cx.theme, cx.user.as_deref(), &page) {
+    let html = match draw(cx, &page) {
         Ok(h) => h,
-        Err(e) => return render_failed(&e),
+        Err(r) => return *r,
     };
     let mut r = Response::new(Body::from(html));
     *r.status_mut() = status;
@@ -451,6 +530,32 @@ pub fn respond(
     );
     caching(r.headers_mut(), etag.as_deref(), &cx.inputs);
     r
+}
+
+/// Draws a page in the frame: the skin's `frame.html` (19 §5.10). `Err` is the internal
+/// error to answer with.
+fn draw(cx: &Context, page: &Page) -> Result<String, Box<Response>> {
+    let failed =
+        || Box::new((StatusCode::INTERNAL_SERVER_ERROR, "Internal error\n").into_response());
+    let Some(skin) = &cx.skin else {
+        eprintln!("triplespace-ui: no skin is loaded");
+        return Err(failed());
+    };
+    frame::render(
+        skin,
+        &cx.m,
+        &cx.chrome(),
+        &cx.theme,
+        cx.user.as_deref(),
+        page,
+    )
+    .map_err(|e| {
+        eprintln!(
+            "triplespace-ui: the skin `{}` failed to render: {e:#}",
+            skin.name()
+        );
+        failed()
+    })
 }
 
 /// A region for `action=render` (0057 §8): its HTML alone, with the caching of the page
@@ -579,7 +684,7 @@ pub(crate) fn no_page(cx: &Context, headers: &HeaderMap, title: String) -> Respo
         Page {
             returnto: Some(title.clone()),
             title,
-            body: message(MessageKind::Notice, &text),
+            body: cx.message(MessageKind::Notice, &text),
             ..Page::default()
         }
     })
@@ -670,7 +775,7 @@ async fn dispatch(
     }
     if is_mainpage(&title, &cx.site) {
         if query.get("action").is_some_and(|a| a == "render") {
-            return fragment(&cx, headers, StatusCode::OK, || home::body(&cx));
+            return fragment(&cx, headers, StatusCode::OK, || home::content(&cx));
         }
         return respond(&cx, headers, StatusCode::OK, |_| home::page(&cx));
     }
@@ -869,7 +974,7 @@ pub async fn not_found(State(site): State<Site>, headers: HeaderMap, peer: Peer)
     };
     respond(&cx, &headers, StatusCode::NOT_FOUND, |m| Page {
         title: m.get("ts-not-found-title"),
-        body: message(MessageKind::Warning, &m.get("ts-not-found")),
+        body: cx.message(MessageKind::Warning, &m.get("ts-not-found")),
         ..Page::default()
     })
 }
@@ -887,6 +992,34 @@ pub async fn asset(Path(path): Path<String>) -> Response {
             .into_response(),
         None => (StatusCode::NOT_FOUND, "Not found\n").into_response(),
     }
+}
+
+/// `/ui/skins/{skin}/{hash}/{path}`: a file of a loaded skin, content-hashed in its URL
+/// (19 §5.10). A stale hash gets the current file for a minute, as the theme's
+/// stylesheets do.
+pub async fn skin_asset(
+    State(site): State<Site>,
+    Path((skin, hash, path)): Path<(String, String, String)>,
+) -> Response {
+    let Some(s) = site.skins().get(&skin) else {
+        return (StatusCode::NOT_FOUND, "Not found\n").into_response();
+    };
+    let Some(data) = s.file(&path) else {
+        return (StatusCode::NOT_FOUND, "Not found\n").into_response();
+    };
+    let cache = if hash == s.hash() {
+        "public, max-age=31536000, immutable"
+    } else {
+        "public, max-age=60"
+    };
+    (
+        [
+            (header::CONTENT_TYPE, assets::content_type(&path)),
+            (header::CACHE_CONTROL, cache),
+        ],
+        data.to_vec(),
+    )
+        .into_response()
 }
 
 /// `/ui/theme/{p|t}-{name}-{hash}.css`: a palette's or a type set's stylesheet (0086 §5).
@@ -970,13 +1103,35 @@ mod tests {
     #[test]
     fn the_composed_etag_needs_every_input_etag() {
         let m = Messages::for_language("en");
-        let a = composed_etag(&m, StatusCode::OK, &[info(true, Some("\"a\""), &[])]).unwrap();
-        let b = composed_etag(&m, StatusCode::OK, &[info(true, Some("\"b\""), &[])]).unwrap();
-        let n =
-            composed_etag(&m, StatusCode::NOT_FOUND, &[info(true, Some("\"a\""), &[])]).unwrap();
+        let a = composed_etag(&m, StatusCode::OK, &[info(true, Some("\"a\""), &[])], None).unwrap();
+        let b = composed_etag(&m, StatusCode::OK, &[info(true, Some("\"b\""), &[])], None).unwrap();
+        let n = composed_etag(
+            &m,
+            StatusCode::NOT_FOUND,
+            &[info(true, Some("\"a\""), &[])],
+            None,
+        )
+        .unwrap();
         assert_ne!(a, b);
         assert_ne!(a, n);
-        assert!(composed_etag(&m, StatusCode::OK, &[info(true, None, &[])]).is_none());
+        assert!(composed_etag(&m, StatusCode::OK, &[info(true, None, &[])], None).is_none());
+        // The skin that drew the page is part of the build it hashes (0097 §15).
+        let worksheet = composed_etag(
+            &m,
+            StatusCode::OK,
+            &[info(true, Some("\"a\""), &[])],
+            Some("worksheet 0.1.0"),
+        )
+        .unwrap();
+        let plain = composed_etag(
+            &m,
+            StatusCode::OK,
+            &[info(true, Some("\"a\""), &[])],
+            Some("plain 0.1.0"),
+        )
+        .unwrap();
+        assert_ne!(worksheet, plain);
+        assert_ne!(worksheet, a);
         let mut req = HeaderMap::new();
         req.insert(header::IF_NONE_MATCH, format!("W/{a}").parse().unwrap());
         assert!(not_modified(&req, &a));

@@ -7,19 +7,63 @@
 //! of a confidential page is listed only to its group, as every feed does (09 §5.3), and a
 //! page since undeleted still shows its past deletion; its own page says it is back.
 
-use std::fmt::Write as _;
-
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use triplespace_client::activity::ActivityQuery;
 
 use crate::Site;
+use crate::codex::{Action, Button, Weight};
+use crate::entity::history::Choice;
 use crate::features::Feature;
 use crate::frame::{Page, title_url};
-use crate::html::{esc, link};
+use crate::moderation::{GateModel, link_to};
 use crate::pages::{self, Params, Peer};
+use crate::special::controls::{AskForm, FormItem};
 
 const TITLE: &str = "Special:Undelete";
+
+/// `Special:Undelete` as Plain's `special/undelete.html` draws it.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct UndeleteIndex {
+    /// What the page is.
+    pub intro: String,
+    /// The form asking for a page.
+    pub ask: AskForm,
+    /// The deletions, newest first.
+    pub rows: Vec<DeletionRow>,
+    /// Said where there are none.
+    pub nothing: Option<String>,
+}
+
+/// One deletion.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DeletionRow {
+    /// When.
+    pub time: String,
+    /// The deleted page's view.
+    pub page: Choice,
+    /// Who.
+    pub actor: String,
+    /// Why.
+    pub comment: String,
+}
+
+/// The form asking for a page to go to, which `Special:MovePage` shares.
+#[must_use]
+pub fn ask_form(m: &crate::i18n::Messages, title: &str, label_key: &str) -> AskForm {
+    AskForm {
+        class: "ts-undelete__ask".into(),
+        title: title.to_string(),
+        item: FormItem::text(m.get(label_key), "target", ""),
+        button: Button {
+            label: &m.get("ts-undelete-go"),
+            kind: "submit",
+            action: Action::Progressive,
+            weight: Weight::Normal,
+        }
+        .model(),
+    }
+}
 
 /// `GET Special:Undelete[/{title}]`.
 pub async fn serve(
@@ -50,9 +94,10 @@ pub async fn serve(
         {
             return r;
         }
-        let body = pages::message(
-            crate::codex::MessageKind::Notice,
-            &cx.m.with("ts-undelete-nothing", &[&page]),
+        let text = cx.m.with("ts-undelete-nothing", &[&page]);
+        let body = cx.draw(
+            "moderation/gate.html",
+            GateModel::notice(crate::codex::MessageKind::Notice, &text),
         );
         return pages::respond(&cx, headers, StatusCode::NOT_FOUND, |m| Page {
             title: m.get("ts-undelete-index-title"),
@@ -74,50 +119,35 @@ pub async fn serve(
     };
     cx.inputs.push(feed.cache);
     let m = &cx.m;
-    let mut body = format!(
-        "<p>{}</p><form class=\"ts-undelete__ask\" method=\"get\" action=\"/w/index.php\"><input type=\"hidden\" name=\"title\" value=\"{TITLE}\"><label class=\"ts-changes-form__field\"><span>{}</span> <input class=\"cdx-text-input__input\" type=\"text\" name=\"target\"></label> <button class=\"cdx-button cdx-button--action-progressive\" type=\"submit\">{}</button></form>",
-        esc(&m.get("ts-undelete-intro")),
-        esc(&m.get("ts-undelete-page")),
-        esc(&m.get("ts-undelete-go")),
-    );
-    let deletions: Vec<_> = feed
-        .value
-        .rows
-        .iter()
-        .filter(|r| r.summary.op.as_deref() == Some("delete/delete") || r.logid.is_some())
-        .filter(|r| r.target.is_some())
-        .collect();
-    if deletions.is_empty() {
-        let _ = write!(
-            body,
-            "<p class=\"ts-empty\">{}</p>",
-            esc(&m.get("ts-undelete-none"))
-        );
-    } else {
-        body.push_str("<ul class=\"ts-changes__list ts-undelete__list\">");
-        for r in deletions {
-            let Some(t) = &r.target else { continue };
-            let title = t.title.clone().unwrap_or_default();
-            let _ = write!(
-                body,
-                "<li><time datetime=\"{}\">{}</time> {} — {} {}</li>",
-                esc(&r.time),
-                esc(&r.time),
-                link(
-                    &format!("/wiki/{}/{}", TITLE, title_url(&title)),
-                    &esc(&title),
-                    ""
-                ),
-                esc(r.actor.name.as_deref().unwrap_or("")),
-                esc(r.comment.as_deref().unwrap_or("")),
-            );
-        }
-        body.push_str("</ul>");
-    }
+    let model = UndeleteIndex {
+        intro: m.get("ts-undelete-intro"),
+        ask: ask_form(m, TITLE, "ts-undelete-page"),
+        rows: feed
+            .value
+            .rows
+            .iter()
+            .filter(|r| r.summary.op.as_deref() == Some("delete/delete") || r.logid.is_some())
+            .filter_map(|r| {
+                let title = r.target.as_ref()?.title.clone().unwrap_or_default();
+                Some(DeletionRow {
+                    time: r.time.clone(),
+                    page: link_to(format!("/wiki/{}/{}", TITLE, title_url(&title)), title),
+                    actor: r.actor.name.clone().unwrap_or_default(),
+                    comment: r.comment.clone().unwrap_or_default(),
+                })
+            })
+            .collect(),
+        nothing: None,
+    };
+    let model = UndeleteIndex {
+        nothing: model.rows.is_empty().then(|| m.get("ts-undelete-none")),
+        ..model
+    };
+    let body = cx.draw("special/undelete.html", &model);
     pages::respond(&cx, headers, StatusCode::OK, |m| Page {
         title: m.get("ts-undelete-index-title"),
         returnto: Some(TITLE.to_string()),
-        body: format!("<div class=\"ts-changes\">{body}</div>"),
+        body,
         ..Page::default()
     })
 }

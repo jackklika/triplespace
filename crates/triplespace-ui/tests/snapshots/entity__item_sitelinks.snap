@@ -6,7 +6,7 @@ expression: main_of(&html)
 	<p class="ts-page__identity">
 <span class="ts-chip ts-chip--local">Q6</span> <span>Item</span> <span aria-hidden="true">·</span> <span>Adopted from https://librarybase.org/</span> <span aria-hidden="true">·</span> <a href="https://librarybase.org/entity/Q6" class="external" rel="noopener" dir="ltr">librarybase.org/entity/Q6 ↗</a>
 </p>
-	<h1 class="ts-page__title">Six &#38; more</h1>
+	<h1 class="ts-page__title">Six &amp; more</h1>
 	<div class="ts-terms" data-region="terms">
 <p class="ts-terms__description">a number</p>
 <p class="ts-terms__aliases">Also known as <span>6 · half dozen</span>

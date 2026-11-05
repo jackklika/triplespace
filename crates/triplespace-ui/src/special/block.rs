@@ -18,21 +18,23 @@
 //! `ts-cantblock-self`, `cantunblock`, `nosuchuser`, `permissiondenied`, `badtoken`.
 
 use std::collections::BTreeMap;
-use std::fmt::Write as _;
 
-use askama::Template as _;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use triplespace_client::settings::Saved;
 use triplespace_client::{BlockForm, Incoming};
 
 use crate::Site;
-use crate::codex::{Action, Button, Field, MessageKind, Weight};
+use crate::codex::{
+    Action, Button, ButtonModel, FieldModel, Message, MessageKind, MessageModel, Weight,
+};
+use crate::entity::history::Choice;
 use crate::features::Feature;
 use crate::frame::{Page, title_url};
-use crate::html::{esc, link};
 use crate::i18n::Messages;
+use crate::moderation::{GateModel, link_to};
 use crate::pages::{self, Context, Params, Peer};
+use crate::special::controls::{CheckRow, ControlModel};
 
 /// Which form.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,119 +97,169 @@ fn refusal_text(m: &Messages, code: &str, info: &str) -> String {
     }
 }
 
-fn checkbox(id: &str, name: &str, label: &str, help: &str, on: bool) -> String {
-    format!(
-        "<div class=\"ts-block__option\"><span class=\"cdx-checkbox\"><input class=\"cdx-checkbox__input\" type=\"checkbox\" id=\"{id}\" name=\"{name}\" value=\"1\"{}><span class=\"cdx-checkbox__icon\"></span><label class=\"cdx-checkbox__label\" for=\"{id}\">{}</label></span><div class=\"cdx-field__help-text\">{}</div></div>",
-        if on { " checked" } else { "" },
-        esc(label),
-        esc(help),
-    )
+/// `Special:Block` or `Special:Unblock` as Plain's `special/block.html` draws it.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct BlockPage {
+    /// The notice it came back with.
+    pub notices: Vec<MessageModel>,
+    /// Where it posts.
+    pub action: String,
+    /// The CSRF token.
+    pub token: String,
+    /// The account.
+    pub user: FieldModel,
+    /// The expiry, for a block.
+    pub expiry: Option<FieldModel>,
+    /// The reason.
+    pub reason: FieldModel,
+    /// The block's options.
+    pub options: Vec<CheckRow>,
+    /// Said on Unblock to an administrator without `hideuser`.
+    pub hidden_note: Option<MessageModel>,
+    /// **Block** or **Unblock**.
+    pub submit: ButtonModel,
+    /// The other form.
+    pub other: Choice,
 }
 
-#[allow(clippy::too_many_lines)] // one form, read top to bottom
-fn form_html(cx: &Context, which: Which, token: &str, back: &Returned) -> String {
+/// `Special:BlockList` as Plain's `special/blocklist.html` draws it.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct BlockListPage {
+    /// Said where there are no blocks.
+    pub nothing: Option<String>,
+    /// The column headings.
+    pub columns: Vec<String>,
+    /// Whether rows end in an **Unblock** cell.
+    pub unblock_column: bool,
+    /// The blocks.
+    pub rows: Vec<BlockRow>,
+}
+
+/// One block.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct BlockRow {
+    /// The account's contributions, unless its name is hidden from the viewer.
+    pub user: Option<Choice>,
+    /// **Hidden** beside a hidden name, or the placeholder for it.
+    pub hidden: Option<String>,
+    /// Who blocked.
+    pub by: String,
+    /// When.
+    pub when: String,
+    /// Until when.
+    pub expiry: String,
+    /// Why.
+    pub reason: String,
+    /// What it removes.
+    pub removes: String,
+    /// **Unblock**.
+    pub unblock: Option<Choice>,
+}
+
+fn option(id: &str, name: &str, label: String, help: String, on: bool) -> CheckRow {
+    CheckRow {
+        class: "ts-block__option".into(),
+        control: ControlModel::check(id, name, on, label),
+        help,
+    }
+}
+
+#[allow(clippy::too_many_lines)] // one form's model, read top to bottom
+fn block_model(cx: &Context, which: Which, token: &str, back: &Returned) -> BlockPage {
     let m = &cx.m;
-    let mut s = String::new();
-    if let Some((kind, text)) = &back.notice {
-        s.push_str(&pages::message(*kind, text));
-    }
-    let _ = write!(
-        s,
-        "<form class=\"ts-block\" method=\"post\" action=\"/wiki/{}\"><input type=\"hidden\" name=\"token\" value=\"{}\">{}",
-        esc(&title_url(which.title())),
-        esc(token),
-        Field {
-            id: "ts-block-user",
-            name: "user",
-            kind: "text",
-            value: &back.user,
-            label: &m.get("ts-block-user"),
-            description: None,
-            help: None,
-            required: true,
-            autocomplete: Some("off"),
-        }
-        .render()
-        .unwrap_or_default(),
-    );
-    if which == Which::Block {
-        let expiry = if back.expiry.is_empty() {
-            "infinite"
-        } else {
-            &back.expiry
-        };
-        s.push_str(
-            &Field {
-                id: "ts-block-expiry",
-                name: "expiry",
-                kind: "text",
-                value: expiry,
-                label: &m.get("ts-block-expiry"),
+    let field =
+        |id: &str, name: &str, value: &str, label: &str, help: Option<String>, required: bool| {
+            FieldModel {
+                id: id.into(),
+                name: name.into(),
+                kind: "text".into(),
+                value: value.into(),
+                label: m.get(label),
                 description: None,
-                help: Some(&m.get("ts-userrights-expiry-help")),
-                required: false,
-                autocomplete: Some("off"),
+                help,
+                required,
+                autocomplete: Some("off".into()),
             }
-            .render()
-            .unwrap_or_default(),
-        );
-    }
-    s.push_str(
-        &Field {
-            id: "ts-block-reason",
-            name: "reason",
-            kind: "text",
-            value: &back.reason,
-            label: &m.get("ts-block-reason"),
-            description: None,
-            help: Some(&m.get("ts-block-reason-help")),
-            required: false,
-            autocomplete: Some("off"),
-        }
-        .render()
-        .unwrap_or_default(),
-    );
+        };
+    let mut options = Vec::new();
     if which == Which::Block {
-        s.push_str(&checkbox(
+        options.push(option(
             "ts-block-nocreate",
             "nocreate",
-            &m.get("ts-block-nocreate"),
-            &m.get("ts-block-nocreate-help"),
+            m.get("ts-block-nocreate"),
+            m.get("ts-block-nocreate-help"),
             back.nocreate,
         ));
-        s.push_str(&checkbox(
+        options.push(option(
             "ts-block-allbutread",
             "allbutread",
-            &m.get("ts-block-allbutread"),
-            &m.get("ts-block-allbutread-help"),
+            m.get("ts-block-allbutread"),
+            m.get("ts-block-allbutread-help"),
             back.all_but_read,
         ));
         if cx.holds("hideuser") {
-            s.push_str(&checkbox(
+            options.push(option(
                 "ts-block-hidename",
                 "hidename",
-                &m.get("ts-block-hidename"),
-                &m.get("ts-block-hidename-help"),
+                m.get("ts-block-hidename"),
+                m.get("ts-block-hidename-help"),
                 back.hidename,
             ));
         }
-        s.push_str(&checkbox(
+        options.push(option(
             "ts-block-reblock",
             "reblock",
-            &m.get("ts-block-reblock"),
-            &m.get("ts-block-reblock-help"),
+            m.get("ts-block-reblock"),
+            m.get("ts-block-reblock-help"),
             back.reblock,
         ));
-    } else if !cx.holds("hideuser") {
-        s.push_str(&pages::message(
-            MessageKind::Notice,
-            &m.get("ts-unblock-hidden-note"),
-        ));
     }
-    let _ = write!(
-        s,
-        "<div class=\"ts-block__actions\">{}</div></form>",
-        Button {
+    let other = match which {
+        Which::Block => Which::Unblock,
+        Which::Unblock => Which::Block,
+    };
+    BlockPage {
+        notices: back
+            .notice
+            .iter()
+            .map(|(k, t)| Message::block(*k, t).model())
+            .collect(),
+        action: format!("/wiki/{}", title_url(which.title())),
+        token: token.to_string(),
+        user: field(
+            "ts-block-user",
+            "user",
+            &back.user,
+            "ts-block-user",
+            None,
+            true,
+        ),
+        expiry: (which == Which::Block).then(|| {
+            field(
+                "ts-block-expiry",
+                "expiry",
+                if back.expiry.is_empty() {
+                    "infinite"
+                } else {
+                    &back.expiry
+                },
+                "ts-block-expiry",
+                Some(m.get("ts-userrights-expiry-help")),
+                false,
+            )
+        }),
+        reason: field(
+            "ts-block-reason",
+            "reason",
+            &back.reason,
+            "ts-block-reason",
+            Some(m.get("ts-block-reason-help")),
+            false,
+        ),
+        options,
+        hidden_note: (which == Which::Unblock && !cx.holds("hideuser"))
+            .then(|| Message::block(MessageKind::Notice, &m.get("ts-unblock-hidden-note")).model()),
+        submit: Button {
             label: &m.get(match which {
                 Which::Block => "ts-block-submit",
                 Which::Unblock => "ts-unblock-submit",
@@ -219,26 +271,15 @@ fn form_html(cx: &Context, which: Which, token: &str, back: &Returned) -> String
             },
             weight: Weight::Primary,
         }
-        .render()
-        .unwrap_or_default(),
-    );
-    let other = match which {
-        Which::Block => Which::Unblock,
-        Which::Unblock => Which::Block,
-    };
-    let _ = write!(
-        s,
-        "<p class=\"ts-block__links\">{}</p>",
-        link(
-            &format!("/wiki/{}", title_url(other.title())),
-            &esc(&m.get(match other {
+        .model(),
+        other: link_to(
+            format!("/wiki/{}", title_url(other.title())),
+            m.get(match other {
                 Which::Block => "ts-block-title",
                 Which::Unblock => "ts-unblock-title",
-            })),
-            ""
-        )
-    );
-    s
+            }),
+        ),
+    }
 }
 
 async fn page(
@@ -254,18 +295,12 @@ async fn page(
         Which::Unblock => "ts-unblock-title",
     });
     if cx.user.is_none() {
-        let body = format!(
-            "{}<p>{}</p>",
-            pages::message(MessageKind::Notice, &cx.m.get("ts-block-login")),
-            link(
-                &format!(
-                    "/wiki/Special:UserLogin?returnto={}",
-                    title_url(which.title())
-                ),
-                &esc(&cx.m.get("ts-login")),
-                ""
-            )
+        let href = format!(
+            "/wiki/Special:UserLogin?returnto={}",
+            title_url(which.title())
         );
+        let model = GateModel::login(&cx.m, "ts-block-login", href.clone());
+        let body = cx.draw("moderation/gate.html", &model);
         return pages::respond(cx, headers, StatusCode::OK, |_| Page {
             title: heading.clone(),
             returnto: Some(which.title().to_string()),
@@ -274,7 +309,11 @@ async fn page(
         });
     }
     if !cx.holds("block") {
-        let body = pages::message(MessageKind::Error, &cx.m.get("ts-block-denied"));
+        let text = cx.m.get("ts-block-denied");
+        let body = cx.draw(
+            "moderation/gate.html",
+            GateModel::notice(MessageKind::Error, &text),
+        );
         return pages::respond(cx, headers, StatusCode::FORBIDDEN, |_| Page {
             title: heading.clone(),
             returnto: Some(which.title().to_string()),
@@ -287,10 +326,8 @@ async fn page(
         Err(e) => return pages::api_failed(cx, headers, &e),
     };
     cx.inputs.push(token.value.cache);
-    let body = format!(
-        "<div class=\"ts-block-page\">{}</div>",
-        form_html(cx, which, &token.value.value, &back)
-    );
+    let model = block_model(cx, which, &token.value.value, &back);
+    let body = cx.draw("special/block.html", &model);
     let r = pages::respond(cx, headers, StatusCode::OK, |_| Page {
         title: heading.clone(),
         returnto: Some(which.title().to_string()),
@@ -444,88 +481,66 @@ pub async fn list(site: &Site, headers: &HeaderMap, peer: Peer, params: &Params)
     cx.inputs.push(blocks.cache);
     let m = &cx.m;
     let may_unblock = cx.user.is_some() && cx.holds("block");
-    let mut body = String::new();
-    if blocks.value.is_empty() {
-        let _ = write!(
-            body,
-            "<p class=\"ts-empty\">{}</p>",
-            esc(&m.get("ts-blocklist-none"))
-        );
-    } else {
-        let _ = write!(
-            body,
-            "<table class=\"cdx-table__table ts-blocklist__table\"><thead><tr><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th><th>{}</th>{}</tr></thead><tbody>",
-            esc(&m.get("ts-blocklist-col-user")),
-            esc(&m.get("ts-blocklist-col-by")),
-            esc(&m.get("ts-blocklist-col-when")),
-            esc(&m.get("ts-blocklist-col-expiry")),
-            esc(&m.get("ts-blocklist-col-reason")),
-            esc(&m.get("ts-blocklist-col-removes")),
-            if may_unblock { "<th></th>" } else { "" },
-        );
-        for b in &blocks.value {
-            let user = match &b.user {
-                Some(u) => {
-                    let mut h = link(
-                        &format!("/wiki/Special:Contributions/{}", title_url(u)),
-                        &esc(u),
-                        "",
-                    );
-                    if b.hidden {
-                        let _ = write!(
-                            h,
-                            " <span class=\"ts-blocklist__hidden\">{}</span>",
-                            esc(&m.get("ts-blocklist-hidden"))
-                        );
-                    }
-                    h
-                }
-                None => format!(
-                    "<span class=\"ts-blocklist__hidden\">{}</span>",
-                    esc(&m.get("ts-changes-hidden-user"))
-                ),
-            };
-            let expiry = if b.expiry == "infinite" || b.expiry == "infinity" {
-                m.get("ts-protect-expiry-never")
-            } else {
-                b.expiry.clone()
-            };
-            let removes = if b.removes == "all-but-read" {
-                m.get("ts-blocklist-all-but-read")
-            } else {
-                b.removes.clone()
-            };
-            let _ = write!(
-                body,
-                "<tr><td>{user}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td>",
-                esc(b.by.as_deref().unwrap_or("")),
-                esc(&b.timestamp),
-                esc(&expiry),
-                esc(&b.reason),
-                esc(&removes),
-            );
-            if may_unblock {
-                let _ = write!(
-                    body,
-                    "<td>{}</td>",
-                    match &b.user {
-                        Some(u) => link(
-                            &format!("/wiki/Special:Unblock/{}", title_url(u)),
-                            &esc(&m.get("ts-unblock-submit")),
-                            ""
-                        ),
-                        None => String::new(),
-                    }
-                );
-            }
-            body.push_str("</tr>");
-        }
-        body.push_str("</tbody></table>");
-    }
+    let model = BlockListPage {
+        nothing: blocks.value.is_empty().then(|| m.get("ts-blocklist-none")),
+        columns: [
+            "ts-blocklist-col-user",
+            "ts-blocklist-col-by",
+            "ts-blocklist-col-when",
+            "ts-blocklist-col-expiry",
+            "ts-blocklist-col-reason",
+            "ts-blocklist-col-removes",
+        ]
+        .iter()
+        .map(|k| m.get(k))
+        .collect(),
+        unblock_column: may_unblock,
+        rows: blocks
+            .value
+            .iter()
+            .map(|b| BlockRow {
+                user: b.user.as_ref().map(|u| {
+                    link_to(
+                        format!("/wiki/Special:Contributions/{}", title_url(u)),
+                        u.clone(),
+                    )
+                }),
+                hidden: if b.user.is_none() {
+                    Some(m.get("ts-changes-hidden-user"))
+                } else {
+                    b.hidden.then(|| m.get("ts-blocklist-hidden"))
+                },
+                by: b.by.clone().unwrap_or_default(),
+                when: b.timestamp.clone(),
+                expiry: if b.expiry == "infinite" || b.expiry == "infinity" {
+                    m.get("ts-protect-expiry-never")
+                } else {
+                    b.expiry.clone()
+                },
+                reason: b.reason.clone(),
+                removes: if b.removes == "all-but-read" {
+                    m.get("ts-blocklist-all-but-read")
+                } else {
+                    b.removes.clone()
+                },
+                unblock: may_unblock
+                    .then(|| {
+                        b.user.as_ref().map(|u| {
+                            link_to(
+                                format!("/wiki/Special:Unblock/{}", title_url(u)),
+                                m.get("ts-unblock-submit"),
+                            )
+                        })
+                    })
+                    .flatten(),
+            })
+            .collect(),
+    };
+    let body = cx.draw("special/blocklist.html", &model);
     pages::respond(&cx, headers, StatusCode::OK, |m| Page {
         title: m.get("ts-blocklist-title"),
         returnto: Some("Special:BlockList".to_string()),
-        body: format!("<div class=\"ts-protectedpages\">{body}</div>"),
+        body,
         ..Page::default()
     })
 }

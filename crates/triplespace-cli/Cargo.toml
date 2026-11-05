@@ -13,7 +13,13 @@ publish = false
 name = "triplespace"
 path = "src/main.rs"
 
+[features]
+# The process allocator (0033 §2, A24); off for the system allocator, for heap tools.
+default = ["mimalloc"]
+mimalloc = ["dep:mimalloc"]
+
 [dependencies]
+mimalloc = { workspace = true, optional = true }
 scatter-challenge.workspace = true
 scatter-log.workspace = true
 scatter-integrity.workspace = true

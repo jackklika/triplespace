@@ -1,0 +1,62 @@
+{#- Talk pages and threads (0019 §8; 19 §6.1; 14 §1–§4), over the models of
+    `triplespace_ui::discussion`: each thread a heading with its posts indented by depth,
+    each ending in its signature line; the two forms a reader posts from. `post_html` is
+    the API's rendering of a post. -#}
+{%- import "codex.html" as codex -%}
+
+{#- The status chip. -#}
+{%- macro chip(c) -%}
+<span class="ts-status ts-status--{{ c.state }} ts-status--{{ c.status }}">{{ c.label }}</span>
+{%- endmacro -%}
+
+{#- One post: its text, its status line, its signature, and Reply. -#}
+{%- macro post(p) -%}
+<div class="ts-post" id="post-{{ p.id }}" style="--ts-depth:{{ p.depth }}">
+{%- if p.replying_to %}<p class="ts-post__replying">{{ p.replying_to }}</p>{% endif -%}
+{%- if p.post_html is not none %}{{ p.post_html|safe }}{% else %}<p class="ts-post__hidden">{{ p.hidden }}</p>{% endif -%}
+{%- if p.event %}<p class="ts-post__event">{{ p.event.text }} {{ chip(p.event.chip) }}</p>{% endif -%}
+<p class="ts-post__sig">{% if p.signature.author %}<a href="{{ p.signature.author.user.href }}">{{ p.signature.author.user.label }}</a> (<a href="{{ p.signature.author.talk.href }}">{{ p.signature.author.talk.label }}</a>){% else %}<span class="ts-post__hidden">{{ p.signature.hidden }}</span>{% endif %} {% if p.signature.time %}<a href="{{ p.signature.time.href }}" class="ts-post__time">{{ p.signature.time.label }}</a>{% endif %}</p>
+{%- if p.reply %}<p class="ts-post__actions"><a href="{{ p.reply.href }}" class="ts-post__reply">{{ p.reply.label }}</a></p>{% endif -%}
+</div>
+{%- endmacro -%}
+
+{#- The posts of a thread in tree order, each hat a details at the place of its first post. -#}
+{%- macro posts(items) -%}
+{%- for i in items -%}
+{%- if i.kind == "hat-open" %}<details class="ts-hat" style="--ts-depth:{{ i.depth }}"><summary>{{ i.post_html|safe }}<span class="ts-hat__by">{{ i.by }}</span></summary>
+{%- elif i.kind == "post" %}{{ post(i.post) }}
+{%- else %}</details>{% endif -%}
+{%- endfor -%}
+{%- endmacro -%}
+
+{#- A text area with its label. -#}
+{%- macro text_area(t) -%}
+<div class="cdx-field"><div class="cdx-label"><label class="cdx-label__label" for="{{ t.id }}"><span class="cdx-label__label__text">{{ t.label }}</span></label></div><div class="cdx-field__control"><div class="cdx-text-area"><textarea class="cdx-text-area__textarea" id="{{ t.id }}" name="{{ t.name }}" rows="{{ t.rows }}" dir="auto" spellcheck="true" required>{{ t.value }}</textarea></div></div></div>
+{%- endmacro -%}
+
+{#- The reply form of a thread page. -#}
+{%- macro reply_form(f) -%}
+<form class="ts-composer" id="reply" method="post" action="{{ f.action }}"><input type="hidden" name="wpEditToken" value="{{ f.token }}">
+{%- if f.reply_to is not none %}<input type="hidden" name="replyto" value="{{ f.reply_to }}">{% endif -%}
+{{ text_area(f.text) }}<div class="ts-composer__bar"><div class="ts-composer__status"><label for="ts-reply-status">{{ f.status_label }}</label> <select class="cdx-select" id="ts-reply-status" name="status"><option value="">{{ f.no_change }}</option>{% for s in f.statuses %}<option value="{{ s.value }}"{% if s.selected %} selected{% endif %}>{{ s.label }}</option>{% endfor %}</select></div><p class="ts-composer__markup">{{ f.markup }}</p><div class="ts-composer__actions">{{ codex.button(f.submit) }}</div></div></form>
+{%- endmacro -%}
+
+{#- The new-thread form of a talk page. -#}
+{%- macro topic_form(f) -%}
+<form class="ts-composer" id="new-topic" method="post" action="{{ f.action }}"><input type="hidden" name="wpEditToken" value="{{ f.token }}"><div class="cdx-field"><div class="cdx-label"><label class="cdx-label__label" for="ts-topic-subject"><span class="cdx-label__label__text">{{ f.subject_label }}</span></label></div><div class="cdx-field__control"><div class="cdx-text-input"><input class="cdx-text-input__input" id="ts-topic-subject" name="wpSummary" value="{{ f.subject }}" required autocomplete="off"></div></div></div>{{ text_area(f.text) }}<div class="ts-composer__bar"><p class="ts-composer__markup">{{ f.markup }}</p><div class="ts-composer__actions"><a href="{{ f.cancel.href }}" class="cdx-button cdx-button--fake-button cdx-button--fake-button--enabled">{{ f.cancel.label }}</a>{{ codex.button(f.submit) }}</div></div></form>
+{%- endmacro -%}
+
+{#- The login line under a page that would take a post. -#}
+{%- macro login(l) -%}
+<p class="ts-composer__login"><a href="{{ l.href }}">{{ l.label }}</a></p>
+{%- endmacro -%}
+
+{#- One thread on a talk page. -#}
+{%- macro listed(t) -%}
+<section class="ts-thread" id="thread-{{ t.id }}"><div class="ts-thread__head">
+{%- if t.pinned %}<span class="ts-thread__pin" role="img" aria-label="{{ t.pinned }}" title="{{ t.pinned }}"></span>{% endif -%}
+<h2 class="ts-thread__subject"><a href="{{ t.subject.href }}">{{ t.subject.label }}</a></h2>{% if t.chip %}{{ chip(t.chip) }}{% endif %}</div>
+<p class="ts-thread__meta">{{ t.meta }}{% if t.elsewhere %} · {{ t.elsewhere.label }} {% for p in t.elsewhere.pages %}{% if not loop.first %}, {% endif %}<a href="{{ p.href }}">{{ p.label }}</a>{% endfor %}{% endif %}</p>
+{%- if t.closed %}<details class="ts-thread__closed"><summary>{{ t.closed }}</summary>{{ posts(t.posts) }}</details>{% else %}{{ posts(t.posts) }}{% endif -%}
+</section>
+{%- endmacro -%}

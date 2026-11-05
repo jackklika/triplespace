@@ -307,10 +307,10 @@ bound = "ceiling"
 group = "entities"
 type = "language-list"
 no_default = true
-default_text = "instance: the instance's content languages, `mul` and `en`; tenant: the instance's list"
+default_text = "instance: the instance's content languages (every tenant's `site.language` and the instance's default for it), `mul` and `en`; tenant: the instance's list"
 scope_note = "`site`; the instance record is the policy's"
 meaning = "The instance record sets the languages in which a mirrored entity's terms populate the shared rows of `view.term` (§2.3); a tenant's record only narrows the languages its own pages and API display, and never adds a language to the shared rows"
-source = "[0070](../decisions/0070-shallow-entity-mirroring.md) §6; [0082](../decisions/0082-source-form-and-the-shared-view.md) §6"
+source = "[0070](../decisions/0070-shallow-entity-mirroring.md) §6; [0082](../decisions/0082-source-form-and-the-shared-view.md) §6, A2"
 
 [[setting]]
 key = "export.from_namespaces"
@@ -1457,7 +1457,7 @@ bound = "tenant"
 group = "site"
 type = "string"
 values = "a skin the wiki makes available"
-default = "default"
+default = "worksheet"
 reported = true
 meaning = "The wiki's skin: the HTML presentation of every page, for readers who have not chosen another"
 source = "[0097](../decisions/0097-versioning-and-skins.md) §8"

@@ -37,15 +37,20 @@ pub struct Site {
     pub name: String,
     /// `site.language`.
     pub lang: String,
+    /// The tenant's table of names (0078 §3), which says which foreign IDs name an entity.
+    pub registry: &'static scatter_providers::Registry,
 }
 
 impl Site {
     /// Loads the tenant's settings.
     pub async fn load(ctx: &Ctx) -> Result<Self, ApiError> {
-        Self::load_for(ctx.db(), &ctx.tenant.slug).await
+        let mut site = Self::load_for(ctx.db(), &ctx.tenant.slug).await?;
+        site.registry = ctx.registry().await?;
+        Ok(site)
     }
 
-    /// Loads a tenant's settings outside an Action API request.
+    /// Loads a tenant's settings outside an Action API request, with the default table of
+    /// names: its providers, without the tenant's entity sources.
     pub async fn load_for(db: &tokio_postgres::Client, tenant: &str) -> Result<Self, ApiError> {
         let (settings, _) = triplespace_accounts::settings::load(db, Some(tenant)).await?;
         let name = settings
@@ -64,6 +69,7 @@ impl Site {
             config: names.config(),
             name,
             lang,
+            registry: scatter_providers::Registry::default_registry(),
         })
     }
 
@@ -90,6 +96,7 @@ pub(crate) fn tests_site() -> Site {
         config: config_for("Librarybase"),
         name: "Librarybase".into(),
         lang: "en".into(),
+        registry: scatter_providers::Registry::default_registry(),
     }
 }
 
@@ -398,15 +405,34 @@ pub fn resolve_title(site: &Site, title: &str) -> Option<Title> {
     Some(t.without_fragment())
 }
 
-/// Whether a title names an entity page rather than a document page: an entity ID, bare
-/// or prefixed with an entity namespace, and not a title in a page namespace with a
-/// prefix (`Project:Home` parses as a foreign ID too, but names the Project page).
+/// Whether a title names an entity page rather than a document page: a title in a
+/// namespace that holds entities (`Item:Q42`, `Property:P3`, `Domain:wikipedia.org`), by
+/// any of the tenant's names for it, whose ID is one the tenant serves: a local ID, a
+/// keyed type's key, or a foreign ID of a registered provider or entity source, as an
+/// entity read requires. A bare title is in the main namespace, which holds articles, so
+/// `Q42` is the article titled `Q42`, not the item (10 §3.3; 0038 A17). Where a wiki's
+/// main namespace held entities, as Wikidata's does, a bare ID would name the entity by
+/// the same rule, since no article could share its title.
 #[must_use]
 pub fn names_entity(site: &Site, title: &str) -> bool {
-    if resolve_title(site, title).is_some_and(|t| t.namespace != 0) {
-        return false;
+    entity_of_title(site, title).is_some()
+}
+
+/// The entity a page title names, by [`names_entity`]'s rule: its ID, from the title's
+/// text in an entity namespace however the tenant names that namespace (`Item:Q42` is
+/// `Q42`, `Domain:Wikipedia.org` is `domain:wikipedia.org`).
+#[must_use]
+pub fn entity_of_title(site: &Site, title: &str) -> Option<scatter_wikibase_model::id::EntityId> {
+    let t = parse_target(title, &site.config, &Title::new(0, ""))?.title;
+    if t.interwiki.is_some() || t.text.is_empty() {
+        return None;
     }
-    crate::modules::entities::parse_id(title).is_ok()
+    let id = Namespaces::embedded()
+        .get(t.namespace)?
+        .entity_id(&t.text)?;
+    crate::modules::entities::parse_id(&id)
+        .ok()
+        .filter(|id| crate::modules::entities::check_form(id, site.registry).is_ok())
 }
 
 // ---- rendering -----------------------------------------------------------------------
@@ -761,10 +787,38 @@ mod tests {
     use super::*;
 
     fn site() -> Site {
-        Site {
-            config: config_for("Librarybase"),
-            name: "Librarybase".into(),
-            lang: "en".into(),
+        tests_site()
+    }
+
+    /// A title names an entity only in a namespace that holds entities, and only for an
+    /// ID the tenant serves; a bare title is a main-namespace article, whatever its shape
+    /// (10 §3.3; 0038 A17).
+    #[test]
+    fn only_an_entity_namespace_names_an_entity() {
+        let s = site();
+        for t in [
+            "Item:Q42",
+            "item:Q42",
+            "Property:P3",
+            "Domain:wikipedia.org",
+            "Item:WDQ42",
+        ] {
+            assert!(names_entity(&s, t), "{t} names an entity");
+        }
+        for t in [
+            "Q42",
+            "P3",
+            "WDQ42",
+            "Stub",
+            "Citing sources",
+            "Main Page",
+            "Project:Home",
+            "Talk:Q42",
+            "Item_talk:Q42",
+            "Item:Paris",
+            "Item:STUb",
+        ] {
+            assert!(!names_entity(&s, t), "{t} is not an entity title");
         }
     }
 

@@ -1,5 +1,5 @@
 //! The contract test of 0005 §3 rule 8 and 0006 §2: every Wikibase JSON snapshot in
-//! `docs/api/snapshots` round-trips through the model.
+//! `docs/samples/wikibase-1.43` and `docs/samples/wikidata` round-trips through the model.
 //!
 //! - The storage form is a fixed point: parse → canonical → parse → canonical is stable.
 //! - The storage form loses nothing but the derived fields: the original, with `hash`,
@@ -15,22 +15,25 @@ use scatter_wikibase_model::{Entity, Hasher, json};
 use serde_json::Value;
 
 fn snapshots() -> Vec<(String, Value)> {
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/api/snapshots");
+    let samples = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/samples");
     let mut out = Vec::new();
-    for entry in std::fs::read_dir(&dir).expect("snapshots dir") {
-        let path = entry.unwrap().path();
-        if path.extension().is_some_and(|e| e == "json") {
-            let text = std::fs::read_to_string(&path).unwrap();
-            let v: Value = serde_json::from_str(&text).unwrap();
-            if v.get("entities").is_some() {
-                out.push((path.file_name().unwrap().to_string_lossy().into_owned(), v));
+    for set in ["wikibase-1.43", "wikidata"] {
+        let dir = samples.join(set);
+        for entry in std::fs::read_dir(&dir).expect("samples dir") {
+            let path = entry.unwrap().path();
+            if path.extension().is_some_and(|e| e == "json") {
+                let text = std::fs::read_to_string(&path).unwrap();
+                let v: Value = serde_json::from_str(&text).unwrap();
+                if v.get("entities").is_some() {
+                    out.push((path.file_name().unwrap().to_string_lossy().into_owned(), v));
+                }
             }
         }
     }
     assert!(
         !out.is_empty(),
         "no entity snapshots found in {}",
-        dir.display()
+        samples.display()
     );
     out
 }

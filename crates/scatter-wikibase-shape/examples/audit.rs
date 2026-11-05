@@ -4,7 +4,7 @@
 //!
 //! ```text
 //! cargo run --release -p scatter-wikibase-shape --example audit -- \
-//!     docs/api/snapshots/big/wikidata-20261004-sample-50000.json.gz > audit.md
+//!     docs/samples/wikidata/big/wikidata-20261004-sample-50000.json.gz > audit.md
 //! ```
 //!
 //! The input is `latest-all.json`'s shape, plain or gzip: a JSON array with one entity

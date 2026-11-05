@@ -225,6 +225,10 @@ pub struct Actor {
     pub name: Option<String>,
     /// `registered`, `temporary`, `bot`, `anonymous`, `imported`, `provider`, `federated`.
     pub kind: Option<String>,
+    /// For a surrogate, the raw value it stands for (07 §1.4): the IP of an `anonymous`
+    /// one, the `imported>Name` of an `imported` one, a remote IRI for a `federated` one;
+    /// absent when erased or hidden.
+    pub raw: Option<String>,
     /// The actor IRI.
     pub iri: Option<String>,
     /// Whether the actor is hidden (0023 §5): the name is withheld.
@@ -407,10 +411,10 @@ fn build(tenant: &str, feed: &Feed, viewer: &Viewer) -> Built {
                 a.minor, a.bot, a.new, a.size, a.delta, a.visibility, a.patrolled,
                 a.log_type, a.log_action, a.params, a.changes,
                 ac.name, ac.kind, ac.iri, ac.status,
-                e.type, e.page_id, p.ns, p.title, t.lang, t.text
+                e.type, e.page_id, p.ns, p.title, t.lang, t.text, ac.raw AS actor_raw
          FROM view.activity a
          LEFT JOIN LATERAL (
-           SELECT x.name, x.kind, x.iri, x.status FROM view.actor x
+           SELECT x.name, x.kind, x.iri, x.status, x.raw FROM view.actor x
            WHERE x.actor_key = a.actor_key AND x.tenant IN (a.tenant, '')
            ORDER BY (x.tenant = a.tenant) DESC LIMIT 1) ac ON true
          LEFT JOIN LATERAL (
@@ -739,6 +743,11 @@ fn row_of(r: &tokio_postgres::Row) -> Result<Row, String> {
                 r.get(29)
             },
             kind: r.get(30),
+            raw: if status.as_deref() == Some("hidden") {
+                None
+            } else {
+                r.get("actor_raw")
+            },
             iri: r.get(31),
             hidden: status.as_deref() == Some("hidden"),
         },
@@ -830,6 +839,7 @@ pub async fn query<C: PgClient>(
         if r.actor.key.as_ref().is_some_and(|k| hidden.contains(k)) {
             r.actor.hidden = true;
             r.actor.name = None;
+            r.actor.raw = None;
         }
         if r.target.kind == Some(target_kind::ACTOR)
             && let Some(k) = &r.target.id

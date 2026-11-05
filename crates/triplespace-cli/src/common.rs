@@ -55,7 +55,7 @@ pub fn random_partition() -> Result<u64> {
     Ok(u64::from_le_bytes(bytes).max(1))
 }
 
-/// A plain connection, over TLS when the URL says `sslmode=require` (0033 A24).
+/// A plain connection, over TLS when the URL says `sslmode=require` (0033 A25).
 pub async fn connect(database: &str) -> Result<Client> {
     let config: Config = database.parse().context("database URL")?;
     if wants_tls(&config) {

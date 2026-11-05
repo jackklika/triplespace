@@ -1,0 +1,6 @@
+{#- The generated main page (19 §2.1): what the wiki is, a search box where it serves
+    search, the way to the special pages, and which title replaces this page. -#}
+{%- import "codex.html" as codex -%}
+<div class="ts-home"><p class="ts-home__lead">{{ lead }}</p>
+{%- if search %}<form class="ts-home__search" role="search" aria-label="{{ search.label }}" action="/w/index.php" method="get"><input type="hidden" name="title" value="Special:Search">{{ codex.search(search.input) }}</form><p class="ts-home__hint">{{ search.hint }}</p>{% endif -%}
+<p class="ts-home__more"><a href="{{ more.href }}">{{ more.label }}</a></p><p class="ts-home__generated">{{ generated }}</p></div>

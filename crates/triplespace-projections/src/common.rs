@@ -209,13 +209,41 @@ pub fn attested(record: &Record) -> Attested {
 }
 
 /// The operation a change-set record carries; `None` when its content is erased.
+///
+/// Several projections read the operation of the record being applied, and one reads the
+/// record back from the store: decoding it each time (the canonical-CBOR check re-encodes
+/// it, then serde builds the `Operation`) was about two-fifths of a Wikidata sync's client
+/// CPU (`docs/testing/performance.md` §8). Decoding is a pure function of the content
+/// bytes, so the last decoded operation is kept per thread with a copy of its bytes and
+/// returned again, cloned, when the bytes are equal. Every distinct record is still
+/// decoded and checked once.
 pub fn operation(record: &Record) -> Result<Option<Operation>, String> {
-    let Some(value) = content(record)? else {
+    let Some(bytes) = record.body().content().bytes() else {
         return Ok(None);
     };
-    cbor::from_value(value)
-        .map(Some)
-        .map_err(|e| format!("not a change-set operation: {e}"))
+    if let Some(hit) = LAST_OPERATION.with_borrow(|last| {
+        last.as_ref()
+            .filter(|(b, _)| b.as_slice() == bytes)
+            .map(|(_, op)| op.clone())
+    }) {
+        return Ok(hit);
+    }
+    let op = match content(record)? {
+        None => None,
+        Some(value) => Some(
+            cbor::from_value::<Operation>(value)
+                .map_err(|e| format!("not a change-set operation: {e}"))?,
+        ),
+    };
+    LAST_OPERATION.with_borrow_mut(|last| *last = Some((bytes.to_vec(), op.clone())));
+    Ok(op)
+}
+
+thread_local! {
+    /// The content bytes of the last record [`operation`] decoded on this thread, and what
+    /// they decoded to.
+    static LAST_OPERATION: std::cell::RefCell<Option<(Vec<u8>, Option<Operation>)>> =
+        const { std::cell::RefCell::new(None) };
 }
 
 /// The header key a subject's records are filed under: the entity ID itself, or for a
@@ -276,6 +304,18 @@ pub fn surrogate_key(keyed_type: &str, surrogate: i64) -> String {
 pub fn parse_surrogate_key(key: &str) -> Option<(&str, i64)> {
     let (t, n) = key.split_once('#')?;
     Some((t, n.parse().ok()?))
+}
+
+/// A page's `random` (`page_random`, 03 §4.5), as SQL over the statement's `$1` (the
+/// tenant) and `$2` (the page ID): the first 52 bits of the MD5 of `{tenant}:{page_id}`,
+/// as a fraction in [0, 1). It is a function of the page, not a draw, so that a rebuild
+/// projects the same value the write path did (0047 A29). Migration
+/// `0025_page_random.sql` computes the same over existing rows.
+#[macro_export]
+macro_rules! page_random_sql {
+    () => {
+        "(('x' || substr(md5($1::text || ':' || $2::bigint::text), 1, 13))::bit(52)::bigint)::double precision / 4503599627370496.0"
+    };
 }
 
 /// Quotes a string for use inside SQL text.
@@ -358,6 +398,63 @@ pub fn offset_db(record: &Record) -> Result<i64, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn tombstone_record(id: &str) -> Record {
+        let op = Operation::Tombstone {
+            id: EntityId::parse(id).unwrap(),
+            upstream: scatter_wikibase_changeset::Upstream::revision(7, None),
+        };
+        let body = scatter_log::body::Body::core(
+            &cbor::to_value(&op).unwrap(),
+            &Value::Null,
+            &Value::Null,
+        )
+        .unwrap();
+        let header = scatter_log::header::Header {
+            version: 1,
+            partition: 7,
+            offset: 3,
+            appended_at: 1_790_000_000_000_042,
+            payload_type: PAYLOAD_CHANGESET.into(),
+            key: Some(id.into()),
+            commitment: [0; 32],
+            revid: None,
+            logid: None,
+            page_id: None,
+        };
+        Record::seal(header, body)
+    }
+
+    fn tombstoned(record: &Record) -> String {
+        match operation(record).unwrap() {
+            Some(Operation::Tombstone { id, .. }) => id.to_string(),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    /// The decoded operation is reused for equal content bytes, a copy read back from the
+    /// store included, and never for a different record (performance.md §8).
+    #[test]
+    fn operations_are_decoded_once_per_content() {
+        let a = tombstone_record("WDQ1");
+        let b = tombstone_record("WDQ2");
+        assert_eq!(tombstoned(&a), "WDQ1");
+        assert_eq!(tombstoned(&a), "WDQ1", "again, from the cache");
+        let read_back = Record::decode(&a.encode()).unwrap();
+        assert_eq!(
+            tombstoned(&read_back),
+            "WDQ1",
+            "equal bytes, another allocation"
+        );
+        assert_eq!(tombstoned(&b), "WDQ2", "a different record is decoded");
+        assert_eq!(tombstoned(&a), "WDQ1", "and back");
+        let mut erased = a.clone();
+        erased.body_mut().erase(scatter_log::body::CONTENT).unwrap();
+        assert!(
+            operation(&erased).unwrap().is_none(),
+            "erased content is none"
+        );
+    }
 
     #[test]
     fn jsonb_conversion() {

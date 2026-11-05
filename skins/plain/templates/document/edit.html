@@ -1,0 +1,9 @@
+{#- The edit page: notices, a preview, the form, and the current text of a conflict. -#}
+{%- import "codex.html" as codex -%}
+{%- import "document.html" as document -%}
+<div class="ts-edit-document">
+{%- for n in notices %}{{ codex.message(n) }}{% endfor -%}
+{%- if preview %}<section class="ts-editform__preview" aria-labelledby="ts-preview-heading"><h2 id="ts-preview-heading">{{ preview.heading }}</h2>{{ codex.message(preview.note) }}<div class="ts-document">{{ document.content(preview.content) }}</div></section>{% endif -%}
+{{ document.edit_form(form) }}
+{%- if current %}<section class="ts-editform__current"><h2>{{ current.heading }}</h2>{{ document.textarea(none, none, current.text, current.heading, 15, true) }}</section>{% endif -%}
+</div>

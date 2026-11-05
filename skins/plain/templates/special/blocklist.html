@@ -1,0 +1,5 @@
+{#- Special:BlockList (09 §3.3; 19 §6.3): the blocks in force, a hidden name shown as such
+    or marked **Hidden** to the suppression group, and **Unblock** for a holder of `block`. -#}
+<div class="ts-protectedpages">{% if nothing %}<p class="ts-empty">{{ nothing }}</p>
+{%- else %}<table class="cdx-table__table ts-blocklist__table"><thead><tr>{% for c in columns %}<th>{{ c }}</th>{% endfor %}{% if unblock_column %}<th></th>{% endif %}</tr></thead><tbody>
+{%- for b in rows %}<tr><td>{% if b.user %}<a href="{{ b.user.href }}">{{ b.user.label }}</a>{% if b.hidden %} <span class="ts-blocklist__hidden">{{ b.hidden }}</span>{% endif %}{% else %}<span class="ts-blocklist__hidden">{{ b.hidden }}</span>{% endif %}</td><td>{{ b.by }}</td><td>{{ b.when }}</td><td>{{ b.expiry }}</td><td>{{ b.reason }}</td><td>{{ b.removes }}</td>{% if unblock_column %}<td>{% if b.unblock %}<a href="{{ b.unblock.href }}">{{ b.unblock.label }}</a>{% endif %}</td>{% endif %}</tr>{% endfor %}</tbody></table>{% endif %}</div>

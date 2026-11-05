@@ -1,5 +1,6 @@
 [alias]
-# Repository tasks (xtask/): `cargo xtask deps`, `cargo xtask wasm`.
+# Repository tasks (xtask/): `cargo xtask deps`, `cargo xtask wasm`, `cargo xtask manifest`,
+# `cargo xtask skin-parity`.
 xtask = "run --quiet --package xtask --"
 
 # The rule-7 crates (0005 §3) run in the browser through wasm-bindgen (0034 §6). `oxrdf`

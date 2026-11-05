@@ -23,7 +23,7 @@ pub enum PoolError {
     Build(String),
 }
 
-/// Whether connections to `config` go over TLS (0033 A24): when its `sslmode` is `require`.
+/// Whether connections to `config` go over TLS (0033 A25): when its `sslmode` is `require`.
 /// `disable` and `prefer`, `tokio-postgres`'s default, connect in plaintext as before, so a
 /// local server, or one behind a TLS-terminating proxy, is unaffected.
 #[must_use]
@@ -31,7 +31,7 @@ pub fn wants_tls(config: &tokio_postgres::Config) -> bool {
     matches!(config.get_ssl_mode(), SslMode::Require)
 }
 
-/// The TLS connector for a connection whose URL says `sslmode=require` (0033 A24): rustls on
+/// The TLS connector for a connection whose URL says `sslmode=require` (0033 A25): rustls on
 /// the aws-lc-rs provider (0033 §6), the server's certificate checked against the platform's
 /// roots by `rustls-platform-verifier`, as the web tier's HTTP client checks the API's.
 /// A managed Postgres that requires TLS (Neon, RDS, Supabase) is reached directly.
@@ -66,7 +66,7 @@ pub fn pool(url: &str, size: usize) -> Result<Pool, PoolError> {
 mod tests {
     use super::*;
 
-    // 0033 A24: only `sslmode=require` selects TLS; the default stays plaintext.
+    // 0033 A25: only `sslmode=require` selects TLS; the default stays plaintext.
     #[test]
     fn tls_only_when_required() {
         let parse = |url: &str| url.parse::<tokio_postgres::Config>().expect("url");
@@ -82,13 +82,13 @@ mod tests {
         )));
     }
 
-    // 0033 A24: the connector builds with the aws-lc-rs provider and the platform verifier.
+    // 0033 A25: the connector builds with the aws-lc-rs provider and the platform verifier.
     #[test]
     fn tls_connector_builds() {
         tls().expect("TLS client config");
     }
 
-    // 0033 A24: a pool for a `require` URL builds without connecting.
+    // 0033 A25: a pool for a `require` URL builds without connecting.
     #[test]
     fn pool_builds_for_require() {
         pool("postgres://u@db.example/db?sslmode=require", 2).expect("pool");

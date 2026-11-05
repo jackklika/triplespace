@@ -1,0 +1,8 @@
+{#- Special:MovePage (0047 §9; 19 §6.3): the form asking for a page, or the Move form, the
+    new title, the reason, and the options the viewer's rights allow. -#}
+{%- import "codex.html" as codex -%}
+{%- import "forms.html" as forms -%}
+{%- if ask %}<div class="ts-changes">{{ forms.ask(ask) }}</div>
+{%- else %}{% set f = form %}<div class="ts-protect-page">{% for n in f.notices %}{{ codex.message(n) }}{% endfor -%}
+<form class="ts-move" method="post" action="{{ f.action }}"><input type="hidden" name="token" value="{{ f.token }}">{{ forms.field(f.to) }}{{ forms.field(f.reason) }}{% for o in f.options %}{{ forms.check(o) }}{% endfor %}<div class="ts-protect__actions">{{ codex.button(f.submit) }}<a href="{{ f.cancel.href }}" class="ts-protect__cancel">{{ f.cancel.label }}</a></div></form></div>
+{%- endif -%}
