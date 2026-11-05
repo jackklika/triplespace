@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-09-27
-- **Updated:** 2026-10-29 (A14)
+- **Updated:** 2026-11-04 (A15)
 - **Author:** James Hare / Claude
 - **Changes:** [0005](0005-crate-organization.md), [0010](0010-site-ui.md), [0012](0012-api-requirements.md), [0015](0015-record-format-and-partition-registry.md)
 - **Uses:** [0003](0003-statement-ui.md), [0012](0012-api-requirements.md), [0014](0014-caches-and-search.md), [0017](0017-entity-id-grammar.md), [0029](0029-resolver-namespaces.md), [0033](0033-backend-stack.md)
@@ -65,7 +65,7 @@ The backend stack is in 0033.
 
 ### 9. Internationalisation
 
-*Changed by A11, A14.*
+*Changed by A11, A14, A15.*
 
 *Current text: [19](../architecture/19-site-ui.md) §5.6.*
 
@@ -305,3 +305,14 @@ Replaced text (§2):
 Replaced text (§9):
 
 > - Interface messages are **banana JSON** files in `i18n/` (`en.json`, `qqq.json` for documentation, one file per language), so the project can be registered with translatewiki.net like any MediaWiki extension.
+
+### A15. `uselang=qqx` shows message keys
+
+- **Date:** 2026-11-04
+- **Source:** Direct: Claude, while building template debugging (SCA-230), 2026-11-04; unconfirmed
+- **Change:** extends §9
+- **Summary:** `uselang=qqx` makes every interface message show its key, as MediaWiki's `qqx` does (the ShowMessageNames gadget on Wikipedia, Wikidata and Wikisource): `(key)`, or `(key: a, b)` with the parameters given. The calls:
+  - The wiki's Interface overrides are not read under `qqx`, so the key shows even for an overridden message, and nothing is expanded (`PLURAL`, `GENDER`, `GRAMMAR`).
+  - Messages handed to a script read `(key: $1, $2)`, one `$n` up to the highest the English message names, for the script to fill as it fills any message.
+  - `qqx` is the page's `lang` and is written left to right; a term (label, description) is looked up along `qqx`'s chain, which ends at `mul` and English, so content shows as in English.
+  - `{{int:key}}` in page text is not affected: a page renders once for every reader in the wiki's language (0042 A21), so `qqx` reaches only the site's own messages.

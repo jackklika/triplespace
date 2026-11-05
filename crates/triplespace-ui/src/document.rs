@@ -8,7 +8,8 @@
 //!   an old one. The HTML is the API's, sanitized there (0008 A39); the site adds the
 //!   categories at the foot. A title with no page says so, with **Create this page** for
 //!   a signed-in viewer; the main page with no page of its own is the generated one
-//!   ([`crate::home`]).
+//!   ([`crate::home`]). `?tstemplates=1` asks the API to mark each block a template drew
+//!   with `data-ts-template` and `data-ts-template-at`, for template debugging (0042 §4).
 //! - **Edit** is a form of the source, a summary and the minor flag, posted with the
 //!   viewer's CSRF token and the revision it started from, which is the edit's base
 //!   (18 §2.3). **Show preview** renders the text through `action=parse` with the
@@ -436,9 +437,12 @@ async fn read(
 ) -> Response {
     let oldid = params.map.get("oldid").and_then(|o| o.parse::<u64>().ok());
     let follow = params.map.get("redirect").is_none_or(|r| r != "no");
+    // `tstemplates=1`: which template drew each block, for template debugging; a page
+    // asks for it, so the cached public render never carries it (0042 §4).
+    let templates = params.map.get("tstemplates").is_some_and(|v| v == "1");
     let parsed = match site
         .client()
-        .parse_page(incoming, &title, oldid, follow)
+        .parse_page_marked(incoming, &title, oldid, follow, templates)
         .await
     {
         Ok(p) => p,

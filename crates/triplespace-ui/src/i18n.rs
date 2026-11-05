@@ -7,6 +7,11 @@
 //! direction follows the language, not the messages, so `uselang=ar` is right to left
 //! even while Arabic has no translations.
 //!
+//! **`uselang=qqx`** shows each message's key instead of its text, as MediaWiki does:
+//! `(key)`, or `(key: a, b)` with the parameters given; the wiki's overrides are not read,
+//! and nothing is expanded. Messages handed to a script read `(key: $1, $2)` for the
+//! parameters the English message takes, which the script fills (0034 §9).
+//!
 //! Messages support `$1`…`$9`, `{{PLURAL:…}}` with CLDR plural rules (ICU4X), and
 //! `{{GENDER:…}}` and `{{GRAMMAR:…}}` in their degenerate forms (the neutral form; the
 //! word unchanged) until a message needs more. This is the small in-house implementation
@@ -230,10 +235,20 @@ impl Messages {
     /// first language in the chain that has it: what a component needs in the browser.
     #[must_use]
     pub fn with_prefix(&self, prefix: &str) -> BTreeMap<String, String> {
-        EN.keys()
-            .filter(|k| k.starts_with(prefix))
-            .filter_map(|k| self.raw(k).map(|(m, _)| (k.clone(), m)))
+        EN.iter()
+            .filter(|(k, _)| k.starts_with(prefix))
+            .filter_map(|(k, en)| {
+                if self.qqx() {
+                    return Some((k.clone(), qqx_template(k, en)));
+                }
+                self.raw(k).map(|(m, _)| (k.clone(), m))
+            })
             .collect()
+    }
+
+    /// Whether the language is `qqx`, which shows message keys.
+    fn qqx(&self) -> bool {
+        self.lang == QQX
     }
 
     /// A message, or `⧼key⧽` where it is missing, as MediaWiki shows one.
@@ -246,6 +261,13 @@ impl Messages {
     /// `GENDER` and `GRAMMAR` calls expanded.
     #[must_use]
     pub fn with(&self, key: &str, params: &[&str]) -> String {
+        if self.qqx() {
+            return if params.is_empty() {
+                format!("({key})")
+            } else {
+                format!("({key}: {})", params.join(", "))
+            };
+        }
         let Some((mut s, lang)) = self.raw(key) else {
             return format!("⧼{key}⧽");
         };
@@ -253,6 +275,25 @@ impl Messages {
             s = s.replace(&format!("${}", i + 1), p);
         }
         expand(&s, &lang)
+    }
+}
+
+/// The pseudo-language that shows message keys (MediaWiki's `qqx`).
+pub const QQX: &str = "qqx";
+
+/// A message as `qqx` hands it to a script: its key, and a `$n` for each parameter the
+/// English message takes, up to the highest it names.
+fn qqx_template(key: &str, en: &str) -> String {
+    let highest = (1..=9).rev().find(|n| en.contains(&format!("${n}")));
+    match highest {
+        None => format!("({key})"),
+        Some(n) => format!(
+            "({key}: {})",
+            (1..=n)
+                .map(|i| format!("${i}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
     }
 }
 
@@ -361,6 +402,31 @@ fn rules_for(lang: &str) -> PluralRules {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // 0034 §9: `uselang=qqx` shows each message's key, as MediaWiki does.
+    #[test]
+    fn qqx_shows_message_keys() {
+        let o: Overrides = serde_json::from_value(serde_json::json!({
+            "ts-bell": {"": "Bell"},
+        }))
+        .unwrap();
+        let m = Messages::for_language("qqx").with_overrides(o, "en");
+        assert_eq!(m.lang(), "qqx");
+        assert_eq!(m.dir(), "ltr");
+        assert_eq!(m.get("ts-bell"), "(ts-bell)", "not the wiki's override");
+        assert_eq!(m.with("ts-bell-unread", &["3"]), "(ts-bell-unread: 3)");
+        assert_eq!(
+            m.with("ts-history-compare-from", &["x", "y"]),
+            "(ts-history-compare-from: x, y)"
+        );
+        assert_eq!(m.get("no-such-message"), "(no-such-message)");
+        assert!(m.has("ts-bell"));
+        // For a script, the parameters the English message takes, for it to fill.
+        let js = m.with_prefix("ts-bell");
+        assert_eq!(js["ts-bell"], "(ts-bell)");
+        assert_eq!(js["ts-bell-unread"], "(ts-bell-unread: $1)");
+        assert_eq!(qqx_template("k", "$2 of $1"), "(k: $1, $2)");
+    }
 
     #[test]
     fn a_wiki_overrides_messages_and_names_ids() {

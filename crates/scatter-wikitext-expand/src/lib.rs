@@ -72,6 +72,34 @@ enum Mode {
 /// Expands `text` for viewing the page that holds it.
 #[must_use]
 pub fn expand_for_view(text: &str, host: &dyn ExpandHost) -> String {
+    expand_for_view_mapped(text, host).text
+}
+
+/// A call in the page's own text that transcluded a page (0042 §4, A22; 11 §1.4).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Call {
+    /// The name it was called by, as written and trimmed (`cwbn`, `:Main page`).
+    pub name: String,
+    /// Where its `{{` is in the page's text, in bytes.
+    pub at: usize,
+    /// What it expanded to, as a range of the expanded text.
+    pub output: std::ops::Range<usize>,
+}
+
+/// An expansion, and where each of the page's own calls put its output.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Expansion {
+    /// The expanded text.
+    pub text: String,
+    /// The calls written in the page itself, not those inside the templates they
+    /// transclude, that transcluded a page; in the order written.
+    pub calls: Vec<Call>,
+}
+
+/// Expands `text` for viewing the page that holds it, and maps the page's own calls to
+/// their output, so a renderer can say which template drew which block.
+#[must_use]
+pub fn expand_for_view_mapped(text: &str, host: &dyn ExpandHost) -> Expansion {
     let registry = Registry::embedded();
     let mut e = Expander {
         host,
@@ -80,8 +108,22 @@ pub fn expand_for_view(text: &str, host: &dyn ExpandHost) -> String {
     };
     let nodes = preprocess(text, Mode::View, registry);
     let mut out = String::with_capacity(text.len());
-    e.expand(&nodes, &mut out);
-    out
+    let mut calls = Vec::new();
+    for n in &nodes {
+        if let PNode::Template { parts, at } = n {
+            let start = out.len();
+            if let Some(name) = e.template(n, parts, &mut out) {
+                calls.push(Call {
+                    name,
+                    at: *at,
+                    output: start..out.len(),
+                });
+            }
+        } else {
+            e.expand(std::slice::from_ref(n), &mut out);
+        }
+    }
+    Expansion { text: out, calls }
 }
 
 // ---- the preprocessor tree ----------------------------------------------------------
@@ -89,9 +131,11 @@ pub fn expand_for_view(text: &str, host: &dyn ExpandHost) -> String {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum PNode {
     Text(String),
-    /// `{{…}}`: the name, then the arguments.
+    /// `{{…}}`: the name, then the arguments; `at` is where its `{{` starts in the text
+    /// it was read from.
     Template {
         parts: Vec<Vec<PNode>>,
+        at: usize,
     },
     /// `{{{…}}}`: the name, then the default.
     Argument {
@@ -103,6 +147,8 @@ struct Frame {
     brace: u8,
     count: usize,
     parts: Vec<Vec<PNode>>,
+    /// Where its first brace is.
+    start: usize,
 }
 
 impl Frame {
@@ -297,6 +343,7 @@ fn preprocess(text: &str, mode: Mode, registry: &Registry) -> Vec<PNode> {
                 brace: c,
                 count: n,
                 parts: vec![Vec::new()],
+                start: i,
             });
             i += n;
             text_start = i;
@@ -343,10 +390,14 @@ fn preprocess(text: &str, mode: Mode, registry: &Registry) -> Vec<PNode> {
                 f.count -= matching;
                 let close_end = pos + matching;
                 let parts = std::mem::take(&mut f.parts);
+                // The innermost braces close: this element starts after those left open.
                 let node = if matching == 3 {
                     PNode::Argument { parts }
                 } else {
-                    PNode::Template { parts }
+                    PNode::Template {
+                        parts,
+                        at: f.start + f.count,
+                    }
                 };
                 m -= matching;
                 pos = close_end;
@@ -382,7 +433,7 @@ fn write_source(n: &PNode, out: &mut String) {
             out.push_str(t);
             return;
         }
-        PNode::Template { parts } => ("{{", "}}", parts),
+        PNode::Template { parts, .. } => ("{{", "}}", parts),
         PNode::Argument { parts } => ("{{{", "}}}", parts),
     };
     out.push_str(open);
@@ -415,12 +466,16 @@ impl Expander<'_> {
                     Some(default) => self.expand(default, out),
                     None => write_source(n, out),
                 },
-                PNode::Template { parts } => self.template(n, parts, out),
+                PNode::Template { parts, .. } => {
+                    self.template(n, parts, out);
+                }
             }
         }
     }
 
-    fn template(&mut self, node: &PNode, parts: &[Vec<PNode>], out: &mut String) {
+    /// Expands a call into `out`; the name it was called by when it transcluded a page,
+    /// which [`expand_for_view_mapped`] records.
+    fn template(&mut self, node: &PNode, parts: &[Vec<PNode>], out: &mut String) -> Option<String> {
         let mut name = String::new();
         self.expand(&parts[0], &mut name);
         let name = name.trim();
@@ -430,25 +485,26 @@ impl Expander<'_> {
             .map(|(_, k)| k.trim())
         {
             self.message(node, key, &parts[1..], out);
-            return;
+            return None;
         }
         if parts.len() > 1 {
             write_source(node, out);
-            return;
+            return None;
         }
         if name.is_empty() || self.registry.is_magic(name) {
             write_source(node, out);
-            return;
+            return None;
         }
         let Some(found) = self.host.transclude(name) else {
             write_source(node, out);
-            return;
+            return None;
         };
         match found {
             Transcluded::Missing(title) => {
                 out.push_str("[[:");
                 out.push_str(&title);
                 out.push_str("]]");
+                None
             }
             Transcluded::Found(text) => {
                 let key = name.to_string();
@@ -456,13 +512,13 @@ impl Expander<'_> {
                     out.push_str("<span class=\"error\">Template loop detected: [[");
                     out.push_str(name);
                     out.push_str("]]</span>");
-                    return;
+                    return None;
                 }
                 if self.stack.len() >= MAX_DEPTH {
                     out.push_str(
                         "<span class=\"error\">Template recursion depth limit exceeded</span>",
                     );
-                    return;
+                    return None;
                 }
                 self.stack.push(key);
                 let nodes = preprocess(&text, Mode::Transclude, self.registry);
@@ -477,6 +533,7 @@ impl Expander<'_> {
                     out.push('\n');
                 }
                 out.push_str(&expanded);
+                Some(name.to_string())
             }
         }
     }
@@ -644,5 +701,29 @@ mod tests {
             expand_for_view("{{int:welcome}}", &host()),
             "{{int:welcome}}"
         );
+    }
+
+    // 0042 §4: the page's own calls are mapped to their output, so a renderer can mark
+    // which template drew which block.
+    #[test]
+    fn the_page_s_own_calls_are_mapped_to_their_output() {
+        let text = "Intro\n{{cwbn}}\nText {{ Nested }} {{missing}} {{#if:x|y}} {{list}}";
+        let e = expand_for_view_mapped(text, &host());
+        assert_eq!(e.text, expand_for_view(text, &host()));
+        let names: Vec<&str> = e.calls.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(
+            names,
+            ["cwbn", "Nested", "list"],
+            "found pages only, not the inner call"
+        );
+        assert_eq!(e.calls[0].at, text.find("{{cwbn").unwrap());
+        assert_eq!(&e.text[e.calls[0].output.clone()], "<div>footer</div>");
+        assert_eq!(e.calls[1].at, text.find("{{ Nested").unwrap());
+        assert_eq!(&e.text[e.calls[1].output.clone()], "<<div>footer</div>>");
+        // A list starts a line: the newline put before it is part of the call's output.
+        assert_eq!(&e.text[e.calls[2].output.clone()], "\n* a\n* b");
+        // Braces left open around a call: it starts after them.
+        let e = expand_for_view_mapped("{{{{cwbn}}", &host());
+        assert_eq!(e.calls.iter().map(|c| c.at).collect::<Vec<_>>(), [2]);
     }
 }

@@ -741,6 +741,7 @@ Not yet: `tree-sitter-wikitext` through `web-tree-sitter` is an optional later e
 - The server renders messages with the `banana-i18n` Rust crate; components use the `banana-i18n` JavaScript library. Both read the same files. The Rust crate is at 0.1.0; if it proves incomplete, a small in-house implementation of `PLURAL`, `GENDER`, `GRAMMAR` and `$n` with ICU4X plural rules replaces it.
 - `banana-checker` runs in CI.
 - Interface language comes from `uselang`, then the reader's `language` preference, then the request's `Accept-Language` matched against the languages the interface has messages for, then the tenant's default and the farm's ([07](07-actors-and-accounts.md) §8.1; [0085](../decisions/0085-settings-and-preferences.md) §2.2); a reader who is not logged in is served in their language without choosing one. Fallback chains follow MediaWiki's. Direction comes from the language and is set on `<html dir>`; Codex handles RTL.
+- **`uselang=qqx`** shows each interface message's key instead of its text, as MediaWiki does: `(key)`, or `(key: a, b)` with the parameters given, the wiki's overrides not read and nothing expanded; a component's messages read `(key: $1, $2)` for it to fill ([0034](../decisions/0034-frontend-stack.md) A15). Page content is not affected.
 
 ### 5.7 Accessibility and browser support
 

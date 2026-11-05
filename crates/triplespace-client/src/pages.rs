@@ -341,6 +341,25 @@ impl Client {
         oldid: Option<u64>,
         follow: bool,
     ) -> Result<Fetched<Parsed>, ClientError> {
+        self.parse_page_marked(incoming, title, oldid, follow, false)
+            .await
+    }
+
+    /// As [`Self::parse_page`], with `templates` asking the API to mark the blocks each
+    /// of the page's template calls drew (`tstemplates`; 0042 §4).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::parse_page`].
+    pub async fn parse_page_marked(
+        &self,
+        incoming: &Incoming,
+        title: &str,
+        oldid: Option<u64>,
+        follow: bool,
+        templates: bool,
+    ) -> Result<Fetched<Parsed>, ClientError> {
+        let marked = if templates { "&tstemplates=1" } else { "" };
         let which = match oldid {
             Some(r) => format!("oldid={r}"),
             None if follow => format!("page={}&redirects=1", q(title)),
@@ -350,7 +369,7 @@ impl Client {
             .get(
                 incoming,
                 &format!(
-                    "/w/api.php?action=parse&{which}&prop=text%7Ccategories%7Ctemplates&format=json&formatversion=2"
+                    "/w/api.php?action=parse&{which}&prop=text%7Ccategories%7Ctemplates{marked}&format=json&formatversion=2"
                 ),
             )
             .await?;

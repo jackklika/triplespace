@@ -57,7 +57,7 @@ pub async fn render_post(
     text: &str,
 ) -> Result<String, ApiError> {
     if media_type == WIKITEXT {
-        let r = pages::render(db, tenant, site, hidden, text, page).await?;
+        let r = pages::render(db, tenant, site, hidden, text, page, false).await?;
         return Ok(r.rendered.html);
     }
     Ok(
