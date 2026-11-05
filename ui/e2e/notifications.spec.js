@@ -45,7 +45,7 @@ test( 'Alice sees the orange bar and the bell, and reads her messages', async ( 
 	const bar = page.locator( '.ts-orange-bar' );
 	await expect( bar ).toContainText( 'You have a new message on your talk page.' );
 	const bell = page.locator( 'a.ts-bell' );
-	await expect( bell ).toHaveAttribute( 'aria-label', /^Notifications \(\d+ unread\)$/ );
+	await expect( bell ).toHaveAttribute( 'aria-label', /^Notifications, \d+ unread$/ );
 	await expect( bell ).toHaveClass( /ts-bell--unseen/ );
 
 	await bell.click();

@@ -91,8 +91,7 @@ jobs:
 
   e2e:
     name: End to end (two web replicas, JavaScript off, axe)
-    # Pinned: ubuntu-latest became 26.04, which Playwright 1.56 cannot install a browser on.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:18
