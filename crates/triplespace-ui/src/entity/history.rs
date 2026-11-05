@@ -15,14 +15,19 @@
 //!   and the link to the provider's history wait for the retention write and the
 //!   provider registry's history URL.
 //!
-//! Diff links, the upstream-edit fold, cluster members' rows, "History of this value"
+//! - **Compare** (19 §3.7): rows with a local revision carry radio buttons for the older
+//!   and the newer side, in a form that opens `?oldid=…&diff=…` ([`CompareForm`]); a
+//!   mirror's syncs have no revision ID to compare yet, and a discussion's history has no
+//!   form.
+//!
+//! The upstream-edit fold, cluster members' rows, "History of this value"
 //! and the log-only view come with the later Phase 4 pull requests.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use triplespace_client::activity::ActivityQuery;
-use triplespace_client::{ActivityPage, Provenance, SiteInfo};
+use triplespace_client::{ActivityPage, ActivityRow, Provenance, SiteInfo};
 
 use serde::Serialize;
 
@@ -30,6 +35,7 @@ use crate::frame::title_url;
 use crate::html::esc;
 use crate::i18n::Messages;
 use crate::pages::Context;
+use crate::special::changes::{self, ListModel, Pick, Radio};
 
 /// Rows per page, and the most allowed.
 const DEFAULT_LIMIT: u32 = 50;
@@ -165,6 +171,66 @@ pub struct HistoryModel {
     pub list: Option<crate::special::changes::ListModel>,
     /// The pager, when there is another page.
     pub pager: Option<Pager>,
+    /// The compare form, when two of the rows can be compared (19 §3.7).
+    pub compare: Option<CompareForm>,
+}
+
+/// The form around a history's rows that compares the two revisions chosen with its
+/// radio buttons, as MediaWiki's history does: a GET to `/w/index.php` with `title`,
+/// `oldid` and `diff`, so it works without JavaScript (0010 §5.6).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CompareForm {
+    /// The page's title, for `title=`.
+    pub title: String,
+    /// The button.
+    pub button: String,
+}
+
+/// Adds the compare column to a history's rows: each row that has a local revision gets
+/// radio buttons for the older side (`oldid`) and the newer (`diff`), the newest two
+/// chosen to begin with, and the newest of the history no older-side button, since nothing
+/// is newer. `None` when fewer than two rows can be compared.
+fn compare_model(
+    m: &Messages,
+    title: &str,
+    ask: &Ask,
+    rows: &[ActivityRow],
+    list: &mut ListModel,
+) -> Option<CompareForm> {
+    let revids: Vec<Option<u64>> = rows.iter().map(changes::comparable).collect();
+    if revids.iter().flatten().count() < 2 {
+        return None;
+    }
+    let first_page = ask.cursor.is_none();
+    let mut seen = 0usize;
+    let models = list.days.iter_mut().flat_map(|d| d.rows.iter_mut());
+    for ((row, revid), model) in rows.iter().zip(&revids).zip(models) {
+        let Some(revid) = *revid else {
+            model.pick = Some(Pick::default());
+            continue;
+        };
+        let at = format!(
+            "{}, {}",
+            changes::clock(&row.time),
+            changes::date(m, &row.time)
+        );
+        let radio = |key: &str, checked: bool| Radio {
+            revid,
+            label: m.with(key, &[&at]),
+            checked,
+        };
+        model.pick = Some(Pick {
+            old: (!(first_page && seen == 0)).then(|| radio("ts-history-compare-from", seen == 1)),
+            new: Some(radio("ts-history-compare-to", seen == 0)),
+        });
+        seen += 1;
+    }
+    list.columns
+        .insert(0, ("compare", m.get("ts-history-compare-col")));
+    Some(CompareForm {
+        title: title.to_string(),
+        button: m.get("ts-history-compare"),
+    })
 }
 
 fn switch_model(
@@ -250,6 +316,14 @@ fn model(
 ) -> HistoryModel {
     let (m, site) = (&cx.m, &cx.site);
     let graphs = contributing(provenance);
+    let mut list = crate::special::changes::list_model_here(m, site, &page.rows, here);
+    // A discussion's history has no diffs to compare (16 §6.1).
+    let compare = if switch {
+        list.as_mut()
+            .and_then(|l| compare_model(m, title, ask, &page.rows, l))
+    } else {
+        None
+    };
     HistoryModel {
         switch: switch
             .then(|| switch_model(m, site, title, ask, &graphs))
@@ -258,12 +332,13 @@ fn model(
             .then(|| latest_only_model(m, site, provenance))
             .flatten(),
         empty: page.rows.is_empty().then(|| m.get("ts-history-none")),
-        list: crate::special::changes::list_model_here(m, site, &page.rows, here),
+        list,
         pager: if page.rows.is_empty() {
             None
         } else {
             pager_model(m, title, ask, page.next.as_deref())
         },
+        compare,
     }
 }
 

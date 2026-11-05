@@ -356,3 +356,73 @@ fn librarybase_renders_as_librarybase_does() {
         failures.join("\n\n")
     );
 }
+
+// 0042 §4: a page's own template calls mark the top-level blocks they drew, from the
+// expander's map of calls to output; a template's output inside a paragraph marks
+// nothing, and nor does the page's own text.
+#[test]
+fn template_blocks_are_marked_with_their_template() {
+    let fixture = Fixture {
+        config: librarybase(),
+        exists: HashMap::new(),
+        redirects: HashSet::new(),
+        labels: HashMap::new(),
+        templates: HashMap::from([
+            (
+                "Template:Box".to_string(),
+                "<div class=\"box\">Boxed</div>".to_string(),
+            ),
+            ("Template:Items".to_string(), "* one\n* two".to_string()),
+            ("Template:Word".to_string(), "word".to_string()),
+            (
+                "Template:Two".to_string(),
+                "== Heading ==\nA paragraph of its own.".to_string(),
+            ),
+        ]),
+    };
+    let source = "Intro with a {{word}} in it.\n\n{{Box}}\n\nMiddle.\n{{items}}\n\n{{two}}";
+    let e = scatter_wikitext_expand::expand_for_view_mapped(source, &fixture);
+    let marks: Vec<scatter_wikitext::Mark> = e
+        .calls
+        .iter()
+        .map(|c| scatter_wikitext::Mark {
+            range: c.output.clone(),
+            attrs: vec![
+                ("data-ts-template".into(), format!("Template:{}", c.name)),
+                ("data-ts-template-at".into(), c.at.to_string()),
+            ],
+        })
+        .collect();
+    let page = Title::new(0, "Marked");
+    let html =
+        scatter_wikitext::render_marked(&e.text, &fixture.config, &fixture, &page, &marks).html;
+    let at = |name: &str| source.find(&format!("{{{{{name}")).unwrap();
+    assert!(
+        html.contains(&format!(
+            "<div class=\"box\" data-ts-template=\"Template:Box\" data-ts-template-at=\"{}\">Boxed</div>",
+            at("Box")
+        )),
+        "{html}"
+    );
+    assert!(
+        html.contains(&format!(
+            "<ul data-ts-template=\"Template:items\" data-ts-template-at=\"{}\">",
+            at("items")
+        )),
+        "{html}"
+    );
+    // A template that draws two blocks marks both.
+    assert_eq!(
+        html.matches("data-ts-template=\"Template:two\"").count(),
+        2,
+        "{html}"
+    );
+    // Inline output, and the page's own paragraphs, are not marked.
+    assert!(!html.contains("Template:word"), "{html}");
+    assert_eq!(html.matches("data-ts-template=").count(), 4, "{html}");
+    // Without marks the render is unchanged.
+    assert_eq!(
+        scatter_wikitext::render_marked(&e.text, &fixture.config, &fixture, &page, &[]).html,
+        scatter_wikitext::render(&e.text, &fixture.config, &fixture, &page).html
+    );
+}

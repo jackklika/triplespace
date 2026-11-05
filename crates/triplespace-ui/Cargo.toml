@@ -27,6 +27,7 @@ icu_locale_core.workspace = true
 scatter-wikibase-model.workspace = true
 scatter-wikibase-shape.workspace = true
 scatter-titles.workspace = true
+scatter-pages.workspace = true
 tokio = { workspace = true, features = ["macros"] }
 url.workspace = true
 

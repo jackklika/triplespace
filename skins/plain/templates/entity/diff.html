@@ -65,11 +65,12 @@
 </dl></aside>
 {%- endmacro -%}
 
-<div class="ts-diff">
+<div class="ts-diff" data-ts-diffnav>
 {%- if head %}<p class="ts-diff__head">{{ revision_line(head) }}</p>{% endif -%}
 {%- if nav %}<p class="ts-diff__nav"><a href="{{ nav.previous.href }}" rel="prev">{{ nav.previous.label }}</a> · <a href="{{ nav.compare.href }}">{{ nav.compare.label }}</a></p>{% endif -%}
 {%- if revisions %}<table class="ts-diff__revisions"><tr><th>{{ msg("ts-diff-before") }}</th><td>{{ revision_line(revisions.before) }}</td></tr><tr><th>{{ msg("ts-diff-after") }}</th><td>{{ revision_line(revisions.after) }}</td></tr></table>{% endif -%}
 {%- if switch %}{{ shared.switch(switch, "ts-diff__views") }}{% endif -%}
+{%- if permalink %}<div class="ts-page-diff__permalink"><label for="ts-diff-permalink">{{ permalink.label }}</label> <div class="cdx-text-input"><input class="cdx-text-input__input" id="ts-diff-permalink" type="text" readonly dir="ltr" value="{{ permalink.text }}"></div></div>{% endif -%}
 <div class="ts-diff__body"><div class="ts-diff__main">
 {%- if main.kind == "changeset" %}<pre class="ts-diff__changeset" dir="ltr">{{ main.json }}</pre>
 {%- elif main.kind == "sync" %}<p class="ts-diff__sync">{{ main.line }}</p>{% if main.rows %}{{ summary(main.rows) }}{% else %}<p class="ts-empty">{{ main.none }}</p>{% endif %}

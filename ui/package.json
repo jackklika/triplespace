@@ -116,8 +116,8 @@
 		"vue": "3.5.43"
 	},
 	"devDependencies": {
-		"@axe-core/playwright": "4.13.0",
-		"@playwright/test": "1.56.0",
+		"@axe-core/playwright": "4.14.0",
+		"@playwright/test": "1.63.0",
 		"@vitejs/plugin-vue": "6.0.9",
 		"@vue/test-utils": "2.5.1",
 		"eslint": "8.57.1",

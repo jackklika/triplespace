@@ -123,9 +123,33 @@ pub struct Rendered {
 #[cfg(not(target_arch = "wasm32"))]
 const PARSE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
+/// A range of the text to render whose top-level blocks carry attributes: which template
+/// drew them, as `scatter-wikitext-expand` maps a page's calls to their output (0042 §4).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Mark {
+    /// The range of the text.
+    pub range: Span,
+    /// The attributes, `data-` ones, which the sanitizer keeps.
+    pub attrs: Vec<(String, String)>,
+}
+
 /// Parses and renders `text` as the page `page`.
 #[must_use]
 pub fn render(text: &str, config: &Config, resolver: &dyn Resolver, page: &Title) -> Rendered {
+    render_marked(text, config, resolver, page, &[])
+}
+
+/// Renders as [`render`] does, and gives each top-level element that lies wholly within a
+/// mark's range that mark's attributes: a block a template drew is marked, a paragraph
+/// that only holds a template's inline output is not.
+#[must_use]
+pub fn render_marked(
+    text: &str,
+    config: &Config,
+    resolver: &dyn Resolver,
+    page: &Title,
+    marks: &[Mark],
+) -> Rendered {
     #[cfg(not(target_arch = "wasm32"))]
     let parsed = config.parser.parse_with_timeout(text, PARSE_TIMEOUT);
     #[cfg(target_arch = "wasm32")]
@@ -155,7 +179,56 @@ pub fn render(text: &str, config: &Config, resolver: &dyn Resolver, page: &Title
     let mut extracted = std::mem::take(&mut l.out);
     let mut tree = l.b.finish();
     place_toc(&mut tree, &mut extracted, config, toc_here);
+    mark(&mut tree, marks);
     finish(tree, extracted, warnings)
+}
+
+/// The text an element was drawn from: from the first to the last place any of it, or of
+/// what it holds, came from. A generated element (a paragraph, a list) has no span of its
+/// own, and an element's own span is its start tag, so the extent is read from its
+/// contents too.
+fn extent(e: &Element) -> Option<Span> {
+    fn walk(nodes: &[Node], out: &mut Option<Span>) {
+        for n in nodes {
+            let (span, children) = match n {
+                Node::Element(e) => (e.span.as_ref(), Some(&e.children)),
+                Node::Text(t) => (t.span.as_ref(), None),
+            };
+            if let Some(s) = span.filter(|s| s.start < s.end) {
+                *out = Some(match out.take() {
+                    Some(o) => o.start.min(s.start)..o.end.max(s.end),
+                    None => s.clone(),
+                });
+            }
+            if let Some(c) = children {
+                walk(c, out);
+            }
+        }
+    }
+    let mut out = e.span.clone().filter(|s| s.start < s.end);
+    walk(&e.children, &mut out);
+    out
+}
+
+/// Gives the top-level elements within a mark's range its attributes.
+fn mark(tree: &mut [Node], marks: &[Mark]) {
+    if marks.is_empty() {
+        return;
+    }
+    for node in tree {
+        let Node::Element(e) = node else { continue };
+        let Some(span) = extent(e) else { continue };
+        if let Some(m) = marks
+            .iter()
+            .find(|m| m.range.start <= span.start && span.end <= m.range.end)
+        {
+            for (k, v) in &m.attrs {
+                if e.attr(k).is_none() {
+                    e.attrs.push((k.clone(), v.clone()));
+                }
+            }
+        }
+    }
 }
 
 /// What [`render`] reads out of the text, without the HTML: for the page projection,

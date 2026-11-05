@@ -18,7 +18,7 @@ use std::sync::Arc;
 use scatter_titles::Namespaces;
 use scatter_wikitext::html::url_encode_title;
 use scatter_wikitext::{Config, PageInfo, Rendered, Resolver, Title, parse_target};
-use scatter_wikitext_expand::{ExpandHost, Transcluded};
+use scatter_wikitext_expand::{ExpandHost, Expansion, Transcluded};
 use tokio_postgres::Client;
 pub use triplespace_projections::acl_read::Hidden;
 
@@ -447,23 +447,27 @@ struct Host<'a> {
     wants_messages: std::cell::Cell<bool>,
 }
 
+/// The page a call's name transcludes: Template is the default namespace, and a leading
+/// colon means the main one; `None` for a name that is no title, or an interwiki one.
+fn transcluded_title(site: &Site, name: &str) -> Option<Title> {
+    let page = Title::new(scatter_titles::TEMPLATE, "");
+    let t = if name.starts_with(':') {
+        parse_target(name, &site.config, &page)?
+    } else {
+        let t = parse_target(name, &site.config, &page)?;
+        if t.title.namespace == 0 {
+            parse_target(&format!("Template:{name}"), &site.config, &page)?
+        } else {
+            t
+        }
+    };
+    let title = t.title;
+    title.interwiki.is_none().then_some(title)
+}
+
 impl ExpandHost for Host<'_> {
     fn transclude(&self, name: &str) -> Option<Transcluded> {
-        let page = Title::new(scatter_titles::TEMPLATE, "");
-        let t = if name.starts_with(':') {
-            parse_target(name, &self.site.config, &page)?
-        } else {
-            let t = parse_target(name, &self.site.config, &page)?;
-            if t.title.namespace == 0 {
-                parse_target(&format!("Template:{name}"), &self.site.config, &page)?
-            } else {
-                t
-            }
-        };
-        let title = t.title;
-        if title.interwiki.is_some() {
-            return None;
-        }
+        let title = transcluded_title(self.site, name)?;
         let key = title.prefixed(&self.site.config);
         match self.known.get(&key) {
             Some(Some(text)) => Some(Transcluded::Found(text.clone())),
@@ -504,15 +508,15 @@ pub struct Transclusion {
 }
 
 /// Expands text for viewing the page that holds it, reading the pages it transcludes, and
-/// says which pages those were. A page hidden from the viewer transcludes as missing
-/// (09 §5.3).
+/// says which pages those were, and where the page's own calls put their output. A page
+/// hidden from the viewer transcludes as missing (09 §5.3).
 pub async fn expand(
     db: &Client,
     tenant: &str,
     site: &Site,
     hidden: &Hidden,
     text: &str,
-) -> Result<(String, Vec<Transclusion>), ApiError> {
+) -> Result<(Expansion, Vec<Transclusion>), ApiError> {
     let mut host = Host {
         site,
         known: HashMap::new(),
@@ -520,7 +524,7 @@ pub async fn expand(
         messages: None,
         wants_messages: std::cell::Cell::new(false),
     };
-    let mut expanded = scatter_wikitext_expand::expand_for_view(text, &host);
+    let mut expanded = scatter_wikitext_expand::expand_for_view_mapped(text, &host);
     let mut used: Vec<Transclusion> = Vec::new();
     for _ in 0..EXPANSION_ROUNDS {
         let misses: Vec<(i32, String)> = std::mem::take(&mut *host.misses.borrow_mut());
@@ -553,7 +557,7 @@ pub async fn expand(
             });
             host.known.insert(key, text);
         }
-        expanded = scatter_wikitext_expand::expand_for_view(text, &host);
+        expanded = scatter_wikitext_expand::expand_for_view_mapped(text, &host);
     }
     Ok((expanded, used))
 }
@@ -710,7 +714,9 @@ pub struct Render {
     pub links: Links,
 }
 
-/// Expands and renders a page's text.
+/// Expands and renders a page's text. With `templates`, each top-level block one of the
+/// page's own template calls drew carries `data-ts-template`, the template's title, and
+/// `data-ts-template-at`, where the call starts in the text, in bytes (0042 §4, A22).
 pub async fn render(
     db: &Client,
     tenant: &str,
@@ -718,10 +724,30 @@ pub async fn render(
     hidden: &Hidden,
     text: &str,
     page: &Title,
+    templates: bool,
 ) -> Result<Render, ApiError> {
-    let (text, transcluded) = expand(db, tenant, site, hidden, text).await?;
+    let (expansion, transcluded) = expand(db, tenant, site, hidden, text).await?;
+    let text = expansion.text;
     let links = Links::read(db, tenant, site, hidden, &text, page).await?;
-    let rendered = scatter_wikitext::render(&text, &site.config, &links, page);
+    let marks: Vec<scatter_wikitext::Mark> = if templates {
+        expansion
+            .calls
+            .iter()
+            .filter_map(|c| {
+                let title = transcluded_title(site, &c.name)?;
+                Some(scatter_wikitext::Mark {
+                    range: c.output.clone(),
+                    attrs: vec![
+                        ("data-ts-template".to_string(), title.prefixed(&site.config)),
+                        ("data-ts-template-at".to_string(), c.at.to_string()),
+                    ],
+                })
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let rendered = scatter_wikitext::render_marked(&text, &site.config, &links, page, &marks);
     Ok(Render {
         rendered,
         transcluded,

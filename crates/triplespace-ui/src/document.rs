@@ -8,7 +8,8 @@
 //!   an old one. The HTML is the API's, sanitized there (0008 A39); the site adds the
 //!   categories at the foot. A title with no page says so, with **Create this page** for
 //!   a signed-in viewer; the main page with no page of its own is the generated one
-//!   ([`crate::home`]).
+//!   ([`crate::home`]). `?tstemplates=1` asks the API to mark each block a template drew
+//!   with `data-ts-template` and `data-ts-template-at`, for template debugging (0042 §4).
 //! - **Edit** is a form of the source, a summary and the minor flag, posted with the
 //!   viewer's CSRF token and the revision it started from, which is the edit's base
 //!   (18 §2.3). **Show preview** renders the text through `action=parse` with the
@@ -27,6 +28,8 @@
 //! tabs, the side-by-side live preview in WebAssembly, CodeMirror, link autocomplete,
 //! **Insert template…**, line-marked conflicts and the Format selector.
 
+use std::fmt::Write as _;
+
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use serde::Serialize;
@@ -40,8 +43,9 @@ use crate::codex::{
     Action as ButtonAction, Button, ButtonModel, Field, FieldModel, Message, MessageKind,
     MessageModel, Weight,
 };
+use crate::diffview::{self, View};
 use crate::entity::history;
-use crate::entity::history::Choice;
+use crate::entity::history::{Choice, Switch};
 use crate::entity::model::Restricted;
 use crate::frame::{Page, Tab, title_url};
 use crate::i18n::Messages;
@@ -318,15 +322,33 @@ pub struct DiffTable {
     pub none: String,
     /// The same diff in MediaWiki's inline layout, HTML; empty where there is none.
     pub inline_html: String,
+    /// Side by side: both revisions rendered, the old one `None` for a creation; drawn
+    /// in place of the rows.
+    pub columns: Option<(Option<Content>, Content)>,
 }
 
 /// `?diff=`: the table, and the newer revision rendered below.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DiffPage {
+    /// The view switch: Source, Text only, Side by side (0010 §6).
+    pub views: Switch,
+    /// "More context" and "Show every line", in a line diff with changes.
+    pub context: Vec<Choice>,
+    /// The diff as a wiki link to copy.
+    pub permalink: Permalink,
     /// The table.
     pub table: DiffTable,
     /// The newer side's heading and rendering, unless `diffonly=1`.
     pub below: Option<(String, Content)>,
+}
+
+/// The copy-ready link to a diff: `[[Special:Diff/…]]` in a read-only field.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Permalink {
+    /// The field's label.
+    pub label: String,
+    /// The link.
+    pub text: String,
 }
 
 /// The context of a template drawn from one model.
@@ -415,9 +437,12 @@ async fn read(
 ) -> Response {
     let oldid = params.map.get("oldid").and_then(|o| o.parse::<u64>().ok());
     let follow = params.map.get("redirect").is_none_or(|r| r != "no");
+    // `tstemplates=1`: which template drew each block, for template debugging; a page
+    // asks for it, so the cached public render never carries it (0042 §4).
+    let templates = params.map.get("tstemplates").is_some_and(|v| v == "1");
     let parsed = match site
         .client()
-        .parse_page(incoming, &title, oldid, follow)
+        .parse_page_marked(incoming, &title, oldid, follow, templates)
         .await
     {
         Ok(p) => p,
@@ -969,7 +994,9 @@ fn diff_ask(title: &str, params: &Params) -> Option<DiffAsk> {
         _ => None,
     };
     match (diff.parse::<u64>().ok().filter(|d| *d > 0), oldid) {
-        (Some(d), Some(o)) => Some(DiffAsk::Revisions(o, d)),
+        // MediaWiki compares the older with the newer, whichever order they came in, as a
+        // history's compare form may send them (0010 §5.6).
+        (Some(d), Some(o)) => Some(DiffAsk::Revisions(o.min(d), o.max(d))),
         (Some(d), None) => Some(DiffAsk::Relative(d, "prev")),
         (None, Some(o)) => rel(diff).map(|r| DiffAsk::Relative(o, r)),
         (None, None) => rel(diff).map(|_| DiffAsk::Latest(title.to_string())),
@@ -1013,6 +1040,17 @@ fn side_model(m: &Messages, side: &DiffSide, latest: bool, nav: Option<Choice>) 
 
 /// The diff table's model: both sides' headers, and the API's rows.
 pub(crate) fn diff_table_model(m: &Messages, d: &PageDiff, latest_revid: Option<u64>) -> DiffTable {
+    diff_table_keeping(m, d, latest_revid, "")
+}
+
+/// The diff table's model, its links to the next diff along keeping the query `keep`
+/// (the view and its context, [`diffview::keep`]).
+fn diff_table_keeping(
+    m: &Messages,
+    d: &PageDiff,
+    latest_revid: Option<u64>,
+    keep: &str,
+) -> DiffTable {
     let title = &d.to.title;
     DiffTable {
         label: m.get("ts-pagediff-label"),
@@ -1023,7 +1061,11 @@ pub(crate) fn diff_table_model(m: &Messages, d: &PageDiff, latest_revid: Option<
                 false,
                 d.prev.map(|_| {
                     choice(
-                        format!("/wiki/{}?diff=prev&oldid={}", title_url(title), f.revid),
+                        format!(
+                            "/wiki/{}?diff=prev&oldid={}{keep}",
+                            title_url(title),
+                            f.revid
+                        ),
                         m.get("ts-pagediff-older"),
                     )
                 }),
@@ -1036,7 +1078,11 @@ pub(crate) fn diff_table_model(m: &Messages, d: &PageDiff, latest_revid: Option<
             latest_revid == Some(d.to.revid),
             d.next.map(|_| {
                 choice(
-                    format!("/wiki/{}?diff=next&oldid={}", title_url(title), d.to.revid),
+                    format!(
+                        "/wiki/{}?diff=next&oldid={}{keep}",
+                        title_url(title),
+                        d.to.revid
+                    ),
                     m.get("ts-pagediff-newer"),
                 )
             }),
@@ -1044,10 +1090,123 @@ pub(crate) fn diff_table_model(m: &Messages, d: &PageDiff, latest_revid: Option<
         body_html: d.body.clone(),
         none: m.get("ts-pagediff-none"),
         inline_html: d.inline.clone(),
+        columns: None,
     }
 }
 
-/// `?diff=`: two revisions compared, the newer rendered below unless `diffonly=1`.
+/// The address of this diff in another view or context.
+fn diff_href(title: &str, d: &PageDiff, view: View, context: diffview::Context) -> String {
+    let mut s = format!("/wiki/{}?diff={}", title_url(title), d.to.revid);
+    if let Some(f) = &d.from {
+        let _ = write!(s, "&oldid={}", f.revid);
+    }
+    s.push_str(&diffview::keep(view, context));
+    s
+}
+
+/// The view switch.
+fn views_model(
+    m: &Messages,
+    title: &str,
+    d: &PageDiff,
+    view: View,
+    context: diffview::Context,
+) -> Switch {
+    let item = |v: View, key: &str| Choice {
+        href: diff_href(title, d, v, context),
+        label: m.get(key),
+        current: v == view,
+    };
+    Switch {
+        label: m.get("ts-pagediff-views"),
+        items: vec![
+            item(View::Source, "ts-pagediff-view-source"),
+            item(View::Text, "ts-pagediff-view-text"),
+            item(View::Rendered, "ts-pagediff-view-rendered"),
+        ],
+    }
+}
+
+/// "More context" and "Show every line", for a line diff that has changes.
+fn context_model(
+    m: &Messages,
+    title: &str,
+    d: &PageDiff,
+    view: View,
+    context: diffview::Context,
+    has_rows: bool,
+) -> Vec<Choice> {
+    if !view.has_lines() || !has_rows {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    if let Some(more) = context.more() {
+        out.push(choice(
+            diff_href(title, d, view, more),
+            m.get("ts-pagediff-more-context"),
+        ));
+        if !more.is_all() {
+            out.push(choice(
+                diff_href(title, d, view, diffview::Context::all()),
+                m.get("ts-pagediff-all-context"),
+            ));
+        }
+    }
+    out
+}
+
+/// The diff page's answer when a revision it needs is missing or hidden from the viewer.
+fn diff_missing(cx: &Context, headers: &HeaderMap, title: &str) -> Response {
+    pages::respond(cx, headers, StatusCode::NOT_FOUND, |m| Page {
+        body: cx.message(MessageKind::Error, &m.get("ts-pagediff-missing")),
+        returnto: Some(title.to_string()),
+        title: title.to_string(),
+        ..Page::default()
+    })
+}
+
+/// A revision's rendering: `Ok(None)` when the API refuses it (missing or hidden).
+async fn rendering(
+    site: &Site,
+    cx: &mut Context,
+    incoming: &Incoming,
+    title: &str,
+    revid: u64,
+) -> Result<Option<Parsed>, ClientError> {
+    match site
+        .client()
+        .parse_page(incoming, title, Some(revid), false)
+        .await
+    {
+        Ok(p) => {
+            cx.inputs.push(p.cache);
+            Ok(Some(p.value))
+        }
+        Err(ClientError::Api { .. }) => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
+/// A revision's source: `Ok(None)` when it is missing or hidden.
+async fn source_text(
+    site: &Site,
+    cx: &mut Context,
+    incoming: &Incoming,
+    revid: u64,
+) -> Result<Option<String>, ClientError> {
+    match site.client().revision_text(incoming, revid).await {
+        Ok(t) => {
+            cx.inputs.push(t.cache);
+            Ok(t.value)
+        }
+        Err(ClientError::Api { .. }) => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
+/// `?diff=`: two revisions compared, the newer rendered below unless `diffonly=1`; with
+/// `view=` and `context=`, the other views of 0010 §6 ([`diffview`]).
+#[allow(clippy::too_many_lines)]
 async fn page_diff(
     site: &Site,
     mut cx: Context,
@@ -1064,18 +1223,22 @@ async fn page_diff(
             ..Page::default()
         });
     };
-    let diff = match site.client().page_diff(incoming, &ask).await {
+    let view = View::of(&params.map);
+    let context = diffview::Context::of(&params.map);
+    // The API's diff serves the default view; the others draw their own from the sides.
+    let own = view != View::Source || context.0.is_some();
+    let fetched = if own {
+        site.client().page_diff_sides(incoming, &ask).await
+    } else {
+        site.client().page_diff(incoming, &ask).await
+    };
+    let diff = match fetched {
         Ok(d) => d,
         Err(ClientError::Api { code, .. }) => {
             return match code.as_str() {
                 "missingtitle" => missing(&cx, headers, title, false),
                 "nosuchrevid" | "missingcontent" | "permissiondenied" => {
-                    pages::respond(&cx, headers, StatusCode::NOT_FOUND, |m| Page {
-                        body: cx.message(MessageKind::Error, &m.get("ts-pagediff-missing")),
-                        returnto: Some(title.clone()),
-                        title: title.clone(),
-                        ..Page::default()
-                    })
+                    diff_missing(&cx, headers, &title)
                 }
                 _ => pages::no_page(&cx, headers, title),
             };
@@ -1083,31 +1246,92 @@ async fn page_diff(
         Err(e) => return pages::api_failed(&cx, headers, &e),
     };
     cx.inputs.push(diff.cache);
-    let diff = diff.value;
+    let mut diff = diff.value;
     let page_title = diff.to.title.clone();
-    // Whether the newer side is the page's latest revision, and its rendering.
+    // Whether the newer side is the page's latest revision.
     let latest = diff.next.is_none().then_some(diff.to.revid);
-    let below = if params.map.get("diffonly").is_some_and(|v| v == "1") {
-        None
-    } else {
-        match site
-            .client()
-            .parse_page(incoming, &page_title, Some(diff.to.revid), false)
-            .await
-        {
-            Ok(p) => {
-                cx.inputs.push(p.cache);
-                Some(p.value)
+    let diffonly = params.map.get("diffonly").is_some_and(|v| v == "1");
+    let from_rev = diff.from.as_ref().map(|f| f.revid);
+    let to_rev = diff.to.revid;
+    let lineno = |m: &Messages, n: usize| m.with("ts-pagediff-lineno", &[&n.to_string()]);
+    let mut below: Option<Parsed> = None;
+    let mut columns: Option<(Option<Parsed>, Parsed)> = None;
+    match view {
+        View::Source => {
+            if own {
+                let old = match from_rev {
+                    Some(r) => match source_text(site, &mut cx, incoming, r).await {
+                        Ok(Some(t)) => t,
+                        Ok(None) => return diff_missing(&cx, headers, &page_title),
+                        Err(e) => return pages::api_failed(&cx, headers, &e),
+                    },
+                    None => String::new(),
+                };
+                let new = match source_text(site, &mut cx, incoming, to_rev).await {
+                    Ok(Some(t)) => t,
+                    Ok(None) => return diff_missing(&cx, headers, &page_title),
+                    Err(e) => return pages::api_failed(&cx, headers, &e),
+                };
+                let m = &cx.m;
+                (diff.body, diff.inline) = diffview::rows(&old, &new, context, |n| lineno(m, n));
             }
-            Err(ClientError::Api { .. }) => None,
-            Err(e) => return pages::api_failed(&cx, headers, &e),
+            if !diffonly {
+                match rendering(site, &mut cx, incoming, &page_title, to_rev).await {
+                    Ok(p) => below = p,
+                    Err(e) => return pages::api_failed(&cx, headers, &e),
+                }
+            }
         }
-    };
+        View::Text | View::Rendered => {
+            let old = match from_rev {
+                Some(r) => match rendering(site, &mut cx, incoming, &page_title, r).await {
+                    Ok(Some(p)) => Some(p),
+                    Ok(None) => return diff_missing(&cx, headers, &page_title),
+                    Err(e) => return pages::api_failed(&cx, headers, &e),
+                },
+                None => None,
+            };
+            let new = match rendering(site, &mut cx, incoming, &page_title, to_rev).await {
+                Ok(Some(p)) => p,
+                Ok(None) => return diff_missing(&cx, headers, &page_title),
+                Err(e) => return pages::api_failed(&cx, headers, &e),
+            };
+            if view == View::Text {
+                let old_text = old
+                    .as_ref()
+                    .map(|p| diffview::prose(&p.html))
+                    .unwrap_or_default();
+                let new_text = diffview::prose(&new.html);
+                let m = &cx.m;
+                (diff.body, diff.inline) =
+                    diffview::rows(&old_text, &new_text, context, |n| lineno(m, n));
+                if !diffonly {
+                    below = Some(new);
+                }
+            } else {
+                columns = Some((old, new));
+            }
+        }
+    }
     pages::respond(&cx, headers, StatusCode::OK, |m| {
+        let keep = diffview::keep(view, context);
+        let mut table = diff_table_keeping(m, &diff, latest, &keep);
+        table.columns = columns.as_ref().map(|(old, new)| {
+            (
+                old.as_ref().map(|p| content_model(m, p)),
+                content_model(m, new),
+            )
+        });
         let body = cx.draw(
             "document/diff.html",
             DiffPage {
-                table: diff_table_model(m, &diff, latest),
+                views: views_model(m, &page_title, &diff, view, context),
+                context: context_model(m, &page_title, &diff, view, context, !diff.body.is_empty()),
+                permalink: Permalink {
+                    label: m.get("ts-pagediff-permalink"),
+                    text: diffview::permalink(from_rev, to_rev),
+                },
+                table,
                 below: below.as_ref().map(|p| {
                     let key = if latest.is_some() {
                         "ts-pagediff-latest-as-of"
@@ -1185,6 +1409,11 @@ mod tests {
         assert_eq!(ask(&[("diff", "7")]), Some(DiffAsk::Relative(7, "prev")));
         assert_eq!(
             ask(&[("diff", "9"), ("oldid", "7")]),
+            Some(DiffAsk::Revisions(7, 9))
+        );
+        // 0010 §5.6: a history's compare form may send the newer as `oldid`.
+        assert_eq!(
+            ask(&[("diff", "7"), ("oldid", "9")]),
             Some(DiffAsk::Revisions(7, 9))
         );
         assert_eq!(

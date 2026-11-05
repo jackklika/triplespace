@@ -18,6 +18,9 @@ use similar::{ChangeTag, DiffOp, TextDiff};
 /// Lines of context around a change, as MediaWiki shows.
 pub const CONTEXT: usize = 2;
 
+/// Context that keeps every line. Not `usize::MAX`: the grouping doubles it.
+pub const ALL_LINES: usize = usize::MAX / 4;
+
 /// A run of text in a changed line, and whether it changed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Segment {
@@ -129,9 +132,16 @@ fn words(old: &str, new: &str) -> Vec<Part> {
 /// The hunks between two texts; none when they are equal.
 #[must_use]
 pub fn diff(old: &str, new: &str) -> Vec<Hunk> {
+    diff_with_context(old, new, CONTEXT)
+}
+
+/// The hunks between two texts with `context` lines of context around each change
+/// instead of [`CONTEXT`]; [`ALL_LINES`] keeps every line, as one hunk (0010 §6).
+#[must_use]
+pub fn diff_with_context(old: &str, new: &str, context: usize) -> Vec<Hunk> {
     let (a, b) = (lines(old), lines(new));
     let ops = similar::capture_diff_slices(similar::Algorithm::Myers, &a, &b);
-    let groups = similar::group_diff_ops(ops, CONTEXT);
+    let groups = similar::group_diff_ops(ops, context);
     let mut hunks = Vec::new();
     for group in groups {
         let Some(first) = group.first() else { continue };
@@ -377,6 +387,31 @@ mod tests {
         assert!(diff("a\nb", "a\nb").is_empty());
         assert!(diff("", "").is_empty());
         assert_eq!(table_rows(&[], line), "");
+    }
+
+    // 0010 §6: the diff page's "More context" asks for more lines around each change.
+    #[test]
+    fn context_widens_and_joins_hunks() {
+        let old: Vec<String> = (1..=20).map(|i| format!("l{i}")).collect();
+        let mut new = old.clone();
+        new[4] = "changed 5".into();
+        new[14] = "changed 15".into();
+        let (old, new) = (old.join("\n"), new.join("\n"));
+        let two = diff(&old, &new);
+        assert_eq!(two.len(), 2, "two changes ten lines apart are two hunks");
+        assert_eq!(two[0].rows.len(), 5);
+        let five = diff_with_context(&old, &new, 5);
+        assert_eq!(five.len(), 1, "their context meets");
+        assert_eq!((five[0].old_line, five[0].rows.len()), (1, 20));
+        let three = diff_with_context(&old, &new, 3);
+        assert_eq!(three.len(), 2);
+        assert_eq!((three[1].old_line, three[1].rows.len()), (12, 7));
+        let middle = old.replace("l10\n", "ten\n");
+        assert_eq!(diff(&old, &middle)[0].rows.len(), 5);
+        let all = diff_with_context(&old, &middle, ALL_LINES);
+        assert_eq!(all.len(), 1);
+        assert_eq!((all[0].old_line, all[0].rows.len()), (1, 20), "every line");
+        assert!(diff_with_context(&old, &old, ALL_LINES).is_empty());
     }
 
     #[test]

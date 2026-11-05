@@ -1,9 +1,10 @@
 {#- The History tab of an entity, a page or a discussion (19 §3.3–3.5; 16 §6.1): the source
-    switch, the latest-only note, the rows as the changes table draws them, and the pager. -#}
+    switch, the latest-only note, the rows as the changes table draws them (in the compare
+    form where two of them can be compared, 0010 §5.6), and the pager. -#}
 {%- import "nav.html" as shared -%}
 {%- import "changes.html" as changes -%}
 <div class="ts-history">
 {%- if switch %}{{ shared.switch(switch, "ts-history__switch") }}{% endif -%}
 {%- if note %}<aside class="ts-history__note"><p>{{ note }}</p></aside>{% endif -%}
-{%- if empty %}<p class="ts-empty">{{ empty }}</p>{% else %}{% if list %}{{ changes.list(list) }}{% endif %}{% if pager %}{{ shared.pager(pager) }}{% endif %}{% endif -%}
+{%- if empty %}<p class="ts-empty">{{ empty }}</p>{% else %}{% if list %}{% if compare %}<form class="ts-history__compare" action="/w/index.php" method="get"><input type="hidden" name="title" value="{{ compare.title }}"><div class="ts-history__compare-actions"><button class="cdx-button" type="submit">{{ compare.button }}</button></div>{{ changes.list(list) }}</form>{% else %}{{ changes.list(list) }}{% endif %}{% endif %}{% if pager %}{{ shared.pager(pager) }}{% endif %}{% endif -%}
 </div>

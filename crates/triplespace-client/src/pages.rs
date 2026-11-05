@@ -341,6 +341,25 @@ impl Client {
         oldid: Option<u64>,
         follow: bool,
     ) -> Result<Fetched<Parsed>, ClientError> {
+        self.parse_page_marked(incoming, title, oldid, follow, false)
+            .await
+    }
+
+    /// As [`Self::parse_page`], with `templates` asking the API to mark the blocks each
+    /// of the page's template calls drew (`tstemplates`; 0042 §4).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::parse_page`].
+    pub async fn parse_page_marked(
+        &self,
+        incoming: &Incoming,
+        title: &str,
+        oldid: Option<u64>,
+        follow: bool,
+        templates: bool,
+    ) -> Result<Fetched<Parsed>, ClientError> {
+        let marked = if templates { "&tstemplates=1" } else { "" };
         let which = match oldid {
             Some(r) => format!("oldid={r}"),
             None if follow => format!("page={}&redirects=1", q(title)),
@@ -350,7 +369,7 @@ impl Client {
             .get(
                 incoming,
                 &format!(
-                    "/w/api.php?action=parse&{which}&prop=text%7Ccategories%7Ctemplates&format=json&formatversion=2"
+                    "/w/api.php?action=parse&{which}&prop=text%7Ccategories%7Ctemplates{marked}&format=json&formatversion=2"
                 ),
             )
             .await?;
@@ -566,12 +585,61 @@ impl Client {
         incoming: &Incoming,
         ask: &DiffAsk,
     ) -> Result<Fetched<PageDiff>, ClientError> {
+        self.compare_pages(incoming, ask, true).await
+    }
+
+    /// `action=compare` for the two sides only: their headers and neighbours, with
+    /// `body` and `inline` empty, in one request. The diff page's other views draw their
+    /// own diff (0010 §6).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::page_diff`].
+    pub async fn page_diff_sides(
+        &self,
+        incoming: &Incoming,
+        ask: &DiffAsk,
+    ) -> Result<Fetched<PageDiff>, ClientError> {
+        self.compare_pages(incoming, ask, false).await
+    }
+
+    async fn compare_pages(
+        &self,
+        incoming: &Incoming,
+        ask: &DiffAsk,
+        with_diff: bool,
+    ) -> Result<Fetched<PageDiff>, ClientError> {
         let which = match ask {
             DiffAsk::Revisions(from, to) => format!("fromrev={from}&torev={to}"),
             DiffAsk::Relative(from, rel) => format!("fromrev={from}&torelative={rel}"),
             DiffAsk::Latest(title) => format!("fromtitle={}&torelative=prev", q(title)),
             DiffAsk::Between(from, to) => format!("{}&{}", from.param("from"), to.param("to")),
         };
+        if !with_diff {
+            let r = self
+                .get(
+                    incoming,
+                    &format!(
+                        "/w/api.php?action=compare&{which}&prop=ids%7Ctitle%7Cuser%7Ccomment%7Csize%7Ctimestamp%7Crel&format=json&formatversion=2"
+                    ),
+                )
+                .await?;
+            let v = check(&r)?;
+            let c = &v["compare"];
+            let to = diff_side(c, "to")
+                .ok_or_else(|| ClientError::Unexpected(format!("compare answered {c}")))?;
+            return Ok(Fetched {
+                value: PageDiff {
+                    from: diff_side(c, "from"),
+                    to,
+                    body: String::new(),
+                    inline: String::new(),
+                    prev: c["prev"].as_u64(),
+                    next: c["next"].as_u64(),
+                },
+                cache: CacheInfo::of(&r),
+            });
+        }
         let table = format!(
             "/w/api.php?action=compare&{which}&prop=diff%7Cids%7Ctitle%7Cuser%7Ccomment%7Csize%7Ctimestamp%7Crel&format=json&formatversion=2"
         );
@@ -598,6 +666,42 @@ impl Client {
                 next: c["next"].as_u64(),
             },
             cache: CacheInfo::combine(&[CacheInfo::of(&r), CacheInfo::of(&ri)]),
+        })
+    }
+
+    /// The source text of one revision of a document page, `prop=revisions&revids=`;
+    /// `None` when the revision is not found or its text is hidden from the viewer.
+    ///
+    /// # Errors
+    ///
+    /// The API away or unreadable.
+    pub async fn revision_text(
+        &self,
+        incoming: &Incoming,
+        revid: u64,
+    ) -> Result<Fetched<Option<String>>, ClientError> {
+        let r = self
+            .get(
+                incoming,
+                &format!(
+                    "/w/api.php?action=query&prop=revisions&revids={revid}&rvprop=ids%7Ccontent&rvslots=main&format=json&formatversion=2"
+                ),
+            )
+            .await?;
+        let v = check(&r)?;
+        let value = v["query"]["pages"].as_array().and_then(|pages| {
+            pages.iter().find_map(|p| {
+                p["revisions"].as_array()?.iter().find_map(|rev| {
+                    (rev["revid"].as_u64() == Some(revid))
+                        .then(|| rev["slots"]["main"]["content"].as_str())
+                        .flatten()
+                        .map(str::to_string)
+                })
+            })
+        });
+        Ok(Fetched {
+            value,
+            cache: CacheInfo::of(&r),
         })
     }
 

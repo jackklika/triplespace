@@ -24,13 +24,9 @@ strike what stops being true. Implementation status is not kept here (24 §15: `
 - It cannot install the pinned Rust toolchain and falls back to stable (`dev_env.sh` says so);
   rustfmt and clippy may differ from CI's, and there is no wasm32 target, so `cargo xtask wasm`
   cannot run there. Say so when reporting.
-- Its Playwright browsers (build 1243, `/opt/pw-browsers`) do not match the repo's pinned
-  `@playwright/test` 1.56 and cannot be downloaded. To run `ui/e2e` there, either
-  `npm i -D @playwright/test@1.63.0 --no-save` first and restore `package.json`/`package-lock.json`
-  after, or, leaving the repo untouched, set `PLAYWRIGHT_BROWSERS_PATH` to a folder whose
-  `chromium_headless_shell-1194/chrome-linux/` holds symlinks to the 1243 build's files plus
-  `headless_shell` → `chrome-headless-shell`, with empty `INSTALLATION_COMPLETE` and
-  `DEPENDENCIES_VALIDATED` files beside it.
+- Its Playwright browsers (build 1243, `/opt/pw-browsers`) are the ones `@playwright/test` 1.63.0
+  expects, which is the version `ui/package.json` pins, so `ui/e2e` runs there as it is. They
+  cannot be downloaded: if the pin moves past 1.63, the sandbox's browsers no longer match.
 - `pkill -f triplespace-server` from a sandbox shell kills the calling shell too (its command line
   contains the name); match on the binary path (`pkill -f "^/home/.*/triplespace-server"`), and
   start a test server and query it within one call, since background processes die when the call

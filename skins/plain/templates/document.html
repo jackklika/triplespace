@@ -28,17 +28,18 @@
 {%- endmacro -%}
 
 {#- One side of a page diff's header. -#}
-{%- macro side(s) -%}
+{%- macro side(s, rel) -%}
 <div class="ts-page-diff__revision"><strong><a href="{{ s.revision.href }}">{{ s.revision.label }}</a></strong></div>
 {%- if s.user %}<div class="ts-page-diff__user"><a href="{{ s.user.href }}">{{ s.user.label }}</a></div>{% else %}<div class="ts-page-diff__user ts-change__hidden">{{ s.hidden_user }}</div>{% endif -%}
 {%- if s.comment is none %}<div class="ts-page-diff__comment ts-change__hidden">{{ s.hidden_comment }}</div>{% elif s.comment %}<div class="ts-page-diff__comment">({{ s.comment }})</div>{% endif -%}
-{%- if s.nav %}<div class="ts-page-diff__nav"><a href="{{ s.nav.href }}">{{ s.nav.label }}</a></div>{% endif -%}
+{%- if s.nav %}<div class="ts-page-diff__nav"><a href="{{ s.nav.href }}" rel="{{ rel }}">{{ s.nav.label }}</a></div>{% endif -%}
 {%- endmacro -%}
 
 {#- The diff table: both sides' headers, and the API's rows. -#}
 {%- macro difftable(t) -%}
-<table class="diff ts-page-diff__table" aria-label="{{ t.label }}"><colgroup><col class="diff-marker"><col class="diff-content"><col class="diff-marker"><col class="diff-content"></colgroup><thead><tr><th colspan="2" scope="col" class="diff-otitle">{% if t.from %}{{ side(t.from) }}{% else %}<div class="ts-page-diff__revision">{{ t.creation }}</div>{% endif %}</th><th colspan="2" scope="col" class="diff-ntitle">{{ side(t.to) }}</th></tr></thead><tbody>
-{%- if t.body_html %}{{ t.body_html|safe }}{% else %}<tr><td colspan="4" class="diff-notice"><div class="mw-diff-empty">{{ t.none }}</div></td></tr>{% endif -%}
+<table class="diff ts-page-diff__table" aria-label="{{ t.label }}"><colgroup><col class="diff-marker"><col class="diff-content"><col class="diff-marker"><col class="diff-content"></colgroup><thead><tr><th colspan="2" scope="col" class="diff-otitle">{% if t.from %}{{ side(t.from, "prev") }}{% else %}<div class="ts-page-diff__revision">{{ t.creation }}</div>{% endif %}</th><th colspan="2" scope="col" class="diff-ntitle">{{ side(t.to, "next") }}</th></tr></thead><tbody>
+{%- if t.columns %}<tr class="ts-page-diff__columns"><td colspan="2" class="ts-page-diff__column">{% if t.columns[0] %}{{ content(t.columns[0]) }}{% endif %}</td><td colspan="2" class="ts-page-diff__column">{{ content(t.columns[1]) }}</td></tr>
+{%- elif t.body_html %}{{ t.body_html|safe }}{% else %}<tr><td colspan="4" class="diff-notice"><div class="mw-diff-empty">{{ t.none }}</div></td></tr>{% endif -%}
 </tbody></table>
 {%- if t.inline_html %}<div class="ts-page-diff__inline mw-diff-inline" role="region" aria-label="{{ t.label }}">{{ t.inline_html|safe }}</div>{% endif -%}
 {%- endmacro -%}

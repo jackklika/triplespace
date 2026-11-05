@@ -1,5 +1,11 @@
-{#- `?diff=`: two revisions compared, the newer rendered below unless `diffonly=1`. -#}
+{#- `?diff=`: two revisions compared, the newer rendered below unless `diffonly=1`; the view
+    switch, the context control and the permalink above the table (0010 §6). -#}
 {%- import "document.html" as document -%}
-<div class="ts-page-diff">{{ document.difftable(table) }}
+{%- import "nav.html" as shared -%}
+<div class="ts-page-diff" data-ts-diffnav>
+<div class="ts-page-diff__tools">{{ shared.switch(views, "ts-page-diff__views") }}
+{%- if context %}<p class="ts-page-diff__context">{% for c in context %}{% if not loop.first %} · {% endif %}<a href="{{ c.href }}">{{ c.label }}</a>{% endfor %}</p>{% endif -%}
+<div class="ts-page-diff__permalink"><label for="ts-diff-permalink">{{ permalink.label }}</label> <div class="cdx-text-input"><input class="cdx-text-input__input" id="ts-diff-permalink" type="text" readonly dir="ltr" value="{{ permalink.text }}"></div></div></div>
+{{ document.difftable(table) }}
 {%- if below %}<h2 class="ts-page-diff__heading">{{ below[0] }}</h2><div class="ts-document">{{ document.content(below[1]) }}</div>{% endif -%}
 </div>

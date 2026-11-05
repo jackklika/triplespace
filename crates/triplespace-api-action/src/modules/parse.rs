@@ -7,7 +7,9 @@
 //! `links`, `templates`, `categories`, `externallinks`, `sections`, `revid`,
 //! `displaytitle`, `wikitext`, `parsewarnings`, `properties`, and `langlinks`, `images`
 //! and `iwlinks`, which are empty here. The renderer is the built-in one (11 §1.2),
-//! after expansion, which is part of wikitext (0042 A19). Entity pages are not
+//! after expansion, which is part of wikitext (0042 A19). The Triplespace flag
+//! `tstemplates` marks each top-level block one of the page's template calls drew with
+//! `data-ts-template` and `data-ts-template-at` (0042 A22). Entity pages are not
 //! parsed: their HTML is the site's.
 
 use std::collections::BTreeSet;
@@ -273,7 +275,17 @@ pub async fn run(ctx: &mut Ctx) -> Result<ApiResponse, ApiError> {
         return Ok(ApiResponse::ok(json!({"parse": Value::Object(out)})));
     }
 
-    let render = pages::render(ctx.db(), &tenant, &site, &hidden, &src.text, &src.title).await?;
+    // Triplespace's `tstemplates`: mark the blocks each template drew (0042 §4, A22).
+    let render = pages::render(
+        ctx.db(),
+        &tenant,
+        &site,
+        &hidden,
+        &src.text,
+        &src.title,
+        ctx.params.flag("tstemplates"),
+    )
+    .await?;
     let ex = &render.rendered.extracted;
     if want("text") {
         let html = render.rendered.html.clone();
