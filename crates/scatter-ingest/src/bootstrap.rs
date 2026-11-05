@@ -10,10 +10,10 @@
 //! time, gives them page IDs from one reservation, appends them with
 //! [`IngestStore::append_many`] (binary `COPY` in Postgres) and commits.
 //!
-//! Built so far (stage A): the block write and the parallel preparation. The projections
-//! still run per record, inline, as [`crate::write::append_projected`] runs them, so the
-//! record table keeps its key index for their reads; set-based projections over the loaded
-//! states and the deferred index build are stage B. A load runs in units of `batch`
+//! The projections run during the load, over each block at once
+//! ([`scatter_projection::Pipeline::apply_inline_many`]; 0013 A71): set-based where a
+//! projection has a form for it, record by record otherwise, so the record table keeps its
+//! key index for that path. A load runs in units of `batch`
 //! records, each committed: a load that fails part way leaves a partition without holes,
 //! which a rerun (no longer empty) continues through the ordinary sync, whose version
 //! cursor skips what is already there. The coordinator table of 05 §3.8, for writers in
@@ -314,7 +314,8 @@ where
 }
 
 /// Gives a block its page IDs from one reservation, appends it, and runs the synchronous
-/// projections on each record, as [`crate::write::append_projected`] does for one.
+/// projections over the block ([`Pipeline::apply_inline_many`]): set-based where a
+/// projection has a form for it, record by record otherwise.
 async fn write_block<S: IngestStore>(
     store: &S,
     pipeline: &Pipeline<S>,
@@ -330,10 +331,8 @@ async fn write_block<S: IngestStore>(
         draft.page_id = Some(page);
     }
     let records: Vec<Record> = store.append_many(cx, partition, block).await?;
-    for record in &records {
-        pipeline
-            .apply_inline(store, cx, record, Budget::NONE)
-            .await?;
-    }
+    pipeline
+        .apply_inline_many(store, cx, &records, Budget::NONE)
+        .await?;
     Ok(())
 }

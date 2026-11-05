@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-09-26
-- **Updated:** 2026-11-05 (A70)
+- **Updated:** 2026-11-05 (A71)
 - **Author:** James Hare / Claude Fable
 - **Changes:** [0000](0000-init.md), [0001](0001-revision-metadata-rdf.md), [0002](0002-source-graphs-and-mass-ingest.md), [0005](0005-crate-organization.md), [0006](0006-log-integrity-and-erasure.md), [0008](0008-namespaces-and-document-pages.md), [0010](0010-site-ui.md), [0011](0011-logs.md), [0012](0012-api-requirements.md)
 - **Uses:** [0004](0004-identity-clusters-and-equivalence.md), [0007](0007-actor-identity.md), [0009](0009-keyed-entity-types-and-domain.md), [0014](0014-caches-and-search.md)
@@ -129,7 +129,7 @@ PostgreSQL is already part of the deployment stack, and the only question the st
 
 ### 9. Bootstrap mode (extends 0002 §8.6; uses 0006 §5)
 
-*Changed by A31, A53, A70.*
+*Changed by A31, A53, A70, A71.*
 
 *Current text: [05](../architecture/05-providers-and-ingest.md) §3.8.*
 
@@ -982,4 +982,17 @@ Replaced text ([03](../architecture/03-storage-caches-and-search.md) §4.8, as i
 - **Source:** Direct: Claude, while building bootstrap mode's first stage, 2026-11-05; unconfirmed
 - **Change:** extends §9
 - **Summary:** `triplespace sync` enters bootstrap mode by itself for an instance mirror whose partition is empty, whose provider has no key map and whose dump is JSON, and `--no-bootstrap` opts out. A key-mapped provider is excluded because a keyed subject's surrogate is minted on the write path (0009 §7); an XML dump because its pages are not independent lines. The records are the ordinary sync's for an empty partition, prepared on worker threads from the dump alone and given offsets and page IDs in dump order by one coordinator; its job carries `bootstrap: true` among its arguments. A load commits block by block, so a failure leaves no holes, and a rerun, the partition no longer empty, continues through the ordinary sync. Measured on the 20k slice of the 2M Wikidata benchmark: 112 to 225 entities/s, with the same records, tree and view rows as the ordinary sync and a rebuild identical to the load (`docs/testing/performance.md` §8).
+
+### A71. Bootstrap projections run per block, during the load
+
+- **Date:** 2026-11-05
+- **Source:** Direct: Claude, while building bootstrap mode's set-based projections, 2026-11-05; unconfirmed
+- **Change:** amends §9
+- **Summary:** A bootstrap load projects as it goes, a block at a time: each synchronous projection takes the block's records at once (`Projection::apply_many`, defaulting to one at a time), set-based where it has a form for it (for a mirror's `put` of a subject no other graph or overlay holds: the entity source, the entity row with its terms and identifiers, and activity), record by record otherwise. The views are current after every committed block, a load that stops part way needs no projection pass, and the partition keeps its key index for the record-by-record path. Building indexes after the load and projecting in one pass over it stay open, should per-block projection become the limit. Measured on the 2M Wikidata benchmark: 1 h 44 min (321 entities/s) against 2 h 56 min with projections record by record, 0.13 statements per entity against 11.0, and the same view rows (`docs/testing/performance.md` §8).
+
+Replaced text ([05](../architecture/05-providers-and-ingest.md) §3.8, as it stood):
+
+> 1. The target child tables are created with the primary key only. The mirror partition's `(key, offset)` index and every `view` table are absent.
+
+> 4. Indexes are built, then projections run in the order of [0013](../decisions/0013-postgres-storage.md) §7, each in one pass over the partition; composition is set-based, one pass over the loaded states, and the consumers of composition (constraints, scopes, search documents, the RDF delta and the rest, [03](../architecture/03-storage-caches-and-search.md)) stay off until the operator turns them on.
 

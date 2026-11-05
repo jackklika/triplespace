@@ -299,6 +299,105 @@ impl<B: Backend<Cx = PgCx>> Projection<B> for EntitySourceProjection {
         })
     }
 
+    /// A block of `put`s, each naming its subject once, is one multi-row upsert of the rows
+    /// [`Projection::apply`] writes one at a time (0013 §9); any other block is applied
+    /// record by record.
+    fn apply_many<'a>(
+        &'a self,
+        cx: &'a mut PgCx,
+        records: &'a [Record],
+    ) -> BoxFuture<'a, Result<Applied, String>> {
+        Box::pin(async move {
+            let info = partition_info(cx, records[0].header().partition).await?;
+            let mut subjects = std::collections::BTreeSet::new();
+            let mut puts: Vec<(&Record, EntityId, Cursor)> = Vec::with_capacity(records.len());
+            for record in records {
+                match operation(record)? {
+                    Some(Operation::Put {
+                        id,
+                        upstream,
+                        prev_upstream,
+                        size,
+                        ..
+                    }) if subjects.insert(id.as_str().to_string()) => {
+                        let cursor = Cursor {
+                            version: version_text(&upstream),
+                            prev: prev_upstream.as_ref().and_then(version_text),
+                            size: content_size(record, size),
+                        };
+                        puts.push((record, id, cursor));
+                    }
+                    _ => {
+                        let mut out = Applied::default();
+                        for record in records {
+                            let a = Projection::<B>::apply(self, cx, record).await?;
+                            out.rows += a.rows;
+                            out.fanout.extend(a.fanout);
+                        }
+                        return Ok(out);
+                    }
+                }
+            }
+            let mut ids = Vec::with_capacity(puts.len());
+            let mut offsets = Vec::with_capacity(puts.len());
+            let mut versions = Vec::with_capacity(puts.len());
+            let mut prevs = Vec::with_capacity(puts.len());
+            let mut hashes: Vec<Vec<u8>> = Vec::with_capacity(puts.len());
+            let mut sizes = Vec::with_capacity(puts.len());
+            let mut synced = Vec::with_capacity(puts.len());
+            let mut jobs = Vec::with_capacity(puts.len());
+            for (record, id, cursor) in puts {
+                ids.push(id.as_str().to_string());
+                offsets.push(offset_db(record)?);
+                versions.push(cursor.version);
+                prevs.push(cursor.prev);
+                hashes.push(
+                    record
+                        .body()
+                        .content_hash()
+                        .ok_or("the content part is present")?
+                        .to_vec(),
+                );
+                sizes.push(cursor.size);
+                synced.push(time_of(record.header().appended_at));
+                jobs.push(
+                    attested(record)
+                        .job
+                        .map(i64::try_from)
+                        .transpose()
+                        .map_err(|e| e.to_string())?,
+                );
+            }
+            let n = cx
+                .execute(
+                    "INSERT INTO view.entity_source
+                       (tenant, entity_id, graph, \"offset\", upstream_version, prev_upstream, content_hash, size, synced_at, job_id)
+                     SELECT $1, t.entity_id, $2, t.\"offset\", t.upstream_version, t.prev_upstream, t.content_hash, t.size, t.synced_at, t.job_id
+                     FROM unnest($3::text[], $4::bigint[], $5::text[], $6::text[], $7::bytea[], $8::int[], $9::timestamptz[], $10::bigint[])
+                          AS t(entity_id, \"offset\", upstream_version, prev_upstream, content_hash, size, synced_at, job_id)
+                     ON CONFLICT (tenant, entity_id, graph) DO UPDATE SET
+                       \"offset\" = EXCLUDED.\"offset\", upstream_version = EXCLUDED.upstream_version,
+                       prev_upstream = EXCLUDED.prev_upstream, content_hash = EXCLUDED.content_hash,
+                       size = EXCLUDED.size, synced_at = EXCLUDED.synced_at, job_id = EXCLUDED.job_id",
+                    &[
+                        &info.tenant,
+                        &info.name,
+                        &ids,
+                        &offsets,
+                        &versions,
+                        &prevs,
+                        &hashes,
+                        &sizes,
+                        &synced,
+                        &jobs,
+                    ],
+                )
+                .await
+                .map_err(|e| sql(&e))?;
+            Ok(rows(n))
+        })
+    }
+
     fn reset<'a>(&'a self, cx: &'a mut PgCx, partition: u64) -> BoxFuture<'a, Result<(), String>> {
         Box::pin(async move {
             let info = partition_info(cx, partition).await?;

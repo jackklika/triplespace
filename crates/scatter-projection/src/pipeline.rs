@@ -187,6 +187,82 @@ impl<B: Backend> Pipeline<B> {
         Ok(out)
     }
 
+    /// [`Self::apply_inline`] for consecutive records of one partition, a block at a time:
+    /// each synchronous projection takes the records it accepts with
+    /// [`Projection::apply_many`] and its position moves once, past the last. Projections
+    /// run in dependency order, each over the whole block, which is safe because a
+    /// projection reads only the tables of earlier steps. Fan-out the budget leaves is
+    /// queued at the block's last offset.
+    ///
+    /// # Panics
+    ///
+    /// When the records are not consecutive offsets of one partition.
+    pub async fn apply_inline_many(
+        &self,
+        backend: &B,
+        cx: &mut B::Cx,
+        records: &[Record],
+        budget: Budget,
+    ) -> Result<Inline, ProjectionError> {
+        let (Some(first), Some(last)) = (records.first(), records.last()) else {
+            return Ok(Inline::default());
+        };
+        let partition = first.header().partition;
+        assert!(
+            records
+                .iter()
+                .zip(first.header().offset..)
+                .all(|(r, o)| r.header().partition == partition && r.header().offset == o),
+            "apply_inline_many takes consecutive records of one partition"
+        );
+        let started = Instant::now();
+        let mut out = Inline::default();
+        let mut pending: Vec<(&dyn Projection<B>, Target)> = Vec::new();
+        for p in self.synchronous() {
+            let accepted: Vec<Record> = records
+                .iter()
+                .filter(|r| p.accepts(r.header()))
+                .cloned()
+                .collect();
+            if !accepted.is_empty() {
+                let applied = p
+                    .apply_many(cx, &accepted)
+                    .await
+                    .map_err(|m| Self::failed(p, last, m))?;
+                out.rows += applied.rows;
+                pending.extend(applied.fanout.into_iter().map(|t| (p, t)));
+            }
+            backend
+                .set_applied(cx, p.name(), partition, last.header().offset + 1)
+                .await?;
+        }
+        let mut spent = 0usize;
+        let mut queue = Vec::new();
+        for (p, target) in pending {
+            if spent < budget.rows && started.elapsed() < budget.time {
+                let rows = p
+                    .fanout(cx, &target.tenant, &target.key)
+                    .await
+                    .map_err(|m| Self::failed(p, last, m))?;
+                spent += rows;
+                out.fanned_out += 1;
+            } else {
+                queue.push(Work {
+                    projection: p.name().into(),
+                    tenant: target.tenant,
+                    partition,
+                    offset: last.header().offset,
+                    key: target.key,
+                });
+            }
+        }
+        if !queue.is_empty() {
+            out.queued = queue.len();
+            backend.queue(cx, &queue).await?;
+        }
+        Ok(out)
+    }
+
     /// Applies one record for every projection whose position is at or below it.
     /// Fan-out is queued, never applied inline: a catch-up is bulk work.
     async fn apply_behind(

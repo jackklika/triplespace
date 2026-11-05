@@ -972,6 +972,45 @@ impl<B: Backend<Cx = PgCx>> Projection<B> for ActivityProjection {
         "activity"
     }
 
+    /// Record by record, but a load's records, which are no rows ([`is_load`]), are left
+    /// out with one look-up of the job per block rather than one per record (0013 §9).
+    fn apply_many<'a>(
+        &'a self,
+        cx: &'a mut PgCx,
+        records: &'a [Record],
+    ) -> BoxFuture<'a, Result<Applied, String>> {
+        Box::pin(async move {
+            let mut loads: std::collections::BTreeMap<(String, u64), bool> =
+                std::collections::BTreeMap::new();
+            let mut out = Applied::default();
+            for record in records {
+                let h = record.header();
+                if h.payload_type == PAYLOAD_CHANGESET
+                    && let Some(job) = attested(record).job
+                {
+                    let info = partition_info(cx, h.partition).await?;
+                    if info.is_mirror() {
+                        let key = (info.tenant.clone(), job);
+                        let load = if let Some(&load) = loads.get(&key) {
+                            load
+                        } else {
+                            let load = is_load(cx, &info.tenant, Some(job)).await?;
+                            loads.insert(key, load);
+                            load
+                        };
+                        if load {
+                            continue;
+                        }
+                    }
+                }
+                let a = Projection::<B>::apply(self, cx, record).await?;
+                out.rows += a.rows;
+                out.fanout.extend(a.fanout);
+            }
+            Ok(out)
+        })
+    }
+
     fn step(&self) -> Step {
         Step::Activity
     }

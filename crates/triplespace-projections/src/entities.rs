@@ -427,30 +427,15 @@ impl EntityProjection {
             )
             .await
             .map_err(|e| sql(&e))?;
-        let e = &resolved.entity;
         let mut kinds: Vec<i16> = Vec::new();
         let mut langs: Vec<&str> = Vec::new();
         let mut ordinals: Vec<i16> = Vec::new();
         let mut texts: Vec<&str> = Vec::new();
-        for (lang, text) in &e.labels {
-            kinds.push(1);
+        for (kind, lang, ordinal, text) in term_rows(&resolved.entity) {
+            kinds.push(kind);
             langs.push(lang);
-            ordinals.push(0);
+            ordinals.push(ordinal);
             texts.push(text);
-        }
-        for (lang, text) in &e.descriptions {
-            kinds.push(2);
-            langs.push(lang);
-            ordinals.push(0);
-            texts.push(text);
-        }
-        for (lang, values) in &e.aliases {
-            for (i, v) in values.iter().enumerate() {
-                kinds.push(3);
-                langs.push(lang);
-                ordinals.push(i16::try_from(i).unwrap_or(i16::MAX));
-                texts.push(v);
-            }
         }
         if !kinds.is_empty() {
             n += cx
@@ -486,30 +471,7 @@ impl EntityProjection {
             )
             .await
             .map_err(|e| sql(&e))?;
-        let mut rows: BTreeMap<(&str, String, &str), &str> = BTreeMap::new();
-        for (s, prov) in resolved.entity.all_statements().zip(&resolved.statements) {
-            let (Some(DataType::ExternalId), SnakKind::Value(v @ DataValue::String(_)), Some(sid)) =
-                (s.mainsnak.datatype.as_ref(), &s.mainsnak.kind, &s.id)
-            else {
-                continue;
-            };
-            let key = value_key(
-                v,
-                Some(&DataType::ExternalId),
-                &s.mainsnak.property,
-                &Identity,
-            );
-            for graph in &prov.graphs {
-                rows.insert(
-                    (
-                        s.mainsnak.property.as_str(),
-                        key.as_str().to_string(),
-                        graph.as_str(),
-                    ),
-                    sid.as_str(),
-                );
-            }
-        }
+        let rows = identifier_rows(resolved);
         if rows.is_empty() {
             return Ok(n);
         }
@@ -535,6 +497,89 @@ impl EntityProjection {
         Ok(n)
     }
 
+    /// [`Projection::apply_many`] for a block of one partition (0013 §9, A71). A mirror's `put`
+    /// whose subject is in no other graph and no tenant's overlay resolves to its own state,
+    /// so its rows come from the record alone: they are computed on worker threads and
+    /// written with one statement per table for the block. Every other record (another
+    /// operation, a keyed subject, a subject named twice in the block, or one another graph
+    /// or an overlay also holds) is applied as [`Projection::apply`] applies it.
+    async fn apply_block(&self, cx: &PgCx, records: &[Record]) -> Result<Applied, String> {
+        let info = partition_info(cx, records[0].header().partition).await?;
+        let graph = info.name.clone();
+        let mut fast: Vec<(&Record, EntityId, Entity)> = Vec::new();
+        let mut slow: Vec<&Record> = Vec::new();
+        if !info.tenant.is_empty() || !graph.starts_with("mirror/") {
+            slow.extend(records);
+        } else {
+            for record in records {
+                match operation(record)? {
+                    Some(Operation::Put { id, entity, .. }) if id.form() != IdForm::Keyed => {
+                        fast.push((record, id, entity));
+                    }
+                    _ => slow.push(record),
+                }
+            }
+        }
+        // A subject named twice in the block, or held elsewhere, goes the per-record way.
+        let mut seen: BTreeMap<String, usize> = BTreeMap::new();
+        for (_, id, _) in &fast {
+            *seen.entry(id.as_str().to_string()).or_default() += 1;
+        }
+        let ids: Vec<&str> = seen.keys().map(String::as_str).collect();
+        let held: std::collections::BTreeSet<String> = if ids.is_empty() {
+            std::collections::BTreeSet::new()
+        } else {
+            cx.query(
+                "SELECT entity_id FROM view.entity_source
+                 WHERE entity_id = ANY($1) AND NOT (tenant = '' AND graph = $2)
+                 UNION SELECT id FROM view.entity WHERE id = ANY($1) AND tenant <> ''",
+                &[&ids, &graph],
+            )
+            .await
+            .map_err(|e| sql(&e))?
+            .iter()
+            .map(|r| r.get(0))
+            .collect()
+        };
+        let (fast, moved): (Vec<_>, Vec<_>) = fast
+            .into_iter()
+            .partition(|(_, id, _)| seen[id.as_str()] == 1 && !held.contains(id.as_str()));
+        slow.extend(moved.into_iter().map(|(r, _, _)| r));
+        slow.sort_by_key(|r| r.header().offset);
+
+        let rows = shared_rows(&graph, fast)?;
+        let mut n = write_shared_rows(cx, &rows).await?;
+        for record in slow {
+            n += self.apply_one(cx, record).await?;
+        }
+        Ok(Applied::rows(usize::try_from(n).unwrap_or(0)))
+    }
+
+    /// What [`Projection::apply`] does for one record: the subject's row, and on a shared
+    /// partition every tenant's overlay of it.
+    async fn apply_one(&self, cx: &PgCx, record: &Record) -> Result<u64, String> {
+        let info = partition_info(cx, record.header().partition).await?;
+        let Some(op) = operation(record)? else {
+            return Ok(0);
+        };
+        let mut ids: Vec<EntityId> = entity_subject(&op).into_iter().collect();
+        if let Operation::Convert { local, .. } = &op {
+            ids.push(local.clone());
+        }
+        let mut n = 0;
+        for id in &ids {
+            if info.tenant.is_empty() {
+                n += self.resolve_subject(cx, "", id).await?;
+                for tenant in Self::overlay_tenants(cx, id).await? {
+                    n += self.resolve_subject(cx, &tenant, id).await?;
+                }
+            } else {
+                n += self.resolve_subject(cx, &info.tenant, id).await?;
+            }
+        }
+        Ok(n)
+    }
+
     /// The tenants whose rows a shared-partition record about `id` touches: every tenant
     /// with an overlay row or a local cursor for the key.
     async fn overlay_tenants(cx: &PgCx, id: &EntityId) -> Result<Vec<String>, String> {
@@ -548,6 +593,243 @@ impl EntityProjection {
             .map_err(|e| sql(&e))?;
         Ok(rows.iter().map(|r| r.get(0)).collect())
     }
+}
+
+/// One mirrored entity's shared rows, computed from its own state alone
+/// ([`EntityProjection::apply_block`]).
+struct SharedRows {
+    id: String,
+    type_name: String,
+    page_id: i64,
+    first_seen: std::time::SystemTime,
+    kind: &'static str,
+    blob: Option<Vec<u8>>,
+    size: i32,
+    /// `(kind, lang, ordinal, text)`.
+    terms: Vec<(i16, String, i16, String)>,
+    /// `(property, value key, graph, statement ID)`.
+    identifiers: Vec<(String, String, String, String)>,
+}
+
+/// The shared rows of entities each held by one mirror record and nothing else, resolved
+/// as [`EntityProjection::resolve_subject`] resolves such an entity: the record's state its
+/// one contribution, no corrections, the page ID its header's, `first_seen` its append time
+/// (the entity source's `synced_at`). Spread over worker threads for a large block.
+fn shared_rows(
+    graph: &str,
+    fast: Vec<(&Record, EntityId, Entity)>,
+) -> Result<Vec<SharedRows>, String> {
+    let one = |(record, id, entity): (&Record, EntityId, Entity)| -> Result<SharedRows, String> {
+        let h = record.header();
+        let contributions = [Contribution {
+            graph: graph.to_string(),
+            entity,
+        }];
+        let resolved =
+            resolve(&contributions, &BTreeMap::new()).ok_or("one contribution resolves")?;
+        let page_id = h
+            .page_id
+            .ok_or_else(|| format!("no record for `{id}` carries a page ID (0013 §6)"))?;
+        let json = resolved.canonical_json();
+        let (kind, blob) = if resolved.equals_given(&json, &contributions[0].entity) {
+            ("source", None)
+        } else {
+            ("materialized", Some(json.as_bytes().to_vec()))
+        };
+        Ok(SharedRows {
+            id: id.as_str().to_string(),
+            type_name: resolved.entity.entity_type.name().to_string(),
+            page_id: i64::try_from(page_id).map_err(|e| e.to_string())?,
+            first_seen: time_of(h.appended_at),
+            kind,
+            blob,
+            size: i32::try_from(json.len()).unwrap_or(i32::MAX),
+            terms: term_rows(&resolved.entity)
+                .into_iter()
+                .map(|(k, l, o, x)| (k, l.to_string(), o, x.to_string()))
+                .collect(),
+            identifiers: identifier_rows(&resolved)
+                .into_iter()
+                .map(|((p, key, g), sid)| (p.to_string(), key, g.to_string(), sid.to_string()))
+                .collect(),
+        })
+    };
+    let threads = std::thread::available_parallelism().map_or(4, std::num::NonZero::get);
+    if fast.len() < 64 || threads < 2 {
+        return fast.into_iter().map(one).collect();
+    }
+    let per = fast.len().div_ceil(threads);
+    let mut chunks: Vec<Vec<_>> = Vec::new();
+    let mut items = fast.into_iter();
+    loop {
+        let chunk: Vec<_> = items.by_ref().take(per).collect();
+        if chunk.is_empty() {
+            break;
+        }
+        chunks.push(chunk);
+    }
+    let one = &one;
+    std::thread::scope(|s| {
+        let handles: Vec<_> = chunks
+            .into_iter()
+            .map(|chunk| s.spawn(move || chunk.into_iter().map(one).collect::<Result<Vec<_>, _>>()))
+            .collect();
+        let mut out = Vec::new();
+        for h in handles {
+            out.extend(
+                h.join()
+                    .map_err(|_| "a worker thread panicked".to_string())??,
+            );
+        }
+        Ok(out)
+    })
+}
+
+/// Writes [`SharedRows`] for a block: one upsert of `view.entity`, and the terms (in the
+/// instance's term languages, as [`EntityProjection::write_terms`] writes shared rows) and
+/// identifiers replaced with one delete and one insert each.
+async fn write_shared_rows(cx: &PgCx, rows: &[SharedRows]) -> Result<u64, String> {
+    if rows.is_empty() {
+        return Ok(0);
+    }
+    let ids: Vec<&str> = rows.iter().map(|r| r.id.as_str()).collect();
+    let types: Vec<&str> = rows.iter().map(|r| r.type_name.as_str()).collect();
+    let pages: Vec<i64> = rows.iter().map(|r| r.page_id).collect();
+    let first: Vec<std::time::SystemTime> = rows.iter().map(|r| r.first_seen).collect();
+    let kinds: Vec<&str> = rows.iter().map(|r| r.kind).collect();
+    let blobs: Vec<Option<&[u8]>> = rows.iter().map(|r| r.blob.as_deref()).collect();
+    let sizes: Vec<i32> = rows.iter().map(|r| r.size).collect();
+    let mut n = cx
+        .execute(
+            "INSERT INTO view.entity (tenant, id, type, page_id, surrogate, cluster_id, canonical_id, retention,
+                                      first_seen, local_offset, local_revid, resolved_version, generation,
+                                      resolved_kind, resolved, resolved_size, deleted)
+             SELECT '', t.id, t.type, t.page_id, NULL, NULL, t.id, NULL, t.first_seen, NULL, NULL, 1, 0,
+                    t.kind, t.resolved, t.size, false
+             FROM unnest($1::text[], $2::text[], $3::bigint[], $4::timestamptz[], $5::text[], $6::bytea[], $7::int[])
+                  AS t(id, type, page_id, first_seen, kind, resolved, size)
+             ON CONFLICT (tenant, id) DO UPDATE SET
+               type = EXCLUDED.type, page_id = EXCLUDED.page_id, surrogate = EXCLUDED.surrogate,
+               retention = EXCLUDED.retention, first_seen = LEAST(view.entity.first_seen, EXCLUDED.first_seen),
+               local_offset = EXCLUDED.local_offset, local_revid = EXCLUDED.local_revid,
+               resolved_version = view.entity.resolved_version + 1,
+               resolved_kind = EXCLUDED.resolved_kind, resolved = EXCLUDED.resolved, resolved_size = EXCLUDED.resolved_size",
+            &[&ids, &types, &pages, &first, &kinds, &blobs, &sizes],
+        )
+        .await
+        .map_err(|e| sql(&e))?;
+    for table in ["view.term", "view.identifier"] {
+        n += cx
+            .execute(
+                &format!("DELETE FROM {table} WHERE tenant = '' AND entity_id = ANY($1)"),
+                &[&ids],
+            )
+            .await
+            .map_err(|e| sql(&e))?;
+    }
+    let (mut te, mut tk, mut tl, mut to, mut tx) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    let (mut ie, mut ip, mut iv, mut ig, mut is) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    for r in rows {
+        for (kind, lang, ordinal, text) in &r.terms {
+            te.push(r.id.as_str());
+            tk.push(*kind);
+            tl.push(lang.as_str());
+            to.push(*ordinal);
+            tx.push(text.as_str());
+        }
+        for (property, key, graph, sid) in &r.identifiers {
+            ie.push(r.id.as_str());
+            ip.push(property.as_str());
+            iv.push(key.as_str());
+            ig.push(graph.as_str());
+            is.push(sid.as_str());
+        }
+    }
+    if !te.is_empty() {
+        n += cx
+            .execute(
+                &format!(
+                    "WITH {SHARED_TERM_LANGUAGES}
+                     INSERT INTO view.term (tenant, entity_id, kind, lang, ordinal, text)
+                     SELECT '', t.entity_id, t.kind, t.lang, t.ordinal, t.text
+                     FROM unnest($1::text[], $2::smallint[], $3::text[], $4::smallint[], $5::text[])
+                          AS t(entity_id, kind, lang, ordinal, text)
+                     WHERE t.lang IN (SELECT lang FROM shared_term_languages)"
+                ),
+                &[&te, &tk, &tl, &to, &tx],
+            )
+            .await
+            .map_err(|e| sql(&e))?;
+    }
+    if !ie.is_empty() {
+        n += cx
+            .execute(
+                "INSERT INTO view.identifier (tenant, property, value_key, entity_id, graph, statement_id)
+                 SELECT '', t.property, t.value_key, t.entity_id, t.graph, t.statement_id
+                 FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[])
+                      AS t(entity_id, property, value_key, graph, statement_id)",
+                &[&ie, &ip, &iv, &ig, &is],
+            )
+            .await
+            .map_err(|e| sql(&e))?;
+    }
+    Ok(n)
+}
+
+/// An entity's `view.term` rows before the language test of [`SHARED_TERM_LANGUAGES`]:
+/// `(kind, lang, ordinal, text)`, kind 1 a label, 2 a description, 3 an alias.
+fn term_rows(e: &Entity) -> Vec<(i16, &str, i16, &str)> {
+    let mut out = Vec::new();
+    for (lang, text) in &e.labels {
+        out.push((1, lang.as_str(), 0, text.as_str()));
+    }
+    for (lang, text) in &e.descriptions {
+        out.push((2, lang.as_str(), 0, text.as_str()));
+    }
+    for (lang, values) in &e.aliases {
+        for (i, v) in values.iter().enumerate() {
+            out.push((
+                3,
+                lang.as_str(),
+                i16::try_from(i).unwrap_or(i16::MAX),
+                v.as_str(),
+            ));
+        }
+    }
+    out
+}
+
+/// A resolved state's `view.identifier` rows: `(property, value key, graph)` to the
+/// statement ID. The same `(property, value, graph)` asserted twice keeps the later
+/// statement's ID.
+fn identifier_rows(resolved: &Resolved) -> BTreeMap<(&str, String, &str), &str> {
+    let mut rows = BTreeMap::new();
+    for (s, prov) in resolved.entity.all_statements().zip(&resolved.statements) {
+        let (Some(DataType::ExternalId), SnakKind::Value(v @ DataValue::String(_)), Some(sid)) =
+            (s.mainsnak.datatype.as_ref(), &s.mainsnak.kind, &s.id)
+        else {
+            continue;
+        };
+        let key = value_key(
+            v,
+            Some(&DataType::ExternalId),
+            &s.mainsnak.property,
+            &Identity,
+        );
+        for graph in &prov.graphs {
+            rows.insert(
+                (
+                    s.mainsnak.property.as_str(),
+                    key.as_str().to_string(),
+                    graph.as_str(),
+                ),
+                sid.as_str(),
+            );
+        }
+    }
+    rows
 }
 
 impl<B: Backend<Cx = PgCx>> Projection<B> for EntityProjection {
@@ -569,27 +851,17 @@ impl<B: Backend<Cx = PgCx>> Projection<B> for EntityProjection {
         record: &'a Record,
     ) -> BoxFuture<'a, Result<Applied, String>> {
         Box::pin(async move {
-            let info = partition_info(cx, record.header().partition).await?;
-            let Some(op) = operation(record)? else {
-                return Ok(Applied::default());
-            };
-            let mut ids: Vec<EntityId> = entity_subject(&op).into_iter().collect();
-            if let Operation::Convert { local, .. } = &op {
-                ids.push(local.clone());
-            }
-            let mut n = 0;
-            for id in &ids {
-                if info.tenant.is_empty() {
-                    n += self.resolve_subject(cx, "", id).await?;
-                    for tenant in Self::overlay_tenants(cx, id).await? {
-                        n += self.resolve_subject(cx, &tenant, id).await?;
-                    }
-                } else {
-                    n += self.resolve_subject(cx, &info.tenant, id).await?;
-                }
-            }
+            let n = self.apply_one(cx, record).await?;
             Ok(Applied::rows(usize::try_from(n).unwrap_or(0)))
         })
+    }
+
+    fn apply_many<'a>(
+        &'a self,
+        cx: &'a mut PgCx,
+        records: &'a [Record],
+    ) -> BoxFuture<'a, Result<Applied, String>> {
+        Box::pin(async move { self.apply_block(cx, records).await })
     }
 
     fn fanout<'a>(

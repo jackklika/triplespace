@@ -337,6 +337,20 @@ queues between the threads and the coordinator are bounded, so the growth with t
 is worth a look before a 122M-entity load. What is left is the per-record projection work on the coordinator's thread
 (the client was at about 110% of one core at the end): stage B's set-based projections.
 
+**Bootstrap mode, set-based projections (2026-11-05).** The projections run over each block at
+once (`Projection::apply_many`, `Pipeline::apply_inline_many`; 0013 A71): the entity source is
+one multi-row upsert per block; a mirror's `put` of a subject no other graph or overlay holds is
+resolved from its own state on worker threads, and its entity rows, terms (in the instance's term
+languages) and identifiers are written with one statement per table; activity looks a load's job
+up once per block. Any other record goes record by record. On the 20k slice: 89 s → 62 s
+(225 → 321 entities/s), the same rows as the ordinary sync, a rebuild identical. **On the 2M set:
+1 h 44 min (321 entities/s), against 2 h 56 min with projections record by record, and 9 h 28 min
+at `26f7754` (5.4×)**: 278/s over the dense items, 358/s over the articles; 0.13 statements per
+entity, Postgres execution 719 s; every view row the same as the record-by-record load's. The
+client was at about 180% of one core and Postgres at about 12%: the coordinator's thread (the
+append, the block's encoding for `COPY`, the rows' assembly) is the limit now. Peak RSS was
+1.75 GB, still growing with the load, still unexplained.
+
 **`term_prefix` is not yet as 03 §4.3 has it.** The chapter's index is partial over tenant rows
 (`WHERE tenant <> ''`); the migration's (`0002_view.sql`) covers every row, shared ones included,
 and `wbsearchentities` reads shared rows through it (`t.tenant IN ($1, '')`). Making it partial
