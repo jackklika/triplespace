@@ -349,7 +349,32 @@ at `26f7754` (5.4×)**: 278/s over the dense items, 358/s over the articles; 0.1
 entity, Postgres execution 719 s; every view row the same as the record-by-record load's. The
 client was at about 180% of one core and Postgres at about 12%: the coordinator's thread (the
 append, the block's encoding for `COPY`, the rows' assembly) is the limit now. Peak RSS was
-1.75 GB, still growing with the load, still unexplained.
+1.75 GB; the next paragraph explains it.
+
+**A bootstrap load's memory (2026-11-05).** Peak RSS does not grow with the length of a load: it
+is reached in the first minute and follows the size of the entities then in flight. RSS sampled
+every 5 s over 300k entities: the dense start of the 2M file (38 KB a line) peaked at 1,744 MB
+within a minute, then held 600–1,000 MB and ended near 300 MB; the articles at its end (16 KB)
+peaked at 853 MB, then fell to 140–340 MB. The 2M run's 1.75 GB is the first peak: the dump
+opens with Wikidata's largest items (Q1 onwards average 160 KB of JSON; record bodies there
+average 76 KB, the largest 1.9 MB). On the first 60k lines: mimalloc as shipped 1,641 MB;
+`MIMALLOC_PURGE_DELAY=0` 1,430 MB; the system allocator 1,580 MB, flat at about 1.5 GB to the
+end and 38% slower. So the peak is live data, which mimalloc's delayed purge adds about an
+eighth to and returns as the load goes on. massif on the first 2,000 items put 69% of the peak
+in prepared record bodies waiting between the workers and the coordinator, 8% in copies of the
+block's records made per projection, 7% in entities decoded for the block's projections. The
+bodies piled up because the collector's reorder buffer was unbounded: while the next unit in
+order was still being prepared (a unit holding megabyte-sized items), the collector kept taking
+later units into it, freeing the channels for the other workers; halving the channels lowered
+the steady state by a quarter but the peak by 7%. Three changes: the units in flight anywhere
+between the reader and the coordinator are bounded (`UNITS_PER_WORKER`, 3 per worker: the
+reader takes a permit per unit, the collector returns it when it takes the unit up); an encoded
+part is trimmed to its length (`Part::of`: the encoder's buffer grows by doubling); a projection
+that accepts every record of a block takes the block without a copy (`apply_inline_many`). On
+the same 60k lines: peak 1,641 → 1,286 and 1,231 MB (two runs), steady state 900–1,300 → 600–800
+MB, time 472 s → 515 s and 474 s (runs vary by about 6%). What remains of the peak is a window
+of 42 units of the largest items, the projections' working set for a block of them, and
+mimalloc's retention; bounding the window by bytes rather than units would take it lower still.
 
 **`term_prefix` is not yet as 03 §4.3 has it.** The chapter's index is partial over tenant rows
 (`WHERE tenant <> ''`); the migration's (`0002_view.sql`) covers every row, shared ones included,

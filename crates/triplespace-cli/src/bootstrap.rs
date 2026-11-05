@@ -5,9 +5,9 @@
 //! order for [`scatter_ingest::run_bootstrap`] to append. The ordinary sync does all of
 //! this on one thread, between round trips.
 //!
-//! A JSON dump only: its lines are independent, so they can be parsed apart. Bounded
-//! channels keep the lines in flight to a few blocks per worker, so memory does not grow
-//! with the dump.
+//! A JSON dump only: its lines are independent, so they can be parsed apart. The units in
+//! flight anywhere between the reader and the caller are bounded ([`UNITS_PER_WORKER`]),
+//! so memory follows the size of the entities being loaded, not the dump's.
 
 use std::collections::{BTreeMap, VecDeque};
 use std::io::BufRead;
@@ -22,6 +22,13 @@ use scatter_ingest::{IngestError, Prepare, Prepared};
 
 /// Lines per unit handed to a worker.
 const LINES_PER_UNIT: usize = 64;
+
+/// Units in flight per worker: read, queued, being prepared, or prepared and waiting for
+/// their turn. The bound holds however unevenly the workers finish, since the reader takes
+/// a permit for each unit and the caller returns it only when it takes the unit up; a slow
+/// unit (a few megabyte-sized items at the start of a Wikidata dump) then stalls the reader
+/// instead of letting every later unit pile up behind it.
+const UNITS_PER_WORKER: usize = 3;
 
 type Unit = (u64, Vec<(usize, String)>);
 type Done = (u64, Vec<Result<Prepared, IngestError>>);
@@ -51,11 +58,16 @@ pub fn prepared(
 ) -> Result<Ordered, IngestError> {
     let reader = scatter_adapter_wikibase::open(dump).map_err(|e| e.to_string())?;
     let workers = workers.max(1);
-    let (unit_tx, unit_rx) = sync_channel::<Unit>(workers * 2);
-    let (done_tx, done_rx) = sync_channel::<Done>(workers * 4);
+    let window = workers * UNITS_PER_WORKER;
+    let (unit_tx, unit_rx) = sync_channel::<Unit>(window);
+    let (done_tx, done_rx) = sync_channel::<Done>(window);
+    let (permit_tx, permit_rx) = sync_channel::<()>(window);
+    for _ in 0..window {
+        permit_tx.try_send(()).expect("room for every permit");
+    }
     std::thread::spawn({
         let tally = Arc::clone(tally);
-        move || read_units(reader, &unit_tx, &tally)
+        move || read_units(reader, &unit_tx, &permit_rx, &tally)
     });
     let unit_rx = Arc::new(Mutex::new(unit_rx));
     let prepare = Arc::new(prepare);
@@ -82,14 +94,21 @@ pub fn prepared(
     drop(done_tx);
     Ok(Ordered {
         rx: done_rx,
+        permits: permit_tx,
         pending: BTreeMap::new(),
         next: 0,
         current: VecDeque::new(),
     })
 }
 
-/// The reader thread: the dump's lines, `LINES_PER_UNIT` at a time, numbered in order.
-fn read_units(mut reader: Box<dyn BufRead + Send>, tx: &SyncSender<Unit>, tally: &Tally) {
+/// The reader thread: the dump's lines, `LINES_PER_UNIT` at a time, numbered in order, each
+/// unit sent only with a permit ([`UNITS_PER_WORKER`]).
+fn read_units(
+    mut reader: Box<dyn BufRead + Send>,
+    tx: &SyncSender<Unit>,
+    permits: &Receiver<()>,
+    tally: &Tally,
+) {
     let mut seq = 0u64;
     let mut line = 0usize;
     let mut unit = Vec::with_capacity(LINES_PER_UNIT);
@@ -108,13 +127,13 @@ fn read_units(mut reader: Box<dyn BufRead + Send>, tx: &SyncSender<Unit>, tally:
             }
         }
         if unit.len() == LINES_PER_UNIT {
-            if tx.send((seq, std::mem::take(&mut unit))).is_err() {
+            if permits.recv().is_err() || tx.send((seq, std::mem::take(&mut unit))).is_err() {
                 return;
             }
             seq += 1;
         }
     }
-    if !unit.is_empty() {
+    if !unit.is_empty() && permits.recv().is_ok() {
         let _ = tx.send((seq, unit));
     }
 }
@@ -191,6 +210,8 @@ fn prepare_line(
 /// The workers' output, put back in dump order.
 pub struct Ordered {
     rx: Receiver<Done>,
+    /// Returned to the reader as each unit is taken up.
+    permits: SyncSender<()>,
     pending: BTreeMap<u64, Vec<Result<Prepared, IngestError>>>,
     next: u64,
     current: VecDeque<Result<Prepared, IngestError>>,
@@ -207,6 +228,8 @@ impl Iterator for Ordered {
             if let Some(unit) = self.pending.remove(&self.next) {
                 self.next += 1;
                 self.current.extend(unit);
+                // The reader may read one more unit. Never full: one permit per unit taken.
+                let _ = self.permits.try_send(());
                 continue;
             }
             // Every worker has finished and nothing is pending: the dump is done.

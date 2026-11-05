@@ -219,14 +219,21 @@ impl<B: Backend> Pipeline<B> {
         let mut out = Inline::default();
         let mut pending: Vec<(&dyn Projection<B>, Target)> = Vec::new();
         for p in self.synchronous() {
-            let accepted: Vec<Record> = records
-                .iter()
-                .filter(|r| p.accepts(r.header()))
-                .cloned()
-                .collect();
+            // Most projections accept every record of a block; only a subset is copied.
+            let subset: Vec<Record>;
+            let accepted: &[Record] = if records.iter().all(|r| p.accepts(r.header())) {
+                records
+            } else {
+                subset = records
+                    .iter()
+                    .filter(|r| p.accepts(r.header()))
+                    .cloned()
+                    .collect();
+                &subset
+            };
             if !accepted.is_empty() {
                 let applied = p
-                    .apply_many(cx, &accepted)
+                    .apply_many(cx, accepted)
                     .await
                     .map_err(|m| Self::failed(p, last, m))?;
                 out.rows += applied.rows;

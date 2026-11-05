@@ -52,9 +52,13 @@ impl Part {
         }
     }
 
-    /// A present part with a fresh salt around a CBOR value.
+    /// A present part with a fresh salt around a CBOR value. The encoding is trimmed to its
+    /// length: a part is held as long as its record is, and the encoder's buffer grows by
+    /// doubling, so it could otherwise carry up to as much again unused.
     pub fn of(value: &Value) -> Result<Self, CborError> {
-        Ok(Self::new(cbor::encode(value)?))
+        let mut bytes = cbor::encode(value)?;
+        bytes.shrink_to_fit();
+        Ok(Self::new(bytes))
     }
 
     /// The part's bytes, when present.
