@@ -288,6 +288,47 @@
 }
 
 /*
+ * The diff's tools (ADR 0010 §6): the view switch, the context links and the permalink
+ * field, in one wrapping row above the table.
+ */
+.ts-page-diff__tools {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var( --spacing-50, 0.5rem ) var( --spacing-150, 1.5rem );
+}
+
+.ts-page-diff__context {
+	margin: 0;
+}
+
+.ts-page-diff__permalink {
+	display: flex;
+	align-items: center;
+	gap: var( --spacing-50, 0.5rem );
+	margin-inline-start: auto;
+}
+
+.ts-page-diff__permalink .cdx-text-input {
+	min-width: 16rem;
+}
+
+.ts-page-diff__permalink .cdx-text-input__input {
+	font-family: var( --font-family-monospace, monospace );
+}
+
+/* Side by side: each revision rendered in its half of the table. */
+.ts-page-diff__column {
+	padding: var( --spacing-50, 0.5rem ) var( --spacing-75, 0.75rem );
+	border: 1px solid var( --border-color-muted, #dadde3 );
+	border-radius: var( --border-radius-base, 2px );
+	vertical-align: top;
+	line-height: 1.6;
+	overflow-wrap: break-word;
+	overflow-x: auto;
+}
+
+/*
  * The inline layout (MediaWiki's difftype=inline): one column, shown in place of the
  * table's rows on a narrow screen. Removed and added text are struck through and
  * underlined, and each changed line carries its marker, so colour is never the only cue.

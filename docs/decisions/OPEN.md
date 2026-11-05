@@ -9,6 +9,7 @@ Log entries whose Source ends in *unconfirmed*: decisions made in code and logge
 | Entry | Date | Title |
 |---|---|---|
 | [0010 A47](0010-site-ui.md#a47-the-acl-site-ui-the-calls-made-building-it) | 2026-10-30 | The ACL site UI: the calls made building it |
+| [0010 A49](0010-site-ui.md#a49-the-compare-form-and-the-diff-views-the-calls-made-building-them) | 2026-11-04 | The compare form and the diff views: the calls made building them |
 | [0016 A42](0016-permissions-and-access-control.md#a42-delegated-administration-the-calls-made-while-drafting-and-building-tier-4) | 2026-10-30 | Delegated administration: the calls made while drafting and building tier 4 |
 | [0018 A33](0018-tenants.md#a33-multi-tenant-round-1-the-assumptions-the-implementation-made) | 2026-10-30 | Multi-tenant round 1: the assumptions the implementation made |
 | [0021 A23](0021-notifications.md#a23-accountability-the-calls-made-building-tier-5) | 2026-10-30 | Accountability: the calls made building tier 5 |

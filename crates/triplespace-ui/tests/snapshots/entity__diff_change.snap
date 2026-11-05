@@ -20,7 +20,7 @@ expression: main
 		<a class="ts-tabs__link" href="/wiki/Item:Q6?action=history" aria-current="page">History</a>
 	</nav>
 	<div class="ts-page__body">
-		<div class="ts-diff">
+		<div class="ts-diff" data-ts-diffnav>
 <p class="ts-diff__head">
 <a href="/wiki/Item:Q6?oldid=907">Revision 907</a> <time datetime="2026-10-02T14:05:11Z">2026-10-02 14:05:11</time> · <a href="/wiki/Special:Contributions/librarybase:10">librarybase:10</a> · <span class="ts-change__comment">rank and a value</span>
 </p>
@@ -37,6 +37,11 @@ expression: main
 </li>
 </ul>
 </nav>
+<div class="ts-page-diff__permalink">
+<label for="ts-diff-permalink">Link to this diff</label> <div class="cdx-text-input">
+<input class="cdx-text-input__input" id="ts-diff-permalink" type="text" readonly dir="ltr" value="[[Special:Diff/907]]">
+</div>
+</div>
 <div class="ts-diff__body">
 <div class="ts-diff__main">
 <section class="ts-diff__section">

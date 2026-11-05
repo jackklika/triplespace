@@ -378,6 +378,7 @@ The upstream history fetch is a server component. It reads the provider registry
 - **Compare works within one source.** A reader can compare two local revisions, or two observed states of a mirror that keeps them.
 - **The resolved view at a past time cannot be compared.** It depends on mirror states that compaction may have dropped. This is why the compare controls appear only on rows whose source keeps history.
 - **A comparison between two local revisions** shows the change in the local graph's own assertions, drawn as in §3.8.
+- **The compare form** is MediaWiki's ([0010](../decisions/0010-site-ui.md) A49): a GET form around the history's rows, whose rows with a local revision carry two radio buttons, `oldid` for the older side and `diff` for the newer, in a first column; a mirror's syncs have no revision ID to compare yet, and a discussion's history has no form. The newest two rows are chosen to begin with, and the newest of the history cannot be the older side. It needs no script: `oldid` and `diff` given newest first are swapped, on document pages and entities alike, as MediaWiki does.
 
 Two narrower histories exist:
 
@@ -399,6 +400,16 @@ Two narrower histories exist:
 - A document page gets a line diff of its source, as in MediaWiki.
 
 **Alternative views.** A switch offers JSON (a diff of the canonical JSON) and Change set (the record's operations as stored).
+
+**A document page's views** ([0010](../decisions/0010-site-ui.md) A48, A49) are a switch, `view=`:
+
+- **Source**, the default: the API's line diff of the page's source.
+- **Text only** (`text`): a line diff of the text a reader sees, one line per paragraph, heading, list item, table row (cells joined by ` | `) or line of a preformatted block, without scripts, styles, section-edit links or footnote markers, so that a change of prose shows among templates and markup.
+- **Side by side** (`rendered`): both revisions rendered, in the table's two halves, with nothing rendered below.
+
+A line diff keeps MediaWiki's two lines of context around each change; **More context** (`context=`) steps to 10, 50 and every line, and **Show every line** goes there at once. Links to the older and newer diff keep the view and the context. `action=compare` keeps MediaWiki's parameters, so the site draws these views itself, with `scatter-pages`' line diff over the two revisions' sources or renderings, within the page's four API calls ([20](20-web-tier.md)).
+
+**Getting around.** Every diff offers itself as a wiki link to copy, `[[Special:Diff/{old}/{new}]]`, in a read-only field. With JavaScript, the left and right arrow keys step to the older and newer diff (its `rel="prev"` and `rel="next"` links; reversed right to left), unless a modifier is held or focus is in a field.
 
 **"What this changes"** states the effect in three places:
 

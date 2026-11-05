@@ -475,6 +475,29 @@ pub struct RowModel {
     pub summary: SummaryModel,
     /// The tags, but for `bot`.
     pub tags: Vec<String>,
+    /// The history's compare cell, where the list has the column (0010 §5.6).
+    pub pick: Option<Pick>,
+}
+
+/// A history row's compare cell: the radio buttons that choose its revision as the older
+/// or the newer side, either absent where the row cannot be that side (19 §3.7).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct Pick {
+    /// The older side: `oldid`.
+    pub old: Option<Radio>,
+    /// The newer side: `diff`.
+    pub new: Option<Radio>,
+}
+
+/// One radio button of a compare cell.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Radio {
+    /// The revision.
+    pub revid: u64,
+    /// The accessible name.
+    pub label: String,
+    /// Whether it is chosen to begin with.
+    pub checked: bool,
 }
 
 /// A day's rows.
@@ -796,6 +819,19 @@ fn size_model(row: &ActivityRow) -> Option<Size> {
     }
 }
 
+/// The revision a row can be compared by, where it has one: a local edit's (19 §3.7). A
+/// mirror's observed states have no revision ID to compare yet.
+pub(crate) fn comparable(row: &ActivityRow) -> Option<u64> {
+    if is_thread_row(row) || row.kind != "edit" {
+        return None;
+    }
+    if row.source == "local" || row.source == "pages" {
+        row.revid
+    } else {
+        None
+    }
+}
+
 /// The diff page of a row (19 §3.8): `?diff={revid}` for a local edit, `?diff={partition}:{offset}`
 /// for a mirror sync, which has no local revision ID; nothing for the other kinds.
 fn diff_href(row: &ActivityRow) -> Option<String> {
@@ -851,6 +887,7 @@ fn row_model(m: &Messages, site: &SiteInfo, row: &ActivityRow, here: Option<u64>
                 comment: None,
             },
             tags: Vec::new(),
+            pick: None,
         };
     }
     let mut flags = Vec::new();
@@ -886,6 +923,7 @@ fn row_model(m: &Messages, site: &SiteInfo, row: &ActivityRow, here: Option<u64>
         actor: actor_model(m, site, row),
         summary: summary_model(m, row, here),
         tags: row.tags.iter().filter(|t| *t != "bot").cloned().collect(),
+        pick: None,
     }
 }
 

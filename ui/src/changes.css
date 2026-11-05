@@ -118,6 +118,7 @@
 }
 
 /* The short fields keep to one line; the page and summary take the rest and wrap. */
+.ts-change__cell--compare,
 .ts-change__cell--time,
 .ts-change__cell--origin,
 .ts-change__cell--flags,
@@ -417,4 +418,21 @@
 
 .ts-oldid__links {
 	margin: 0;
+}
+
+/*
+ * A history's compare form (ADR 0010 §5.6): the radio buttons for the older and the newer
+ * side, side by side in the first column, and the button above the rows.
+ */
+.ts-change__pick {
+	margin: 0 0.15em;
+	vertical-align: middle;
+}
+
+.ts-change__pick--new:only-child {
+	margin-inline-start: calc( 1.3em + 0.3em );
+}
+
+.ts-history__compare-actions {
+	margin-block-end: var( --spacing-50, 0.5rem );
 }
