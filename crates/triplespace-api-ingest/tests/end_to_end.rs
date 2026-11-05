@@ -520,8 +520,14 @@ async fn adoption_batch_sync_and_edit_end_to_end() {
     assert_eq!(count(&client, "SELECT count(*) FROM view.job WHERE tenant = '' AND status = 'finished' AND graph = 'mirror/internetdomains'").await, 1);
     let xd = u64::from(registry.by_slug("internetdomains").unwrap().number);
     assert_eq!(
-        count(&client, &format!("SELECT count(*) FROM view.activity WHERE source = 'mirror/internetdomains' AND kind = 'sync' AND revid = {}", (xd << 40) | 0x37)).await,
-        1
+        count(&client, &format!("SELECT count(*) FROM log.record WHERE payload_type = 'scatter:v0/changeset' AND revid = {}", (xd << 40) | 0x37)).await,
+        1,
+        "the mirror record carries the upstream revision ID"
+    );
+    // The sync is a load: its records are no activity rows (03 §4.6; 0013 §5.5).
+    assert_eq!(
+        count(&client, "SELECT count(*) FROM view.activity WHERE source = 'mirror/internetdomains' AND kind = 'sync'").await,
+        0
     );
 
     // 4. An interactive edit asserts about the Domain in the tenant's local graph: a

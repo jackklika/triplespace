@@ -111,6 +111,8 @@ indexmap = { version = "2", features = ["serde"] }
 # references, MD5 for RDF value nodes. Not used for anything Triplespace secures.
 sha1 = "0.10"
 md-5 = "0.10"
+# The binaries' process allocator (0033 §2, A24).
+mimalloc = { version = "0.1.52", default-features = false }
 # Statement keys (0004 §8), signing-key IDs (0015 §1) and, later, the log's SHA-256 (0006 §2)
 sha2 = "0.10"
 # Password hashing (0033 §6: Argon2id) and keyed token derivation for sessions (0024 §4)

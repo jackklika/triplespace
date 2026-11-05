@@ -156,6 +156,9 @@ async fn the_web_tier_and_the_embedded_site_serve_the_same_pages() {
     })
     .await
     .expect("sync");
+    // The load wrote no activity rows of its own (03 §4.6; 0013 §5.5); the follower then brings one
+    // upstream edit of wikipedia.org (0092 §5), whose record is a `sync` row.
+    follow_one_edit(&database, &fixtures.join("internetdomains.json")).await;
 
     // The API, trusting the web tier on loopback by address (0057 §10).
     let app = App::new(
@@ -501,4 +504,84 @@ async fn the_web_tier_and_the_embedded_site_serve_the_same_pages() {
         assert!(!r.body.contains("<html"), "{path} reached the site");
     }
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A change source with one batch, for [`follow_one_edit`].
+struct OneBatch(Option<scatter_ingest::ChangeBatch>);
+
+impl scatter_ingest::ChangeSource for OneBatch {
+    async fn next(&mut self) -> Result<scatter_ingest::ChangeBatch, scatter_ingest::IngestError> {
+        Ok(self.0.take().unwrap_or(scatter_ingest::ChangeBatch {
+            caught_up: true,
+            ..Default::default()
+        }))
+    }
+
+    async fn save(&mut self) -> Result<(), scatter_ingest::IngestError> {
+        Ok(())
+    }
+}
+
+/// Runs the follower once over the fixture with wikipedia.org (`Q11`) edited upstream:
+/// revision 57, a new English label. The other entities are unchanged, so only Q11 is
+/// written, under a `follow` job.
+async fn follow_one_edit(database: &str, fixture: &std::path::Path) {
+    let text = std::fs::read_to_string(fixture).unwrap();
+    let mut lines = Vec::new();
+    for line in text.lines() {
+        let entity = line.trim().trim_end_matches(',');
+        if entity.is_empty() || entity == "[" || entity == "]" {
+            continue;
+        }
+        let mut e: serde_json::Value = serde_json::from_str(entity).unwrap();
+        if e["id"] == "Q11" {
+            e["lastrevid"] = serde_json::json!(57);
+            e["modified"] = serde_json::json!("2026-10-02T00:00:00Z");
+            e["labels"]["en"]["value"] = serde_json::json!("Wikipedia, the free encyclopedia");
+        }
+        lines.push(e.to_string());
+    }
+    let dump = std::env::temp_dir().join(format!("ts-site-follow-{}.json", std::process::id()));
+    std::fs::write(&dump, format!("[\n{}\n]\n", lines.join(",\n"))).unwrap();
+    let registry = scatter_providers::Registry::default_registry();
+    let provider = registry.by_slug("internetdomains").unwrap();
+    let items: Vec<_> = sync::prepare_wikibase(provider, registry, &dump)
+        .unwrap()
+        .collect();
+    std::fs::remove_file(&dump).unwrap();
+    let client = triplespace_cli::common::connect(database).await.unwrap();
+    let farm = triplespace_cli::common::farm_of(&client).await.unwrap();
+    let (store, pipeline) = triplespace_cli::common::store(database, &farm).unwrap();
+    let mut source = OneBatch(Some(scatter_ingest::ChangeBatch {
+        items,
+        rows: 1,
+        caught_up: true,
+        ..Default::default()
+    }));
+    let out = scatter_ingest::run_follow(
+        &store,
+        &pipeline,
+        "",
+        "internetdomains",
+        scatter_ingest::write::Attestation::by(&farm.operator().to_string()),
+        &mut source,
+        registry,
+        triplespace_cli::common::now,
+        200,
+        true,
+    )
+    .await
+    .unwrap();
+    assert!(out.job_id > 0, "the follower wrote a job");
+    // The load's four entities wrote no `sync` rows (03 §4.6); the follower's one did.
+    let rows = client
+        .query("SELECT job_id FROM view.activity WHERE kind = 'sync'", &[])
+        .await
+        .unwrap();
+    let jobs: Vec<Option<i64>> = rows.iter().map(|r| r.get(0)).collect();
+    assert_eq!(
+        jobs,
+        [Some(i64::try_from(out.job_id).unwrap())],
+        "one sync row, the follower's"
+    );
 }
