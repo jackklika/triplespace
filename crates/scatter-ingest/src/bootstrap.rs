@@ -1,0 +1,339 @@
+//! Bootstrap mode (0013 §9; 05 §3.7–3.8): the initial load of an empty mirror partition.
+//!
+//! An initial load has no previous state to read, so every record it writes is known from
+//! the dump alone: a new entity's `put` (prev_upstream, prev_size and delta absent,
+//! `first_seen` now, the changes against nothing) as [`crate::sync::run_sync_in`] writes for
+//! a subject with no cursor. That is what lets the work be split. [`Prepare::item`] turns
+//! one sync item into a draft and its body's commitment, touching no store: the hash check,
+//! the operation, its canonical encoding and the part hashes, which a caller runs on worker
+//! threads. [`run_bootstrap`] takes the prepared records in dump order and, a block at a
+//! time, gives them page IDs from one reservation, appends them with
+//! [`IngestStore::append_many`] (binary `COPY` in Postgres) and commits.
+//!
+//! Built so far (stage A): the block write and the parallel preparation. The projections
+//! still run per record, inline, as [`crate::write::append_projected`] runs them, so the
+//! record table keeps its key index for their reads; set-based projections over the loaded
+//! states and the deferred index build are stage B. A load runs in units of `batch`
+//! records, each committed: a load that fails part way leaves a partition without holes,
+//! which a rerun (no longer empty) continues through the ordinary sync, whose version
+//! cursor skips what is already there. The coordinator table of 05 §3.8, for writers in
+//! several processes resuming a block, is not needed by one in-process coordinator and is
+//! not built.
+//!
+//! Only an instance mirror whose subjects are their own keys is bootstrapped: a keyed
+//! subject's surrogate is minted on the write path (0009 §7), so a key-mapped provider
+//! loads through the ordinary sync.
+
+use scatter_log::body::Body;
+use scatter_log::cbor::Value;
+use scatter_log::hash::Hash;
+use scatter_log::record::{Record, global_id};
+use scatter_log::store::Draft;
+use scatter_projection::{Budget, Pipeline};
+use scatter_providers::Registry;
+use scatter_wikibase_changeset::{Changes, Graph, JobHeader, Mode, Operation};
+use scatter_wikibase_model::hash::{HashMismatches, Hasher};
+use scatter_wikibase_model::id::{EntityId, IdForm};
+
+use crate::IngestError;
+use crate::job::{Counts, Job, Reject};
+use crate::store::{IngestStore, Sequence};
+use crate::sync::{SyncItem, SyncOutcome};
+use crate::write::{Attestation, PAYLOAD_CHANGESET};
+
+/// What preparing a record needs, fixed for the whole load: shared by the worker threads.
+#[derive(Debug, Clone)]
+pub struct Prepare {
+    hasher: Hasher,
+    attestation: Value,
+    now: u64,
+    provider_number: u64,
+}
+
+/// One sync item, prepared.
+#[derive(Debug)]
+pub enum Prepared {
+    /// A record to append, its body's commitment computed. The draft has no page ID yet:
+    /// [`run_bootstrap`] assigns them in order.
+    Record {
+        /// The draft.
+        draft: Draft,
+        /// `draft.body.commitment()`.
+        commitment: Hash,
+        /// What the hash check found, for the job's counts.
+        mismatches: HashMismatches,
+        /// Whether it is a new subject's `put` (`created`), else a redirect (`other`).
+        created: bool,
+    },
+    /// The adapter's reject, for the job's rejects (its state, if any, follows separately).
+    Rejected {
+        /// The upstream ID.
+        upstream_id: String,
+        /// Why.
+        reason: String,
+    },
+    /// Nothing to write: an upstream deletion of an entity the partition never held.
+    Unchanged,
+}
+
+impl Prepare {
+    /// The record a sync item becomes in an empty partition. Touches no store.
+    pub fn item(&self, item: SyncItem) -> Result<Prepared, IngestError> {
+        match item {
+            SyncItem::State {
+                entity,
+                upstream,
+                upstream_id,
+                mut upstream_aliases,
+            } => {
+                let mut entity = *entity;
+                let mismatches = self.hasher.reconcile(&mut entity);
+                upstream_aliases.sort();
+                upstream_aliases.dedup();
+                let size = entity.to_canonical_json().len() as u64;
+                let changes = Changes::between(None, &entity);
+                let id = entity.id.clone();
+                let revid = upstream.revid;
+                let op = Operation::Put {
+                    id: id.clone(),
+                    entity,
+                    upstream,
+                    prev_upstream: None,
+                    first_seen: Some(self.now),
+                    size: Some(size),
+                    prev_size: None,
+                    changes: Some(changes),
+                    delta: None,
+                    upstream_id,
+                    upstream_aliases,
+                };
+                let (draft, commitment) = self.draft(&id, revid, &op)?;
+                Ok(Prepared::Record {
+                    draft,
+                    commitment,
+                    mismatches,
+                    created: true,
+                })
+            }
+            SyncItem::Redirected { from, to, upstream } => {
+                let revid = upstream.revid;
+                let op = Operation::Redirect {
+                    from: from.clone(),
+                    to,
+                    upstream: Some(upstream),
+                };
+                let (draft, commitment) = self.draft(&from, revid, &op)?;
+                Ok(Prepared::Record {
+                    draft,
+                    commitment,
+                    mismatches: HashMismatches::default(),
+                    created: false,
+                })
+            }
+            SyncItem::Deleted { .. } => Ok(Prepared::Unchanged),
+            SyncItem::Rejected {
+                upstream_id,
+                reason,
+            } => Ok(Prepared::Rejected {
+                upstream_id,
+                reason,
+            }),
+        }
+    }
+
+    /// The draft of a mirror operation on `subject`, as [`crate::write::write_to`] builds it
+    /// (the subject its own key, the provider-ranged revision ID, no comment), and its
+    /// body's commitment. Mirror operations carry their adapter's statement IDs, so none
+    /// are filled in.
+    fn draft(
+        &self,
+        subject: &EntityId,
+        upstream_revid: Option<u64>,
+        op: &Operation,
+    ) -> Result<(Draft, Hash), IngestError> {
+        if subject.form() == IdForm::Keyed {
+            return Err(IngestError::Adapter(format!(
+                "`{subject}` is keyed: its surrogate is minted on the write path, so its provider loads through the ordinary sync"
+            )));
+        }
+        let revid = upstream_revid
+            .map(|n| {
+                global_id(self.provider_number, n).ok_or_else(|| {
+                    IngestError::Adapter(format!("upstream revision {n} is out of range"))
+                })
+            })
+            .transpose()?;
+        let content = serde_json::to_value(op).map_err(|e| e.to_string())?;
+        let body = Body::core(&Value::from_json(&content), &Value::Null, &self.attestation)
+            .map_err(|e| e.to_string())?;
+        let commitment = body.commitment();
+        Ok((
+            Draft {
+                appended_at: self.now,
+                payload_type: PAYLOAD_CHANGESET.into(),
+                key: Some(subject.as_str().to_string()),
+                revid,
+                logid: None,
+                page_id: None,
+                body,
+            },
+            commitment,
+        ))
+    }
+}
+
+/// Loads an empty instance mirror partition from prepared records (see the module).
+/// `header` names the `mirror/{slug}` graph and the mode, as for [`crate::sync::run_sync`];
+/// `items` is given the [`Prepare`] for this job (its attestation names the job) and returns
+/// the prepared records in dump order, typically from worker threads. A non-empty partition
+/// is refused: an incremental load is the ordinary sync's.
+///
+/// # Errors
+///
+/// When the graph is not an instance mirror, the partition holds records, an item cannot
+/// be prepared or the store fails.
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+pub async fn run_bootstrap<S, F, I>(
+    store: &S,
+    pipeline: &Pipeline<S>,
+    header: JobHeader,
+    attestation: Attestation,
+    registry: &Registry,
+    now: u64,
+    batch: usize,
+    items: F,
+) -> Result<SyncOutcome, IngestError>
+where
+    S: IngestStore,
+    F: FnOnce(Prepare) -> I,
+    I: IntoIterator<Item = Result<Prepared, IngestError>>,
+{
+    let graph = header.graph();
+    let Some(Graph::Mirror(slug)) = &graph else {
+        return Err(IngestError::Adapter(format!(
+            "bootstrap mode loads an instance mirror, not `{}`",
+            header.graph
+        )));
+    };
+    if header.mode.unwrap_or(Mode::Upsert) == Mode::Adopt {
+        return Err(IngestError::Adapter(
+            "a sync is `upsert` or `snapshot`".into(),
+        ));
+    }
+    let provider = registry
+        .by_slug(slug)
+        .ok_or_else(|| IngestError::UnknownProvider(slug.clone()))?;
+    let graph_name = format!("mirror/{slug}");
+
+    let mut cx = store.begin().await?;
+    let partition = store
+        .partition(&mut cx, "", &graph_name)
+        .await?
+        .ok_or_else(|| IngestError::NoPartition {
+            tenant: String::new(),
+            graph: graph_name.clone(),
+        })?;
+    let size = store.partition_size(&mut cx, partition).await?;
+    if size != 0 {
+        return Err(IngestError::Adapter(format!(
+            "bootstrap mode needs an empty partition; `{graph_name}` holds {size} records"
+        )));
+    }
+    let mut job = Job::start(store, pipeline, &mut cx, "", header, attestation, now).await?;
+    let prepare = Prepare {
+        hasher: Hasher::mirrored_from(&provider.code),
+        attestation: job.record_attestation().to_value(),
+        now,
+        provider_number: u64::from(provider.number),
+    };
+    let batch = batch.max(1);
+    let mut counts = Counts::default();
+    let mut rejected_line = 1usize;
+    let mut block: Vec<(Draft, Hash)> = Vec::with_capacity(batch);
+    for prepared in items(prepare) {
+        match prepared? {
+            Prepared::Record {
+                draft,
+                commitment,
+                mismatches,
+                created,
+            } => {
+                for (kind, n) in mismatches.by_kind() {
+                    job.mismatch(kind, *n);
+                }
+                if created {
+                    counts.created += 1;
+                } else {
+                    counts.other += 1;
+                }
+                block.push((draft, commitment));
+                if block.len() >= batch {
+                    write_block(
+                        store,
+                        pipeline,
+                        &mut cx,
+                        partition,
+                        std::mem::take(&mut block),
+                    )
+                    .await?;
+                    store.commit(cx).await?;
+                    cx = store.begin().await?;
+                }
+            }
+            Prepared::Rejected {
+                upstream_id,
+                reason,
+            } => {
+                counts.rejected += 1;
+                job.reject(Reject {
+                    line: rejected_line,
+                    match_key: None,
+                    reason: format!("{upstream_id}: {reason}"),
+                });
+                rejected_line += 1;
+            }
+            Prepared::Unchanged => counts.unchanged += 1,
+        }
+    }
+    write_block(store, pipeline, &mut cx, partition, block).await?;
+    job.finish(
+        store,
+        pipeline,
+        &mut cx,
+        &counts,
+        serde_json::Map::new(),
+        now,
+    )
+    .await?;
+    store.commit(cx).await?;
+    Ok(SyncOutcome {
+        job_id: job.id,
+        counts,
+        swept: 0,
+    })
+}
+
+/// Gives a block its page IDs from one reservation, appends it, and runs the synchronous
+/// projections on each record, as [`crate::write::append_projected`] does for one.
+async fn write_block<S: IngestStore>(
+    store: &S,
+    pipeline: &Pipeline<S>,
+    cx: &mut S::Cx,
+    partition: u64,
+    mut block: Vec<(Draft, Hash)>,
+) -> Result<(), IngestError> {
+    if block.is_empty() {
+        return Ok(());
+    }
+    let pages = store.next_ids(cx, "", &Sequence::Page, block.len()).await?;
+    for ((draft, _), page) in block.iter_mut().zip(pages) {
+        draft.page_id = Some(page);
+    }
+    let records: Vec<Record> = store.append_many(cx, partition, block).await?;
+    for record in &records {
+        pipeline
+            .apply_inline(store, cx, record, Budget::NONE)
+            .await?;
+    }
+    Ok(())
+}

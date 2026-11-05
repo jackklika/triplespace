@@ -376,6 +376,14 @@ impl Backend for MemoryIngest {
 }
 
 impl IngestStore for MemoryIngest {
+    async fn partition_size(&self, cx: &mut MemoryCx, partition: u64) -> Result<u64, IngestError> {
+        cx.state
+            .partitions
+            .get(&partition)
+            .map(|p| p.records.len() as u64)
+            .ok_or_else(|| store(format!("no partition {partition:#x}")))
+    }
+
     async fn append(
         &self,
         cx: &mut MemoryCx,

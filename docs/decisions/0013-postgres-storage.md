@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-09-26
-- **Updated:** 2026-10-20 (A69)
+- **Updated:** 2026-11-05 (A70)
 - **Author:** James Hare / Claude Fable
 - **Changes:** [0000](0000-init.md), [0001](0001-revision-metadata-rdf.md), [0002](0002-source-graphs-and-mass-ingest.md), [0005](0005-crate-organization.md), [0006](0006-log-integrity-and-erasure.md), [0008](0008-namespaces-and-document-pages.md), [0010](0010-site-ui.md), [0011](0011-logs.md), [0012](0012-api-requirements.md)
 - **Uses:** [0004](0004-identity-clusters-and-equivalence.md), [0007](0007-actor-identity.md), [0009](0009-keyed-entity-types-and-domain.md), [0014](0014-caches-and-search.md)
@@ -129,7 +129,7 @@ PostgreSQL is already part of the deployment stack, and the only question the st
 
 ### 9. Bootstrap mode (extends 0002 §8.6; uses 0006 §5)
 
-*Changed by A31, A53.*
+*Changed by A31, A53, A70.*
 
 *Current text: [05](../architecture/05-providers-and-ingest.md) §3.8.*
 
@@ -975,3 +975,11 @@ Replaced text ([03](../architecture/03-storage-caches-and-search.md) §4.8, as i
 >   hidden smallint NOT NULL DEFAULT 0, erased boolean NOT NULL DEFAULT false
 > );
 > CREATE INDEX post_thread ON view.post (thread_id, published);
+
+### A70. How a load enters bootstrap mode
+
+- **Date:** 2026-11-05
+- **Source:** Direct: Claude, while building bootstrap mode's first stage, 2026-11-05; unconfirmed
+- **Change:** extends §9
+- **Summary:** `triplespace sync` enters bootstrap mode by itself for an instance mirror whose partition is empty, whose provider has no key map and whose dump is JSON, and `--no-bootstrap` opts out. A key-mapped provider is excluded because a keyed subject's surrogate is minted on the write path (0009 §7); an XML dump because its pages are not independent lines. The records are the ordinary sync's for an empty partition, prepared on worker threads from the dump alone and given offsets and page IDs in dump order by one coordinator; its job carries `bootstrap: true` among its arguments. A load commits block by block, so a failure leaves no holes, and a rerun, the partition no longer empty, continues through the ordinary sync. Measured on the 20k slice of the 2M Wikidata benchmark: 112 to 225 entities/s, with the same records, tree and view rows as the ordinary sync and a rebuild identical to the load (`docs/testing/performance.md` §8).
+

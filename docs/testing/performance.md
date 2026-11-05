@@ -320,6 +320,23 @@ and the rest about 2.3 ms (24%). The client is still the larger share, so prepar
 on worker threads (§6 item 1, for parsing, ID rewriting, hash checks and CBOR encoding) and
 then batch-shaped writes (§6 items 2–4) are next.
 
+**Bootstrap mode, stage A (2026-11-05).** 0013 §9 for an empty instance mirror without a key
+map and a JSON dump (A70; 05 §3.8): each record is a new subject's `put`, so it is prepared
+from the dump alone on worker threads (parsing, the hash check, the operation, its encoding,
+the part hashes), and one coordinator gives offsets and page IDs in dump order and appends a
+block at a time by binary `COPY` of the records and the tree nodes (`append_many`), with one
+partition lock, one page-ID reservation and one commit per block. The projections still run
+per record, inline, so the key index stays; set-based projections and the deferred index build
+are stage B. On the 20k slice: 178 s → 89 s (112 → 225 entities/s), with the same records,
+tree and view rows as the ordinary sync and a rebuild identical to the load. **On the 2M set:
+2 h 56 min (190 entities/s), against 5 h 18 min at `867c673` and 9 h 28 min at `26f7754`
+(3.2×)**: 159/s over the dense items and 244/s over the articles; 11.0 statements per entity
+against 20.0, Postgres execution 1,456 s against 1,862, the database the same 19 GB. Peak RSS
+rose to 1.44 GB (386 MB in the ordinary sync; 658 MB on the 20k slice), not yet explained: the
+queues between the threads and the coordinator are bounded, so the growth with the load's size
+is worth a look before a 122M-entity load. What is left is the per-record projection work on the coordinator's thread
+(the client was at about 110% of one core at the end): stage B's set-based projections.
+
 **`term_prefix` is not yet as 03 §4.3 has it.** The chapter's index is partial over tenant rows
 (`WHERE tenant <> ''`); the migration's (`0002_view.sql`) covers every row, shared ones included,
 and `wbsearchentities` reads shared rows through it (`t.tenant IN ($1, '')`). Making it partial

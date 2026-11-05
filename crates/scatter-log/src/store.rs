@@ -57,6 +57,28 @@ impl Draft {
         };
         Record::seal(header, self.body)
     }
+
+    /// [`Self::seal`] with the body's commitment computed beforehand: a bootstrap writer
+    /// hashes bodies on worker threads and assigns offsets in order afterwards, so the
+    /// coordinator does not hash each body a second time (0013 §9). `commitment` must be
+    /// `self.body.commitment()`, which debug builds check.
+    #[must_use]
+    pub fn seal_committed(self, partition: u64, offset: u64, commitment: Hash) -> Record {
+        debug_assert_eq!(commitment, self.body.commitment(), "a stale commitment");
+        let header = Header {
+            version: FORMAT_VERSION,
+            partition,
+            offset,
+            appended_at: self.appended_at,
+            payload_type: self.payload_type,
+            key: self.key,
+            commitment,
+            revid: self.revid,
+            logid: self.logid,
+            page_id: self.page_id,
+        };
+        Record::committed(header, self.body)
+    }
 }
 
 /// What `append` returns.

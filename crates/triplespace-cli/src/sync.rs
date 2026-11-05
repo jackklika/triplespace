@@ -25,6 +25,7 @@ use scatter_adapter_wikibase::{
 };
 use scatter_ingest::sync::{SyncItem, run_sync_in};
 use scatter_ingest::write::Attestation;
+use scatter_ingest::{IngestError, Prepared, run_bootstrap};
 use scatter_providers::{Provider, Registry};
 use scatter_wikibase_changeset::{JobHeader, Mode, Upstream, WikibaseAdapter};
 use triplespace_api_ingest::follow::{KIND_PROVIDER, KIND_SOURCE, record_load};
@@ -66,6 +67,10 @@ pub struct Sync {
     /// Writes every reject to this file, one `upstream ID<TAB>reason` line each.
     #[arg(long)]
     pub rejects: Option<PathBuf>,
+    /// Loads through the ordinary sync even where bootstrap mode applies (an empty
+    /// instance mirror, no key map, a JSON dump; 0013 §9).
+    #[arg(long)]
+    pub no_bootstrap: bool,
 }
 
 /// What a dump yields for the sync: its items in dump order, read as the sync asks for
@@ -357,12 +362,11 @@ pub async fn run(args: Sync) -> Result<()> {
     let client = connect(&args.database).await?;
     let (registry, provider, tenant) = target(&client, &args).await?;
     let slug = provider.slug.as_str();
-    let items = match provider.adapter.as_deref() {
-        Some(scatter_adapter_wikibase::NAME) => prepare_wikibase(provider, registry, &args.dump)?,
+    match provider.adapter.as_deref() {
+        Some(scatter_adapter_wikibase::NAME) => {}
         Some(other) => bail!("`{slug}` is read by `{other}`, which this build does not include"),
         None => bail!("`{slug}` names no adapter"),
-    };
-    let unreadable = items.unreadable_counter();
+    }
     let mut watch = Watch::new(args.rejects.as_deref())?;
     let farm = farm_of(&client).await?;
     let (store, pipeline) = store(&args.database, &farm)?;
@@ -387,21 +391,40 @@ pub async fn run(args: Sync) -> Result<()> {
         scatter_adapter_wikibase::NAME,
         scatter_adapter_wikibase::VERSION
     ));
-    let outcome = run_sync_in(
-        &store,
-        &pipeline,
-        &tenant,
-        header,
-        Attestation::by(&farm.operator().to_string()),
-        items.inspect(|item| watch.observe(item)),
-        args.threshold,
-        registry,
-        now(),
-        args.batch.max(1),
-    )
-    .await
-    .context("sync")?;
-    let latest = watch.finish()?;
+    let attestation = Attestation::by(&farm.operator().to_string());
+    let (outcome, unreadable, latest) = if bootstraps(&client, &args, provider, &tenant).await? {
+        load_bootstrapped(
+            &store,
+            &pipeline,
+            &args,
+            provider,
+            registry,
+            header,
+            attestation,
+            &mut watch,
+        )
+        .await?
+    } else {
+        let items = prepare_wikibase(provider, registry, &args.dump)?;
+        let unreadable = items.unreadable_counter();
+        let outcome = run_sync_in(
+            &store,
+            &pipeline,
+            &tenant,
+            header,
+            attestation,
+            items.inspect(|item| watch.observe(item)),
+            args.threshold,
+            registry,
+            now(),
+            args.batch.max(1),
+        )
+        .await
+        .context("sync")?;
+        (outcome, unreadable.get(), None)
+    };
+    // Flushes the rejects file; on the ordinary path it also saw every state's time.
+    let latest = latest.or(watch.finish()?);
     // Where the load ended (0092 §5), for a follower to continue from.
     if let Some(latest) = latest {
         let kind = if tenant.is_empty() {
@@ -432,10 +455,106 @@ pub async fn run(args: Sync) -> Result<()> {
     if outcome.swept > 0 {
         println!("  swept      {}", outcome.swept);
     }
-    if unreadable.get() > 0 {
-        println!("  unreadable {} (see stderr)", unreadable.get());
+    if unreadable > 0 {
+        println!("  unreadable {unreadable} (see stderr)");
     }
     Ok(())
+}
+
+/// A bootstrap load (0013 §9): the dump prepared on worker threads
+/// ([`crate::bootstrap::prepared`]) and appended in blocks by
+/// [`scatter_ingest::run_bootstrap`]. Returns the outcome, the unreadable count and where the
+/// load ends.
+#[allow(clippy::too_many_arguments)]
+async fn load_bootstrapped(
+    store: &triplespace_api_ingest::PgIngest,
+    pipeline: &scatter_projection::Pipeline<triplespace_api_ingest::PgIngest>,
+    args: &Sync,
+    provider: &Provider,
+    registry: &'static Registry,
+    mut header: JobHeader,
+    attestation: Attestation,
+    watch: &mut Watch,
+) -> Result<(scatter_ingest::SyncOutcome, u64, Option<u64>)> {
+    use std::sync::Arc;
+    use std::sync::atomic::Ordering;
+    // The job says how it loaded, for the operator and for `view.job` (05 §3.8).
+    header
+        .params
+        .insert("bootstrap".into(), serde_json::Value::Bool(true));
+    let workers = std::thread::available_parallelism()
+        .map_or(4, std::num::NonZero::get)
+        .saturating_sub(2)
+        .max(1);
+    eprintln!(
+        "bootstrap: the mirror is empty; loading in blocks, prepared on {workers} threads (0013 §9)"
+    );
+    let inner = WikibaseAdapter::with_registry(&provider.slug, registry)
+        .with_context(|| format!("provider `{}` is not registered", provider.slug))?;
+    let mut index = Index::default();
+    index.finish();
+    let adapter = Arc::new(KeyMappedAdapter::new(
+        inner,
+        KeyRules::from_provider(provider)?,
+        index,
+    ));
+    let tally = Arc::new(crate::bootstrap::Tally::default());
+    let outcome = run_bootstrap(
+        store,
+        pipeline,
+        header,
+        attestation,
+        registry,
+        now(),
+        args.batch.max(1),
+        |prepare| {
+            let prepared: Box<dyn Iterator<Item = Result<Prepared, IngestError>>> =
+                match crate::bootstrap::prepared(&args.dump, &adapter, prepare, workers, &tally) {
+                    Ok(ordered) => Box::new(ordered),
+                    Err(e) => Box::new(std::iter::once(Err(e))),
+                };
+            prepared.inspect(|p| {
+                if let Ok(Prepared::Rejected {
+                    upstream_id,
+                    reason,
+                }) = p
+                {
+                    watch.observe(&SyncItem::Rejected {
+                        upstream_id: upstream_id.clone(),
+                        reason: reason.clone(),
+                    });
+                }
+            })
+        },
+    )
+    .await
+    .context("bootstrap")?;
+    let latest = Some(tally.latest.load(Ordering::Relaxed)).filter(|t| *t > 0);
+    Ok((outcome, tally.unreadable.load(Ordering::Relaxed), latest))
+}
+
+/// Whether this load is bootstrap mode's (0013 §9, A70): an instance mirror whose partition is
+/// still empty, a provider with no key map (its subjects are their own keys), a JSON dump
+/// (lines parse independently), and `--no-bootstrap` not given.
+async fn bootstraps(
+    client: &tokio_postgres::Client,
+    args: &Sync,
+    provider: &Provider,
+    tenant: &str,
+) -> Result<bool> {
+    if args.no_bootstrap || !tenant.is_empty() || !KeyRules::from_provider(provider)?.is_empty() {
+        return Ok(false);
+    }
+    if Entities::open(&args.dump).context("open dump")?.is_xml() {
+        return Ok(false);
+    }
+    let row = client
+        .query_opt(
+            "SELECT next_offset FROM log.partition WHERE tenant IS NULL AND name = $1",
+            &[&format!("mirror/{}", provider.slug)],
+        )
+        .await?;
+    Ok(row.is_some_and(|r| r.get::<_, i64>(0) == 0))
 }
 
 #[cfg(test)]

@@ -1494,3 +1494,134 @@ fn an_undeleted_entity_comes_back_without_claiming_its_revision_twice() {
         }
     });
 }
+
+// --- bootstrap mode ----------------------------------------------------------------------
+
+/// The items of the bootstrap equivalence test: two states (one with an upstream hash the
+/// guard counts), an upstream deletion of nothing, a reject and its state, and a redirect.
+fn bootstrap_items() -> Vec<SyncItem> {
+    let mut hashed = entity(json!({"type": "item", "id": "XDQ2",
+        "labels": {"en": {"language": "en", "value": "Two"}},
+        "claims": {"P1": [{"mainsnak": {"snaktype": "value", "property": "P1", "hash": "0000000000000000000000000000000000000000",
+            "datavalue": {"value": "a", "type": "string"}, "datatype": "string"}, "type": "statement", "rank": "normal"}]}}));
+    hashed.id = EntityId::parse("XDQ2").unwrap();
+    vec![
+        xd_state("XDQ1", "One", 10),
+        SyncItem::State {
+            entity: Box::new(hashed),
+            upstream: Upstream::revision(20, Some("2026-10-01T00:00:00Z")),
+            upstream_id: None,
+            upstream_aliases: Vec::new(),
+        },
+        SyncItem::Deleted {
+            id: EntityId::parse("XDQ99").unwrap(),
+            upstream: Upstream::revision(31, None),
+        },
+        SyncItem::Rejected {
+            upstream_id: "Q5".into(),
+            reason: "not a valid domain key".into(),
+        },
+        xd_state("XDQ5", "Five", 50),
+        SyncItem::Redirected {
+            from: EntityId::parse("XDQ3").unwrap(),
+            to: EntityId::parse("XDQ1").unwrap(),
+            upstream: Upstream::revision(60, None),
+        },
+    ]
+}
+
+/// What a mirror record is, but for its salts and hashes: the header fields a writer sets,
+/// the operation and the attestation.
+fn comparable(record: &Record) -> (Header, Operation, serde_json::Value) {
+    let mut h = record.header().clone();
+    h.commitment = [0; 32];
+    (h, operation_of(record), attestation_of(record))
+}
+
+/// Bootstrap mode writes what the ordinary sync writes into an empty partition (0013 §9):
+/// the same records, offsets, page and revision IDs, operations and attestations, the
+/// same counts and the same job record, in blocks; and it refuses a partition that is
+/// not empty.
+#[test]
+fn a_bootstrap_load_writes_what_a_sync_writes() {
+    pollster::block_on(async {
+        let actor = Attestation::by("instance:scatter");
+        let (synced, pipeline) = setup();
+        let ordinary = run_sync(
+            &synced,
+            &pipeline,
+            sync_header(Mode::Upsert),
+            actor.clone(),
+            bootstrap_items(),
+            100,
+            registry(),
+            NOW,
+            2,
+        )
+        .await
+        .unwrap();
+        let (loaded, pipeline) = setup();
+        let bootstrapped = scatter_ingest::run_bootstrap(
+            &loaded,
+            &pipeline,
+            sync_header(Mode::Upsert),
+            actor.clone(),
+            registry(),
+            NOW,
+            2,
+            |prepare| {
+                bootstrap_items()
+                    .into_iter()
+                    .map(move |item| prepare.item(item))
+                    .collect::<Vec<_>>()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(bootstrapped.counts, ordinary.counts);
+        assert_eq!(
+            (
+                bootstrapped.counts.created,
+                bootstrapped.counts.unchanged,
+                bootstrapped.counts.rejected,
+                bootstrapped.counts.other
+            ),
+            (3, 1, 1, 1)
+        );
+        assert_eq!(bootstrapped.job_id, ordinary.job_id);
+        let a: Vec<_> = synced.records(MIRROR_XD).iter().map(comparable).collect();
+        let b: Vec<_> = loaded.records(MIRROR_XD).iter().map(comparable).collect();
+        assert_eq!(a.len(), 4);
+        assert_eq!(b, a, "the same records, field by field");
+        // The job's finish record: the same counts, rejects and hash mismatches.
+        let finish = |store: &MemoryIngest| {
+            store
+                .records(INSTANCE_LOG)
+                .iter()
+                .filter(|r| r.header().payload_type == "scatter:v0/logevent")
+                .map(params_of)
+                .next_back()
+                .unwrap()
+        };
+        assert_eq!(finish(&loaded), finish(&synced));
+        // A partition that holds records is the ordinary sync's.
+        let err = scatter_ingest::run_bootstrap(
+            &loaded,
+            &pipeline,
+            sync_header(Mode::Upsert),
+            actor,
+            registry(),
+            NOW,
+            2,
+            |prepare| {
+                bootstrap_items()
+                    .into_iter()
+                    .map(move |item| prepare.item(item))
+                    .collect::<Vec<_>>()
+            },
+        )
+        .await
+        .unwrap_err();
+        assert!(err.to_string().contains("empty partition"), "{err}");
+    });
+}
