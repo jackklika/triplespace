@@ -276,8 +276,40 @@ check. Against `26f7754` on the same slices: instructions per 2k-entity profile 
 resolution (`resolve_subject`) 31%, the entity-source projection 18%, SHA-256 for commitments 13%,
 and `Resolved::equals` by canonical JSON 12%.
 
-**Terms are the decided rule, not built.** 05 §5.8 (0070 §6, settled for full mirrors by 0082 §6)
-gives a mirrored entity `view.term` rows in the instance's term languages only
-(`entities.term_languages`: the content languages, `mul` and `en`), other languages read from the
-record. The term projection does not apply it yet: the baseline wrote 110.8M rows in 629 languages
-for 2M entities.
+**The term-language rule (2026-11-04).** 05 §5.8 (0070 §6, settled for full mirrors by 0082 §6)
+gives a mirrored entity `view.term` rows in the instance's term languages only; the baseline wrote
+every language (110.8M rows in 629 languages for 2M entities). The entity projection now filters
+shared rows (`tenant = ''`) inside the term insert, to the `tenancy:entities.term_languages`
+ceiling or by default `mul`, `en` and every tenant's `site.language` (0082 A2). On the same 20k
+slice, two runs each, alternating, against decode-once alone: term rows 811k → 50k (−94%),
+`view.term` 127 MB → 9.7 MB, database 318 MB → 200 MB (−37%); Postgres execution 23 s → 15.5 s,
+term inserts 9.7 s → 2.2 s; wall 225 s → 191 s (89 → 105 entities/s, +18%); client CPU unchanged.
+With decoding once, 73 → 105 entities/s (+44%) on this slice against `26f7754`. A mirrored
+entity's labels in other languages are in its record (`wbgetentities`) but no longer in
+`view.term`, so a page shows its ID in those languages until the label cache (0070 §4, 05 §5.6)
+is built.
+
+**The state comparison and loads' activity rows (2026-11-04).** `Resolved::equals` turned
+both states into canonical JSON to compare them, and the projection then built the resolved
+state's a third time; it now builds it once and compares the contribution against it
+(`equals_given`), which stays exact (a structural comparison would not be: `StatementId`
+compares without case and `-0.0 == 0.0`). Instructions on the 2k profile 71.8 G → 67.4 G (−6.2%).
+A load's mirror records no longer write `view.activity` rows (03 §4.6; 0013 §5.5): a mirror
+change-set record whose job is not marked `follow` is skipped by the activity projection, so a
+load is its job's rows alone, while the follower's records keep theirs. On the 20k slice the two
+together, against the term rule alone: wall 191 s → 181 s (105 → 110 entities/s), client CPU
+about 142 s → 132 s, activity rows 20,003 → 3, database 200 MB → 175 MB. **Against `26f7754` on
+this slice, the four changes of this section take 273 s to 181 s (73 → 110 entities/s, +51%).**
+
+**The allocator, measured (2026-11-04).** `malloc` and `free` were about a third of the client's
+instructions. The same binary (all the changes above) under glibc, jemalloc 5.3.0 and mimalloc
+3.0.1 by `LD_PRELOAD` (Debian's `libjemalloc2`, `libmimalloc3`), on the 20k slice, alternating,
+two runs each: CPU 130 s / 104 s (−20%) / 96 s (−26%); wall 185 s / 169 s / 156 s (−9% / −16%;
+runs vary by ±6%); peak RSS 49 MB / 128 MB / 85 MB. mimalloc is now the binaries' allocator
+(0033 A24; 22 §4.2).
+
+**`term_prefix` is not yet as 03 §4.3 has it.** The chapter's index is partial over tenant rows
+(`WHERE tenant <> ''`); the migration's (`0002_view.sql`) covers every row, shared ones included,
+and `wbsearchentities` reads shared rows through it (`t.tenant IN ($1, '')`). Making it partial
+before the search index (0014) serves mirror search would leave that half of the query to a
+sequential scan, so it stays as built; with the term-language rule the shared part is small.

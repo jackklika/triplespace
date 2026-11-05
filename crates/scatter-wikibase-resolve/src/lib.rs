@@ -22,11 +22,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use scatter_wikibase_model::Form;
 use scatter_wikibase_model::entity::Entity;
 use scatter_wikibase_model::hash::Hasher;
 use scatter_wikibase_model::id::StatementId;
-use scatter_wikibase_model::json::canonical;
 use scatter_wikibase_model::key::{Identity, statement_key};
 use scatter_wikibase_model::statement::{Rank, Statement};
 
@@ -82,8 +80,17 @@ impl Resolved {
     /// may take the record itself rather than a stored copy (0013 §5.1).
     #[must_use]
     pub fn equals(&self, contribution: &Entity) -> bool {
-        canonical(&self.entity.to_value(Form::Storage))
-            == canonical(&contribution.to_value(Form::Storage))
+        self.equals_given(&self.canonical_json(), contribution)
+    }
+
+    /// [`Self::equals`], given this state's canonical JSON, which a caller that needs it
+    /// anyway has already built: one serialization instead of two. A structural comparison
+    /// would be cheaper still but is not exact: a statement ID compares without case and is
+    /// written as given, and `-0.0 == 0.0` serializes two ways.
+    #[must_use]
+    pub fn equals_given(&self, canonical_json: &str, contribution: &Entity) -> bool {
+        debug_assert_eq!(canonical_json, self.canonical_json());
+        canonical_json == contribution.to_canonical_json()
     }
 }
 

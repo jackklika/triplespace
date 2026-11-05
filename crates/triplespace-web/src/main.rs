@@ -18,6 +18,13 @@
 
 #![forbid(unsafe_code)]
 
+// The process allocator is mimalloc (0033 §2, A24): glibc's `malloc` and `free` were a
+// third of a Wikidata sync's instructions (docs/testing/performance.md §8). Built without the
+// default `mimalloc` feature, the binary uses the system allocator, for heap tools.
+#[cfg(feature = "mimalloc")]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use std::net::SocketAddr;
 use std::path::PathBuf;
 

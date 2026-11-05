@@ -18,6 +18,7 @@ Log entries whose Source ends in *unconfirmed*: decisions made in code and logge
 | [0056 A27](0056-security-model.md#a27-entities-the-live-attack-and-tiers-78-the-calls-made-building-them) | 2026-10-30 | Entities, the live attack and tiers 7–8: the calls made building them |
 | [0066 A3](0066-lexemes.md#a3-the-part-suffix-belongs-to-the-lexeme-entity-type-not-to-a-grammar) | 2026-11-04 | The part suffix belongs to the lexeme entity type, not to a grammar |
 | [0077 A6](0077-special-version.md#a6-licensing-loose-ends-from-building-specialversion) | 2026-10-30 | Licensing: loose ends from building Special:Version |
+| [0082 A2](0082-source-form-and-the-shared-view.md#a2-the-instances-content-languages) | 2026-11-04 | The instance's content languages |
 | [0085 A2](0085-settings-and-preferences.md#a2-settings-the-calls-made-building-the-backend-slice) | 2026-10-30 | Settings: the calls made building the backend slice |
 | [0086 A9](0086-theming.md#a9-theming-loose-ends-from-building-it) | 2026-10-30 | Theming: loose ends from building it |
 | [0086 A10](0086-theming.md#a10-gruvbox-nord-and-catppuccin-with-type-sets-made-for-them) | 2026-11-01 | Gruvbox, Nord and Catppuccin, with type sets made for them |

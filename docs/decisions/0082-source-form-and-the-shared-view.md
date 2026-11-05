@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-10-09
-- **Updated:** 2026-10-30 (A1)
+- **Updated:** 2026-11-04 (A2)
 - **Author:** James Hare / Claude Fable
 - **Changes:** [0001](0001-revision-metadata-rdf.md), [0002](0002-source-graphs-and-mass-ingest.md), [0003](0003-statement-ui.md), [0004](0004-identity-clusters-and-equivalence.md), [0005](0005-crate-organization.md), [0010](0010-site-ui.md), [0012](0012-api-requirements.md), [0013](0013-postgres-storage.md), [0014](0014-caches-and-search.md), [0017](0017-entity-id-grammar.md), [0018](0018-tenants.md), [0031](0031-property-constraints.md), [0032](0032-sparql-update-stream.md), [0044](0044-tenant-relative-ids.md), [0059](0059-query-service.md), [0060](0060-scopes.md), [0070](0070-shallow-entity-mirroring.md), [0078](0078-entity-sources.md)
 - **Uses:** [0029](0029-resolver-namespaces.md), [0080](0080-tenants-as-entity-sources.md), [0083](0083-write-path-in-three-tiers.md)
@@ -57,6 +57,8 @@ James's direction, from the design review of 2026-10-09:
 
 ### 6. `view.term` and `view.entity_ref` at scale (amends 0013 §5 and §11, 0014 §8, 0018 §6 and 0070 §4 and §6)
 
+*Changed by A2.*
+
 *Current text: [00](../architecture/00-overview.md) §2.8; [03](../architecture/03-storage-caches-and-search.md) §4.3, §5, §7, §11.6; [05](../architecture/05-providers-and-ingest.md) §5.6, §5.8; [19](../architecture/19-site-ui.md) §4.2; [22](../architecture/22-crates-and-stack.md) §6; [23](../architecture/23-configuration-and-registry.md) §3.2.*
 
 ### 7. Crates (extends 0005 §2 and 0060 §11)
@@ -98,3 +100,11 @@ James's direction, from the design review of 2026-10-09:
 - **Source:** [0050](0050-adr-format.md) §14
 - **Change:** relocates §1–§7
 - **Summary:** The Decision's current text now lives in the architecture chapters [00](../architecture/00-overview.md), [02](../architecture/02-graphs-rdf-and-query.md), [03](../architecture/03-storage-caches-and-search.md), [04](../architecture/04-entities-and-identifiers.md), [05](../architecture/05-providers-and-ingest.md), [06](../architecture/06-statements-and-properties.md), [08](../architecture/08-tenants-and-instances.md), [18](../architecture/18-api.md), [19](../architecture/19-site-ui.md), [22](../architecture/22-crates-and-stack.md), [23](../architecture/23-configuration-and-registry.md), in the sections each pointer names; this ADR keeps its headings, provenance lines, Context, Consequences, Open questions and this log. The last commit in which this file carried the text is `2e2a7c8`. No decision changed.
+
+### A2. The instance's content languages
+
+- **Date:** 2026-11-04
+- **Source:** Direct: Claude, while building the shared term languages, 2026-11-04; unconfirmed
+- **Change:** extends §6
+- **Summary:** The default of `entities.term_languages` for the shared rows, "the instance's content languages, `mul` and `en`", reads the instance's content languages as every tenant's `site.language` and the instance's default for it (`template:site:site.language`): the shared rows serve every tenant, and each tenant's pages show labels in its own content language, so each of those languages has rows. The instance's own value is the `tenancy:entities.term_languages` ceiling, which replaces the default. Built for the Wikidata benchmark, whose shared `view.term` held 110.8M rows in 629 languages for 2M mirrored entities before the rule was applied (`docs/testing/performance.md` §8).
+

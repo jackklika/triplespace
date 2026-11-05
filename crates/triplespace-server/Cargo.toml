@@ -13,7 +13,13 @@ publish = false
 name = "triplespace-server"
 path = "src/main.rs"
 
+[features]
+# The process allocator (0033 §2, A24); off for the system allocator, for heap tools.
+default = ["mimalloc"]
+mimalloc = ["dep:mimalloc"]
+
 [dependencies]
+mimalloc = { workspace = true, optional = true }
 triplespace-api-action.workspace = true
 triplespace-api-rest.workspace = true
 triplespace-accounts.workspace = true
@@ -35,6 +41,7 @@ scatter-actors.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "io-util"] }
 scatter-projection.workspace = true
 scatter-ingest.workspace = true
+scatter-providers.workspace = true
 scatter-threads.workspace = true
 triplespace-api-ingest.workspace = true
 scatter-log.workspace = true

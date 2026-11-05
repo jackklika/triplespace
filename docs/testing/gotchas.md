@@ -86,6 +86,14 @@ strike what stops being true. Implementation status is not kept here (24 §15: `
 
 ## The code
 
+- An instance partition's `log.partition.tenant` is NULL, while the `view` tables write the
+  instance as `''`: a join between them on the tenant needs
+  `p.tenant IS NOT DISTINCT FROM nullif(v.tenant, '')`, or it silently finds nothing.
+- A load (a dump sync or a crawl) writes no `view.activity` rows for its mirror records, only
+  its job's (03 §4.6), and the REST change view (`/entity/{id}/changes/{p}/{o}`) reads the
+  activity row, so a loaded record has none. A test that needs `sync` rows runs the follower
+  (`scatter_ingest::run_follow`, as `triplespace-server/tests/site.rs` does).
+
 - A `PgCx` dropped after a failed write without `store.rollback(cx)` can leave the pooled
   connection mid-transaction and hang the next write on the same key. Always roll back explicitly,
   as `editpage` does.
