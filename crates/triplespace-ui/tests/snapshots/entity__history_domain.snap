@@ -1,5 +1,6 @@
 ---
 source: crates/triplespace-ui/tests/entity.rs
+assertion_line: 505
 expression: main
 ---
 <main class="ts-page" id="content">
@@ -15,6 +16,8 @@ expression: main
 		<a class="ts-tabs__link" href="/wiki/Domain:wikipedia.org?tab=identifiers">Identifiers</a>
 		<a class="ts-tabs__link" href="/wiki/Domain:wikipedia.org?tab=labels">Labels in other languages</a>
 		<a class="ts-tabs__link" href="/wiki/Domain:wikipedia.org?action=history" aria-current="page">History</a>
+		<a class="ts-tabs__link" href="/wiki/Special:WhatLinksHere/Domain:wikipedia.org">Links here</a>
+		<a class="ts-tabs__link" href="/wiki/Domain_talk:wikipedia.org">Discussion</a>
 	</nav>
 	<div class="ts-page__body">
 		<div class="ts-history">

@@ -1,5 +1,6 @@
 ---
 source: crates/triplespace-ui/tests/changes.rs
+assertion_line: 174
 expression: main
 ---
 <main class="ts-page" id="content">
@@ -69,7 +70,7 @@ expression: main
 </select>
 </label> <button class="cdx-button cdx-button--action-progressive cdx-button--weight-primary" type="submit">Show changes</button>
 </form>
-<p class="ts-changes__strip">Mirror syncs are not shown. <a href="/w/index.php?title=Special:RecentChanges&amp;filtered=1&amp;kind=edit&amp;kind=job&amp;kind=log&amp;kind=sync&amp;days=30&amp;limit=50">Show them</a>
+<p class="ts-changes__strip">Mirror syncs are not shown. <a href="/w/index.php?title=Special:RecentChanges&amp;filtered=1&amp;kind=edit&amp;kind=job&amp;kind=log&amp;kind=sync&amp;bots=1&amp;days=30&amp;limit=50">Show them</a>
 </p>
 <div class="ts-changes__scroll">
 <table class="ts-changes__table">
@@ -235,7 +236,7 @@ expression: main
 </table>
 </div>
 <nav class="ts-pager" aria-label="More results">
-<a href="/w/index.php?title=Special:RecentChanges&amp;filtered=1&amp;kind=edit&amp;kind=job&amp;kind=log&amp;days=30&amp;limit=50&amp;continue=1700000000000000%7C4098%7C2" rel="next">Older</a>
+<a href="/w/index.php?title=Special:RecentChanges&amp;filtered=1&amp;kind=edit&amp;kind=job&amp;kind=log&amp;bots=1&amp;days=30&amp;limit=50&amp;continue=1700000000000000%7C4098%7C2" rel="next">Older</a>
 </nav>
 </div>
 	</div>

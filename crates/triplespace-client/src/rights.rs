@@ -32,7 +32,7 @@ pub struct Restriction {
 }
 
 impl Restriction {
-    fn of(v: &Value) -> Self {
+    pub(crate) fn of(v: &Value) -> Self {
         Self {
             kind: v["type"].as_str().unwrap_or_default().to_string(),
             level: v["level"].as_str().unwrap_or_default().to_string(),

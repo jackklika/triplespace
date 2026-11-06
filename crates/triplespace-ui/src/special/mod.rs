@@ -35,6 +35,7 @@
 //! - [`providers`]: `Special:Providers`, the data providers this instance knows.
 //! - `Special:NewPages` is a fourth feed in [`changes`].
 //! - [`allpages`]: `Special:AllPages` and `Special:PrefixIndex`.
+//! - [`whatlinkshere`]: `Special:WhatLinksHere`, the Links here tab.
 //! - [`reports`]: the report pages, `Special:WantedPages`, `Special:ShortPages`,
 //!   `Special:ListProperties` and the rest, one page from `list=querypage` (0047 §4).
 //! - [`redirects`]: MediaWiki's redirecting pages (`MyPage`, `EditPage`, `TalkPage`,
@@ -70,6 +71,7 @@ pub mod undelete;
 pub mod userrights;
 pub mod version;
 pub mod watchlist;
+pub mod whatlinkshere;
 
 use std::collections::BTreeMap;
 
@@ -117,6 +119,9 @@ pub async fn serve(
     }
     match name.as_str() {
         "BlankPage" => Some(blank::serve(site, headers, peer, params).await),
+        "WhatLinksHere" | "Whatlinkshere" => {
+            Some(whatlinkshere::serve(site, headers, peer, title, params).await)
+        }
         "AllMessages" => Some(allmessages::serve(site, headers, peer, params).await),
         "ComparePages" => Some(compare::serve(site, headers, peer, params).await),
         "ProtectedTitles" => Some(protected::titles(site, headers, peer, params).await),

@@ -923,7 +923,11 @@ pub async fn deleted(
     if let Some(rev) = &revision.value
         && let Some(text) = &rev.content
     {
-        if let Ok(parsed) = site.client().preview(incoming, title, text).await {
+        if let Ok(parsed) = site
+            .client()
+            .preview(incoming, title, text, "wikitext")
+            .await
+        {
             model.content_html = Some(parsed.html);
         } else {
             model.source = Some(text.clone());

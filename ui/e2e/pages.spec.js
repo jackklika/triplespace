@@ -77,7 +77,9 @@ const pages = [
 	{ path: '/wiki/Special:LonelyPages', heading: 'Orphaned pages' },
 	{ path: '/wiki/Special:ShortPages?limit=20', heading: 'Short pages' },
 	{ path: '/wiki/Special:ListRedirects', heading: 'List of redirects' },
-	{ path: '/wiki/Special:ListProperties', heading: 'List of properties' }
+	{ path: '/wiki/Special:ListProperties', heading: 'List of properties' },
+	{ path: '/wiki/Special:WhatLinksHere', heading: 'Pages that link here' },
+	{ path: '/wiki/Special:WhatLinksHere/Item:Q6', heading: 'Pages that link to "Item:Q6"' }
 ];
 
 for ( const p of pages ) {
@@ -313,4 +315,93 @@ test( 'recent changes mark accounts and show the instance as the Server Operator
 	await expect( page.locator( '.ts-change--log .ts-change__id' ) ).toHaveCount( 0 );
 	// Entities keep their IDs.
 	await expect( page.locator( '.ts-change__id', { hasText: /^Q6$/ } ).first() ).toBeVisible();
+} );
+
+/**
+ * Logs Alice in through the site's own form.
+ *
+ * @param {Object} page A Playwright page
+ */
+async function logIn( page ) {
+	await page.goto( '/wiki/Special:UserLogin?returnto=Project:Home' );
+	await page.getByLabel( 'Username' ).fill( 'Alice' );
+	await page.getByLabel( 'Password' ).fill( process.env.E2E_OWNER_PASSWORD );
+	await page.getByRole( 'button', { name: 'Log in', exact: true } ).click();
+}
+
+// A document page's tabs and panels (chapter 19 §1.3, §3.1; ADR 0010 §4, §12, 0019 §2):
+// Read, Edit, History, Links here and Discussion, and the About this page panel; the Format
+// selector of a new page (0041 §10). Serial: the second creates what the first lists.
+test.describe.serial( 'a document page', () => {
+	test( 'has Links here and Discussion tabs and an About this page panel', async ( { page } ) => {
+		await logIn( page );
+		await page.goto( '/w/index.php?title=Project:Tabs_test&action=edit' );
+		await page.locator( '#wpTextbox1' ).fill( 'See [[Project:Tab target]] and [[Item:Q6]].' );
+		await page.locator( 'button[name="wpSave"]' ).click();
+		await expect( page ).toHaveURL( /\/wiki\/(Project|librarybase):Tabs_test$/ );
+		const tabs = page.locator( 'nav.ts-tabs a.ts-tabs__link' );
+		await expect( tabs ).toHaveText( [ 'Read', 'Edit', 'History', 'Links here', 'Discussion' ] );
+		await expect( tabs.first() ).toHaveAttribute( 'aria-current', 'page' );
+
+		// About this page: who made it and when, its size, model and protection.
+		const about = page.getByRole( 'complementary', { name: 'About this page' } );
+		await expect( about ).toBeVisible();
+		await expect( about.locator( '.ts-about__fact' ).filter( { hasText: 'Created' } ) ).toContainText( 'Alice' );
+		await expect( about.locator( '.ts-about__fact' ).filter( { hasText: 'Content model' } ) ).toContainText( 'Wikitext' );
+		await expect( about.locator( '.ts-about__fact' ).filter( { hasText: 'Protection' } ) ).toContainText( 'Not protected' );
+		await expect( about.getByRole( 'link', { name: '(diff)' } ) ).toHaveAttribute( 'href', /diff=\d+$/ );
+
+		// Discussion is the talk page, which offers to start a thread.
+		await page.getByRole( 'link', { name: 'Discussion' } ).click();
+		await expect( page ).toHaveURL( /\/wiki\/Project_talk:Tabs_test$/ );
+		await expect( page.getByRole( 'heading', { level: 1 } ) ).toHaveText( /^(Project|librarybase) talk:Tabs test$/ );
+		await expect( page.getByRole( 'link', { name: 'Add topic' } ) ).toBeVisible();
+		await page.getByRole( 'link', { name: 'Page', exact: true } ).click();
+		await expect( page ).toHaveURL( /\/wiki\/(Project|librarybase):Tabs_test$/ );
+
+		// Links here, on a free title: its wanted links. And on an item, by its ID.
+		await page.goto( '/wiki/Project:Tab_target' );
+		await page.getByRole( 'link', { name: 'Links here' } ).click();
+		await expect( page ).toHaveURL( /\/wiki\/Special:WhatLinksHere\/Project:Tab_target$/ );
+		await expect( page.getByRole( 'heading', { level: 1 } ) ).toHaveText( 'Pages that link to "Project:Tab target"' );
+		await expect( page.locator( 'ul.ts-whatlinkshere' ).getByRole( 'link', { name: /^(Project|librarybase):Tabs test$/ } ) ).toBeVisible();
+		await page.goto( '/wiki/Item:Q6' );
+		await page.getByRole( 'link', { name: 'Links here' } ).click();
+		await expect( page.locator( 'ul.ts-whatlinkshere' ).getByRole( 'link', { name: /^(Project|librarybase):Tabs test$/ } ) ).toBeVisible();
+		await page.goto( '/wiki/Special:WhatLinksHere/Project:Nothing_links_here' );
+		await expect( page.getByText( 'No pages link to Project:Nothing links here.' ) ).toBeVisible();
+	} );
+
+	test( 'is created in the format chosen, and edited in it', async ( { page } ) => {
+		await logIn( page );
+		await page.goto( '/w/index.php?title=Project:Markdown_note&action=edit' );
+		const format = page.getByLabel( 'Format' );
+		await expect( format ).toHaveValue( 'wikitext' );
+		await format.selectOption( 'markdown' );
+		await page.locator( '#wpTextbox1' ).fill( '# A note\n\nWritten in *Markdown*.' );
+		await page.locator( 'button[name="wpPreview"]' ).click();
+		// The preview keeps the choice.
+		await expect( page.getByLabel( 'Format' ) ).toHaveValue( 'markdown' );
+		await page.locator( 'button[name="wpSave"]' ).click();
+		await expect( page ).toHaveURL( /\/wiki\/(Project|librarybase):Markdown_note$/ );
+		const about = page.getByRole( 'complementary', { name: 'About this page' } );
+		await expect( about.locator( '.ts-about__fact' ).filter( { hasText: 'Content model' } ) ).toContainText( 'Markdown' );
+		// A page that exists has no selector, and the form edits its text.
+		await page.getByRole( 'link', { name: 'Edit', exact: true } ).click();
+		await expect( page.locator( '#wpTextbox1' ) ).toHaveValue( /Written in \*Markdown\*/ );
+		await expect( page.getByLabel( 'Format' ) ).toHaveCount( 0 );
+	} );
+
+	test( 'passes axe with its panel, and on its talk page', async ( { browser } ) => {
+		const context = await browser.newContext( { javaScriptEnabled: true } );
+		const page = await context.newPage();
+		for ( const path of [ '/wiki/Project:Tabs_test', '/wiki/Project_talk:Tabs_test', '/wiki/Special:WhatLinksHere/Project:Tab_target' ] ) {
+			await page.goto( path );
+			const results = await new AxeBuilder( { page } )
+				.withTags( [ 'wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa' ] )
+				.analyze();
+			expect( results.violations.map( ( v ) => `${ path } ${ v.id }: ${ v.nodes.map( ( n ) => n.target ).join( ', ' ) }` ) ).toEqual( [] );
+		}
+		await context.close();
+	} );
 } );

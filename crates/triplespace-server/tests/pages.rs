@@ -447,6 +447,39 @@ async fn api(database: &str, key_file: &std::path::Path) {
         "{rest}"
     );
 
+    // backlinks lists the pages whose text links to a title (0008 §10): Project:Home
+    // links to Project:Principles, by title, and to Item:Q2, by the item's ID.
+    for target in ["Project:Principles", "Item:Q2"] {
+        let bl = c
+            .get(&format!(
+                "action=query&list=backlinks&bltitle={}&bllimit=max",
+                enc(target)
+            ))
+            .await;
+        let ids: Vec<i64> = bl["query"]["backlinks"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{bl}"))
+            .iter()
+            .filter_map(|p| p["pageid"].as_i64())
+            .collect();
+        assert!(ids.contains(&489), "{target}: {bl}");
+    }
+    let one = c
+        .get("action=query&list=backlinks&bltitle=Project:Principles&bllimit=1")
+        .await;
+    if let Some(next) = one["continue"]["blcontinue"].as_str() {
+        let more = c
+            .get(&format!(
+                "action=query&list=backlinks&bltitle=Project:Principles&bllimit=max&blcontinue={}",
+                enc(next)
+            ))
+            .await;
+        assert_ne!(
+            more["query"]["backlinks"][0]["pageid"], one["query"]["backlinks"][0]["pageid"],
+            "{more}"
+        );
+    }
+
     // The owner logs in and edits.
     let t = c.get("action=query&meta=tokens&type=login").await;
     let login = t["query"]["tokens"]["logintoken"]

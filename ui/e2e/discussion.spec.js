@@ -1,6 +1,7 @@
 // Talk pages and threads (ADR 0019 §8; chapter 19 §6.1), with JavaScript off: starting a
 // thread, replying with a status, and the signature an editor types by habit removed
-// without comment (chapter 14 §1.6); then axe on both pages.
+// without comment (chapter 14 §1.6); a thread's actions from the page (14 §1.2, §2.1,
+// §3.6, §4): pin, list on another page, move, rename, close and reopen; then axe.
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
@@ -109,6 +110,99 @@ test( 'the talk page\'s history lists its threads\' rows without JavaScript, and
 	const context = await browser.newContext( { javaScriptEnabled: true } );
 	const p = await context.newPage();
 	await p.goto( '/wiki/Item_talk:Q5?action=history' );
+	expect( await violations( p ) ).toEqual( [] );
+	await context.close();
+} );
+
+/**
+ * Opens one of the thread page's actions from its overflow menu.
+ *
+ * @param {Object} page A Playwright page
+ * @param {string} name The menu item
+ */
+async function action( page, name ) {
+	await page.locator( 'details.ts-tabs__more > summary' ).click();
+	await page.locator( 'details.ts-tabs__more' ).getByRole( 'link', { name } ).click();
+}
+
+test( 'a thread is pinned, listed on another page, moved, renamed, closed and reopened from the page', async ( { page } ) => {
+	await logIn( page, 'Item talk:Q6' );
+	await page.goto( '/wiki/Item_talk:Q6?action=addtopic' );
+	await page.getByLabel( 'Subject' ).fill( 'Six or more?' );
+	await page.getByLabel( 'Description' ).fill( 'Which is it?' );
+	await page.getByRole( 'button', { name: 'Add topic' } ).click();
+	const listed = page.locator( '.ts-thread' ).filter( { hasText: 'Six or more?' } );
+
+	// Pin here, from the talk page: the form opens with this page chosen.
+	await listed.getByRole( 'link', { name: 'Pin here' } ).click();
+	await expect( page.getByRole( 'heading', { level: 1 } ) ).toHaveText( 'Pin a thread' );
+	await expect( page.getByLabel( 'Page' ) ).toHaveValue( 'Item talk:Q6' );
+	await page.getByRole( 'button', { name: 'Pin' } ).click();
+	await expect( page ).toHaveURL( /\/wiki\/Item_talk:Q6#thread-\d+$/ );
+	await expect( listed.locator( '.ts-thread__pin' ) ).toHaveCount( 1 );
+	await listed.getByRole( 'link', { name: 'Unpin here' } ).click();
+	await page.getByRole( 'button', { name: 'Unpin' } ).click();
+	await expect( listed.locator( '.ts-thread__pin' ) ).toHaveCount( 0 );
+
+	// List on another page, by its subject's title.
+	await listed.locator( '.ts-thread__subject a' ).click();
+	await action( page, 'List on…' );
+	await page.getByLabel( 'List it on' ).fill( 'Item:Q5' );
+	await page.getByRole( 'button', { name: 'List it there' } ).click();
+	await expect( page.locator( '.ts-thread-page__where' ) ).toContainText( 'Item talk:Q5' );
+	await page.goto( '/wiki/Item_talk:Q5' );
+	await expect( page.locator( '.ts-thread' ).filter( { hasText: 'Six or more?' } ) ).toHaveCount( 1 );
+	await page.locator( '.ts-thread' ).filter( { hasText: 'Six or more?' } ).locator( '.ts-thread__subject a' ).click();
+
+	// A page that cannot hold a thread is refused on the form, with the text kept.
+	await action( page, 'Move…' );
+	await page.getByLabel( 'New home' ).fill( 'Thread:Nowhere' );
+	await page.getByRole( 'button', { name: 'Move' } ).click();
+	await expect( page.getByText( '"Thread:Nowhere" is not a page a thread can be on.' ) ).toBeVisible();
+	await expect( page.getByLabel( 'New home' ) ).toHaveValue( 'Thread:Nowhere' );
+
+	// Move it home to the page it is listed on, keeping the old home as a listing.
+	await page.getByLabel( 'New home' ).fill( 'Item talk:Q5' );
+	await page.getByLabel( 'Keep it listed on its old home' ).check();
+	await page.getByRole( 'button', { name: 'Move' } ).click();
+	const where = page.locator( '.ts-thread-page__where' );
+	await expect( where.locator( 'div' ).filter( { hasText: 'Home' } ) ).toContainText( 'Item talk:Q5' );
+	await expect( where.locator( 'div' ).filter( { hasText: 'Also on' } ) ).toContainText( 'Item talk:Q6' );
+
+	// Rename: the title follows the subject.
+	await action( page, 'Rename…' );
+	await page.getByLabel( 'Subject' ).fill( 'Six, or more' );
+	await page.getByRole( 'button', { name: 'Rename' } ).click();
+	await expect( page ).toHaveURL( /\/wiki\/Thread:.*Six,_or_more$/ );
+	await expect( page.getByRole( 'heading', { level: 1 } ) ).toContainText( 'Six, or more' );
+
+	// Close with a status and no statement, then reopen.
+	await action( page, 'Close…' );
+	await page.getByLabel( 'Status' ).selectOption( 'wontfix' );
+	await page.getByRole( 'button', { name: 'Close' } ).click();
+	await expect( page.locator( '.ts-thread-page__state .ts-status' ) ).toHaveText( "Won't fix" );
+	await action( page, 'Reopen…' );
+	await page.getByRole( 'button', { name: 'Reopen' } ).click();
+	await expect( page.locator( '.ts-thread-page__state .ts-status' ) ).toHaveText( 'Open' );
+
+	// Remove the listing on the old home.
+	await action( page, 'Remove a listing…' );
+	await page.getByRole( 'button', { name: 'Remove the listing' } ).click();
+	await expect( page.locator( '.ts-thread-page__where' ) ).not.toContainText( 'Item talk:Q6' );
+} );
+
+test( 'a thread action\'s form passes axe, and a reader is sent to log in', async ( { browser, page } ) => {
+	await page.goto( '/wiki/Item_talk:Q5' );
+	const href = await page.locator( '.ts-thread__subject a' ).first().getAttribute( 'href' );
+	await expect( page.getByRole( 'link', { name: 'Pin here' } ) ).toHaveCount( 0 );
+	await page.goto( `${ href }?action=thread&op=rename` );
+	await expect( page ).toHaveURL( /Special:UserLogin/ );
+
+	const context = await browser.newContext( { javaScriptEnabled: true } );
+	const p = await context.newPage();
+	await logIn( p, 'Item talk:Q5' );
+	await p.goto( `${ href }?action=thread&op=move` );
+	await expect( p.getByRole( 'heading', { level: 1 } ) ).toHaveText( 'Move a thread' );
 	expect( await violations( p ) ).toEqual( [] );
 	await context.close();
 } );
