@@ -62,7 +62,7 @@ fn revision_of(record: &Record) -> Result<Option<Operation>, String> {
     if record.header().payload_type != PAYLOAD_CHANGESET {
         return Ok(None);
     }
-    operation(record)
+    Ok(operation(record)?.map(std::sync::Arc::unwrap_or_clone))
 }
 
 /// Every local change-set record of a subject on a tenant, in offset order; empty when

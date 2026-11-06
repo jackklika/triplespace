@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-09-26
-- **Updated:** 2026-10-30 (A47)
+- **Updated:** 2026-11-05 (A50)
 - **Author:** James Hare / Claude Opus
 - **Changes:** [0005](0005-crate-organization.md)
 - **Uses:** [0000](0000-init.md), [0002](0002-source-graphs-and-mass-ingest.md), [0003](0003-statement-ui.md), [0004](0004-identity-clusters-and-equivalence.md), [0006](0006-log-integrity-and-erasure.md), [0007](0007-actor-identity.md), [0008](0008-namespaces-and-document-pages.md), [MediaWiki API contract](../api/mediawiki-compat.md)
@@ -42,7 +42,7 @@ The design exploration is on the [site UI canvas](https://claude.ai/artifact/XNb
 
 ### 2. The frame
 
-*Changed by A5, A9, A11, A12, A13, A16, A20, A22, A23, A27, A29, A30, A33, A41, A42, A47.*
+*Changed by A5, A9, A11, A12, A13, A16, A20, A22, A23, A27, A29, A30, A33, A41, A42, A47, A50.*
 
 *Current text: [19](../architecture/19-site-ui.md) §1.2, §1.3, §1.4, §1.5.*
 
@@ -54,7 +54,7 @@ The design exploration is on the [site UI canvas](https://claude.ai/artifact/XNb
 
 ### 4. Document pages
 
-*Changed by A21, A22, A25, A26, A30, A31, A34, A39.*
+*Changed by A21, A22, A25, A26, A30, A31, A34, A39, A50.*
 
 *Current text: [19](../architecture/19-site-ui.md) §3.1, §3.2.*
 
@@ -92,6 +92,8 @@ The design exploration is on the [site UI canvas](https://claude.ai/artifact/XNb
 
 #### 5.6 Comparing
 
+*Changed by A49.*
+
 *Current text: [19](../architecture/19-site-ui.md) §3.7.*
 
 #### 5.7 Narrower histories
@@ -99,6 +101,8 @@ The design exploration is on the [site UI canvas](https://claude.ai/artifact/XNb
 *Current text: [19](../architecture/19-site-ui.md) §3.7.*
 
 ### 6. Diffs
+
+*Changed by A48, A49.*
 
 *Current text: [19](../architecture/19-site-ui.md) §3.8.*
 
@@ -645,3 +649,38 @@ Replaced text ([19](../architecture/19-site-ui.md) §2.4, as it stood):
   - `ts-visibility` is a Triplespace field on `action=parse` (in the `parse` object) and on `wbgetentities` (top level, `{id: {groups, sets}}`), present only for a restricted target, so the Restricted pill costs no extra request.
   - `list=blocks` carries `ts-removes` and `ts-hidden`; a name hidden from the caller is `userhidden`.
   - The deleted page's view answers 404 to everyone outside the deletion group (with the banner) and 200 to the group (with the content).
+
+### A48. The site draws a diff's other views
+
+- **Date:** 2026-11-04
+- **Source:** Direct: James, design discussion of 2026-11-04
+- **Change:** extends §6
+- **Summary:** A document page's diff gains views beside the API's line diff of its source: a line diff of the text a reader sees, and more lines of context. `action=compare` keeps MediaWiki's parameters, which have neither, so the site draws these itself: `triplespace-ui` runs `scatter-pages`' line diff over the two revisions' sources or renderings, fetched through the public API. This adds the crate edge `triplespace-ui` → `scatter-pages` (22 §2.1). Chosen over Triplespace-only parameters on `action=compare`, which would have kept the crate map unchanged at the cost of the module's parity with MediaWiki.
+
+### A49. The compare form and the diff views: the calls made building them
+
+- **Date:** 2026-11-04
+- **Source:** Direct: Claude, while building the history's compare form and the diff page's views (SCA-194, SCA-228), 2026-11-04; unconfirmed
+- **Change:** extends §5.6, §6
+- **Summary:** Folded into 19 §3.7–3.8. The calls:
+  - The compare form is MediaWiki's: a GET form around the history's rows, radio buttons named `oldid` and `diff`, in a first column of the changes table that only a history has. Rows with a local revision get them; a mirror's syncs, which have no revision ID to compare yet, and a discussion's history get none. The newest two rows are chosen to begin with, and the newest of the history has no older-side button. The form shows only when two rows on the page can be compared.
+  - `oldid` and `diff` given newest first are swapped, on document pages and entities alike, as MediaWiki does, so the form needs no script to keep them in order.
+  - The view switch is `view=`: *Source* (the default, the API's diff), *Text only* (`text`) and *Side by side* (`rendered`), on document pages; an entity keeps its own switch (Statements, Change set).
+  - *Text only* diffs the rendered page's text, one line per paragraph, heading, list item, table row (cells joined by ` | `) or line of a preformatted block, whitespace collapsed, leaving out scripts, styles, section-edit links and Cite's footnote markers. Templates therefore show as their output, not their code: what a reader sees changed.
+  - *Side by side* draws both revisions' renderings in the table's two halves, with no rendering below and no context control.
+  - **More context** is `context=`: MediaWiki's two lines by default, then 10, 50 and every line (`context=all`), with a **Show every line** link beside it until then; a number above 500 is every line. Links to the older and newer diff keep the view and the context.
+  - Each view stays within the page's four API calls (20): the sides' headers (`action=compare` without `prop=diff`), the two sources (one `prop=revisions&revids=` each) or the two renderings, then the rendering below. A hunk's header in a diff the site draws is the message `ts-pagediff-lineno`, not the API's English `Line N:`.
+  - The diff is offered as a wiki link, `[[Special:Diff/{old}/{new}]]` (or `{new}` alone for a page's first revision or one change of an entity), in a read-only field labelled **Link to this diff**, on document and entity diffs; a mirror sync's diff gets one by its global revision ID (0013 §6).
+  - With JavaScript, the left and right arrow keys follow the diff's `rel="prev"` and `rel="next"` links (reversed on a right-to-left page), unless a modifier is held or focus is in a field, as the "diff arrow keys" gadget does.
+
+### A50. A document page's tabs, its About panel and its Format selector: the calls made building them
+
+- **Date:** 2026-11-05
+- **Source:** Direct: Claude, while building the page's remaining tabs and panels (SCA-166), 2026-11-05; unconfirmed
+- **Change:** extends §2, §4
+- **Summary:** Folded into [19](../architecture/19-site-ui.md) §1.3, §3.1 and §3.2. The calls:
+  - A document page's tabs are Read, Edit, History, **Links here** and **Discussion**; an entity's end with the same two. Links here is `Special:WhatLinksHere/{title}`, served from `list=backlinks` over the links projection; a free title has it too, for its wanted links. Talk reads **Discussion**, MediaWiki's label, and is left out where the page or entity does not exist, since its talk page does not exist either. The thread count on the tab is not shown yet.
+  - Until the counter columns of [03](../architecture/03-storage-caches-and-search.md) §4.2 exist, **About this page** is drawn from one `prop=info|revisions` request (`inprop=protection`; the first revision by `rvdir=newer`): created (when, by whom), last edited (when, with a link to the diff), size, content model, the page's own protection, and the category count, with links to the history and Links here. The revision counts by origin, the backlink count, the page-statement count and the scopes are left out, and a panel whose request fails is left out rather than failing the page.
+  - The **Format** selector is built for a page being created: the edit's `contentmodel`, offering the namespace's text models that `action=edit` edits directly, the namespace's default first, and only where there is more than one; `?action=edit&model=` preselects one, as on MediaWiki. Changing an existing page's model (`action=changecontentmodel`) is not built yet.
+  - The edit form edits every text model `action=edit` edits directly, not only wikitext, so a page created as Markdown can be edited again; its preview is `action=parse` in its model.
+  - Line-marked edit conflicts are not for milestone 1: the current text shown under the form stays the way to merge. The Page data tab waits on the statement UI for pages (0038 §7).

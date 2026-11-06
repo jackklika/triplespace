@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-09-26
-- **Updated:** 2026-10-20 (A69)
+- **Updated:** 2026-11-06 (A77)
 - **Author:** James Hare / Claude Fable
 - **Changes:** [0000](0000-init.md), [0001](0001-revision-metadata-rdf.md), [0002](0002-source-graphs-and-mass-ingest.md), [0005](0005-crate-organization.md), [0006](0006-log-integrity-and-erasure.md), [0008](0008-namespaces-and-document-pages.md), [0010](0010-site-ui.md), [0011](0011-logs.md), [0012](0012-api-requirements.md)
 - **Uses:** [0004](0004-identity-clusters-and-equivalence.md), [0007](0007-actor-identity.md), [0009](0009-keyed-entity-types-and-domain.md), [0014](0014-caches-and-search.md)
@@ -117,7 +117,7 @@ PostgreSQL is already part of the deployment stack, and the only question the st
 
 ### 7. Projections, synchrony and read-your-writes
 
-*Changed by A3, A5, A6, A8, A9, A10, A11, A13, A14, A16, A19, A27, A28, A33, A44, A53, A63.*
+*Changed by A3, A5, A6, A8, A9, A10, A11, A13, A14, A16, A19, A27, A28, A33, A44, A53, A63, A75, A76, A77.*
 
 *Current text: [03](../architecture/03-storage-caches-and-search.md) §5, §6.1, §6.2, §6.3.*
 
@@ -129,7 +129,7 @@ PostgreSQL is already part of the deployment stack, and the only question the st
 
 ### 9. Bootstrap mode (extends 0002 §8.6; uses 0006 §5)
 
-*Changed by A31, A53.*
+*Changed by A31, A53, A70, A71, A72, A73, A74.*
 
 *Current text: [05](../architecture/05-providers-and-ingest.md) §3.8.*
 
@@ -975,3 +975,65 @@ Replaced text ([03](../architecture/03-storage-caches-and-search.md) §4.8, as i
 >   hidden smallint NOT NULL DEFAULT 0, erased boolean NOT NULL DEFAULT false
 > );
 > CREATE INDEX post_thread ON view.post (thread_id, published);
+
+### A70. How a load enters bootstrap mode
+
+- **Date:** 2026-11-05
+- **Source:** Direct: Claude, while building bootstrap mode's first stage, 2026-11-05; unconfirmed
+- **Change:** extends §9
+- **Summary:** `triplespace sync` enters bootstrap mode by itself for an instance mirror whose partition is empty, whose provider has no key map and whose dump is JSON, and `--no-bootstrap` opts out. A key-mapped provider is excluded because a keyed subject's surrogate is minted on the write path (0009 §7); an XML dump because its pages are not independent lines. The records are the ordinary sync's for an empty partition, prepared on worker threads from the dump alone and given offsets and page IDs in dump order by one coordinator; its job carries `bootstrap: true` among its arguments. A load commits block by block, so a failure leaves no holes, and a rerun, the partition no longer empty, continues through the ordinary sync. Measured on the 20k slice of the 2M Wikidata benchmark: 112 to 225 entities/s, with the same records, tree and view rows as the ordinary sync and a rebuild identical to the load (`docs/testing/performance.md` §8).
+
+### A71. Bootstrap projections run per block, during the load
+
+- **Date:** 2026-11-05
+- **Source:** Direct: Claude, while building bootstrap mode's set-based projections, 2026-11-05; unconfirmed
+- **Change:** amends §9
+- **Summary:** A bootstrap load projects as it goes, a block at a time: each synchronous projection takes the block's records at once (`Projection::apply_many`, defaulting to one at a time), set-based where it has a form for it (for a mirror's `put` of a subject no other graph or overlay holds: the entity source, the entity row with its terms and identifiers, and activity), record by record otherwise. The views are current after every committed block, a load that stops part way needs no projection pass, and the partition keeps its key index for the record-by-record path. Building indexes after the load and projecting in one pass over it stay open, should per-block projection become the limit. Measured on the 2M Wikidata benchmark: 1 h 44 min (321 entities/s) against 2 h 56 min with projections record by record, 0.13 statements per entity against 11.0, and the same view rows (`docs/testing/performance.md` §8).
+
+Replaced text ([05](../architecture/05-providers-and-ingest.md) §3.8, as it stood):
+
+> 1. The target child tables are created with the primary key only. The mirror partition's `(key, offset)` index and every `view` table are absent.
+
+> 4. Indexes are built, then projections run in the order of [0013](../decisions/0013-postgres-storage.md) §7, each in one pass over the partition; composition is set-based, one pass over the loaded states, and the consumers of composition (constraints, scopes, search documents, the RDF delta and the rest, [03](../architecture/03-storage-caches-and-search.md)) stay off until the operator turns them on.
+
+### A72. A bootstrap block's commit does not wait for the disk
+
+- **Date:** 2026-11-05
+- **Source:** Direct: James, design discussion of 2026-11-05
+- **Change:** extends §9
+- **Summary:** Each block transaction of a bootstrap load runs with `synchronous_commit` off (`SET LOCAL`, so no pooled connection keeps it): its commit does not wait for the write-ahead log to be flushed. A crash can lose the last few committed blocks but never leaves the partition or the views inconsistent, and the rerun continues through the ordinary sync from what survived. The final transaction, which writes the last block and finishes the job, commits synchronously, which flushes everything before it, so a load that has returned is durable. The wait had been 1 to 10 s of a 20 s load of the 20k slice of the 2M Wikidata benchmark, varying with the disk (`docs/testing/performance.md` §8).
+
+### A73. A bootstrap load refreshes the planner's statistics as its tables double
+
+- **Date:** 2026-11-05
+- **Source:** Direct: Claude, while building bootstrap mode's set-based projections, 2026-11-05; unconfirmed
+- **Change:** extends §9
+- **Summary:** A bootstrap load runs `ANALYZE` over the tables of the `log` and `view` schemas after its 1st, 2nd, 4th, 8th… committed block (`IngestStore::refresh_statistics`; a store without a planner does nothing). The tables grow from empty faster than autovacuum's statistics follow, and with none the planner served each block's `DELETE FROM view.term … entity_id = ANY(…)` through `term_prefix`, which narrows by tenant only, rechecking every term row written so far: three-quarters of Postgres's time on the 20k slice and a load quadratic in its length. About twenty refreshes for a full Wikidata load, each about 4 s at 2M entities. On the 20k slice Postgres execution fell from 19.4 s to 6.1 s (`docs/testing/performance.md` §8).
+
+### A74. A bootstrap load's projections compute ahead on the preparing threads
+
+- **Date:** 2026-11-06
+- **Source:** Direct: Claude, while building bootstrap mode's pipelining, 2026-11-06; unconfirmed
+- **Change:** extends §9
+- **Summary:** The worker threads that prepare a bootstrap load's records also do the projections' work that depends on a record alone, through a hook the load is given (`scatter_ingest::Warm`, set by `triplespace sync` to `triplespace_projections::common::warm`): with the operation a record's body was just encoded from, they keep it, its content hash and, for a mirror's `put`, the entity's shared rows but for the header's page ID and time, in a cache keyed by the content bytes, so that the coordinator applying the block decodes and resolves none of it and issues only the block's statements. The operation kept is taken to be what decoding the record gives, an operation having one canonical encoding; a test checks it on the load's own records, and the equivalence of a bootstrap load with the ordinary sync checks the views. The cache is the process's, kept in the order records are prepared and forgetting the oldest first, so what is computed ahead outlasts the blocks applied; what it has forgotten is computed on the coordinator as before. The alternative, overlapping a block's statements with the next block's computation on the coordinator, would leave that work on one block's critical path and need the next block's records before the current one is written. On the 20k slice a load fell from 14 s to 8 s and on the 2M Wikidata set from 31 min 51 s to 24 min 11 s, its peak memory rising from 1.81 GB to 2.35 GB (`docs/testing/performance.md` §8).
+
+### A75. The projections take the operation the write path encoded, and the record in hand
+
+- **Date:** 2026-11-06
+- **Source:** Direct: Claude, while building the ordinary sync's optimizations, 2026-11-06; unconfirmed
+- **Change:** extends §7
+- **Summary:** Every change-set write hands the projections the operation it has just encoded into the record's content (`IngestStore::encoded`, which the Postgres store passes to `triplespace_projections::common::remember_encoded`), and the projections take it from their cache instead of decoding the content, as a bootstrap load's do (A74); this applies to writes through the API as much as to a sync. The entity projection takes the record being applied as it is when a source cursor names it, instead of reading it back by offset and checking its part hashes again, and the store returns the record it sealed to append it (`IngestStore::append_sealed`) instead of the write path sealing it a second time. The assumption is A74's: an operation decodes back to itself, which a test checks on the records a sync appends. Records read from the store are still checked as before. On the 20k Wikidata slice the ordinary sync's client CPU fell from 85 s to 65 s and its wall time from 148 s to about 138 s (`docs/testing/performance.md` §8).
+
+### A76. A sync reads, decides and writes each unit as a block
+
+- **Date:** 2026-11-06
+- **Source:** Direct: James, design discussion of 2026-11-06
+- **Change:** extends §7
+- **Summary:** A sync (`run_sync_in`, so a dump sync and the follower alike) takes its items a unit of `batch` at a time (`--batch`, 200 by default), each unit its own unit of work as before. A unit of the common kind is written as a block: every subject its own key and named once in the unit, no state mapped from another upstream ID, no deletion that clears, and a provider that owns no keys. Its reads are made once for the unit (the subjects' cursors, the records at them, the revisions their keys have claimed, the keys' page IDs: `IngestStore::cursors`, `read_many`, `highest_revids`, `page_ids_of`, one statement each in Postgres); each item is decided as the item-by-item path decides it, by the same functions; and the unit's records are appended together (`append_many`, binary `COPY`) and projected over the block (`apply_inline_many`, the set-based path of A71), which a bootstrap load writes its blocks with too (`append_projected_many`). Any other unit, and a unit of one item, is written item by item. A block writes the same records, at the same offsets, with the same page and revision IDs, as writing item by item: page IDs are taken in item order, and since no two items name the same subject, nothing one writes is anything another reads. Choices made: the common case only, the key-moving logic of 0009 and 05 §4.2 left to the item-by-item path (rather than batching every kind of item); the block-writing half shared with bootstrap, which keeps its own entry and parallel preparation (rather than bootstrap becoming the batched sync on an empty partition); the existing `--batch` as the block (no new setting); recorded here rather than in a new ADR, since a sync's records and job are unchanged. A redirect's check that it is not already recorded is still made one at a time. On the 20k Wikidata slice the ordinary sync's first load fell from about 138 s to 67 s, and an update pass over it (2,000 changed, 2,000 new, 18,000 unchanged) took 61 s, against 108 s item by item; records, Merkle nodes, views and job counts the same, a rebuild identical (`docs/testing/performance.md` §8).
+
+### A77. A sync's per-item work runs on every core
+
+- **Date:** 2026-11-06
+- **Source:** Direct: Claude, while building the ordinary sync's parallel preparation, 2026-11-06; unconfirmed (James approved the direction: parsing and the per-item work on worker threads, as bootstrap mode does)
+- **Change:** extends §7
+- **Summary:** The ordinary sync's per-item work, which needs no database, runs on the machine's threads. The calls made: (1) a JSON dump of a provider with no key map is parsed and put through the adapter on worker threads and handed to the sync in dump order (`triplespace sync`, the reader and workers bootstrap mode uses, made generic: `bootstrap::items`); such a dump has no first pass and nothing carried from one entity to the next, the same condition bootstrap mode asks of its dumps; an XML dump and a key-mapped provider's are read on the caller's thread as before; the summary of snaks left untyped is not printed on this path, as on bootstrap's, since a single-pass JSON read has no dump-defined types to apply. (2) In a unit written as a block (A76), each state's reconciliation with the provider's hashes, the decoding of its previous record, the unchanged test and its `put` are computed on every core (`scatter_projection::par_map`, moved there from `triplespace-projections` so that `scatter-ingest` can use it; no new dependency), the hash mismatches handed back to the job; and the block's records are encoded and hashed on every core, page IDs having been settled in item order first. The unit's reads, appends and projections stay on its connection, in order. The records written are unchanged. On the 20k Wikidata slice the ordinary sync's first load fell from 67 s to 39 s and an update pass (2,000 changed, 2,000 new, 18,000 unchanged) from 61 s to 13 s; records, Merkle nodes, views and job counts the same as writing item by item, a rebuild identical (`docs/testing/performance.md` §8).

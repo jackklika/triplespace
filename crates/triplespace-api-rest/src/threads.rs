@@ -16,7 +16,8 @@
 //!   `edit`; anyone else `ts-editpost` as well (09 §8.1), and the post then carries
 //!   `editedBy`, the other actors who edited it, since a post is speech (19 §5).
 //! - `POST /thread/{id}/rename`, `/move`, `/attach`, `/detach`, `/pin`, `/unpin`: each with
-//!   `base` and an optional `summary`; `subject`, or `target` (and `keep` on a move).
+//!   `base` and an optional `summary`; `subject`, or `target` (and `keep` on a move). An
+//!   actor target may name its account here too, `{kind: "actor", name}`.
 //! - `GET /page/{id}/threads`: the threads attached to a talk page or board, pinned first.
 //! - `GET /page/{id}/history`: a page's history as activity rows; for a talk page or
 //!   board, composite: its own rows and those of every thread attached to it, home or
@@ -799,6 +800,12 @@ async fn change(
             Ok(x) => x,
             Err(r) => return r,
         };
+    // A user talk page is named by its account, as on `create` (0019 A30), which is how
+    // the site's forms name it (19 §6.1).
+    let mut b = b;
+    if let Err(r) = actor_by_name(&app, &tenant.slug, &mut b).await {
+        return r;
+    }
     let op = (|| {
         Ok(match what {
             Change::Rename => ThreadOp::Rename {

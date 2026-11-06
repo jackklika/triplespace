@@ -40,7 +40,7 @@ pub mod xml_dump;
 pub use adoption::{Account, AdoptedRevision, Survey, adopt_page};
 pub use entities::{DumpEntry, DumpRedirect, Entities, Entries};
 pub use follow::{EntityNamespaces, Fetched, FollowError, entity_id_of, read_entities};
-pub use json_dump::JsonDump;
+pub use json_dump::{JsonDump, parse_line};
 pub use key_map::{ConfigError, Index, KeyMappedAdapter, KeyRule, KeyRules, MapError, Outcome};
 pub use typing::DumpPropertyTypes;
 pub use xml_dump::{DumpPage, Revision, XmlDump};

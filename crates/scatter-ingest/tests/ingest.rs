@@ -1494,3 +1494,330 @@ fn an_undeleted_entity_comes_back_without_claiming_its_revision_twice() {
         }
     });
 }
+
+// --- bootstrap mode ----------------------------------------------------------------------
+
+/// The items of the bootstrap equivalence test: two states (one with an upstream hash the
+/// guard counts), an upstream deletion of nothing, a reject and its state, and a redirect.
+fn bootstrap_items() -> Vec<SyncItem> {
+    let mut hashed = entity(json!({"type": "item", "id": "XDQ2",
+        "labels": {"en": {"language": "en", "value": "Two"}},
+        "claims": {"P1": [{"mainsnak": {"snaktype": "value", "property": "P1", "hash": "0000000000000000000000000000000000000000",
+            "datavalue": {"value": "a", "type": "string"}, "datatype": "string"}, "type": "statement", "rank": "normal"}]}}));
+    hashed.id = EntityId::parse("XDQ2").unwrap();
+    vec![
+        xd_state("XDQ1", "One", 10),
+        SyncItem::State {
+            entity: Box::new(hashed),
+            upstream: Upstream::revision(20, Some("2026-10-01T00:00:00Z")),
+            upstream_id: None,
+            upstream_aliases: Vec::new(),
+        },
+        SyncItem::Deleted {
+            id: EntityId::parse("XDQ99").unwrap(),
+            upstream: Upstream::revision(31, None),
+        },
+        SyncItem::Rejected {
+            upstream_id: "Q5".into(),
+            reason: "not a valid domain key".into(),
+        },
+        xd_state("XDQ5", "Five", 50),
+        SyncItem::Redirected {
+            from: EntityId::parse("XDQ3").unwrap(),
+            to: EntityId::parse("XDQ1").unwrap(),
+            upstream: Upstream::revision(60, None),
+        },
+    ]
+}
+
+/// A second pass over the mirror [`bootstrap_items`] loaded: a changed state, the same
+/// state, an older revision, a deletion, a deletion of nothing, a redirect, a new entity
+/// and a reject.
+fn second_pass_items() -> Vec<SyncItem> {
+    vec![
+        xd_state("XDQ1", "One, renamed", 11),
+        xd_state("XDQ5", "Five", 50),
+        xd_state("XDQ6", "Six", 70),
+        SyncItem::Deleted {
+            id: EntityId::parse("XDQ2").unwrap(),
+            upstream: Upstream::revision(80, None),
+        },
+        SyncItem::Deleted {
+            id: EntityId::parse("XDQ98").unwrap(),
+            upstream: Upstream::revision(81, None),
+        },
+        SyncItem::Redirected {
+            from: EntityId::parse("XDQ4").unwrap(),
+            to: EntityId::parse("XDQ1").unwrap(),
+            upstream: Upstream::revision(90, None),
+        },
+        SyncItem::Rejected {
+            upstream_id: "Q7".into(),
+            reason: "not a valid domain key".into(),
+        },
+        xd_state("XDQ8", "Eight", 9),
+    ]
+}
+
+/// A sync writes its units as blocks (0013 A76) and what it writes is what writing item
+/// by item writes (`batch` 1): the same records, field by field, the same counts and the
+/// same job record, over a first load and a second pass that changes, keeps, deletes and
+/// redirects; and a unit naming a subject twice is written item by item.
+#[test]
+fn a_sync_in_blocks_writes_what_one_item_at_a_time_writes() {
+    pollster::block_on(async {
+        let run = |batch: usize| async move {
+            let (store, pipeline) = setup();
+            let actor = Attestation::by("instance:scatter");
+            let mut outcomes = Vec::new();
+            for items in [bootstrap_items(), second_pass_items()] {
+                let outcome = run_sync(
+                    &store,
+                    &pipeline,
+                    sync_header(Mode::Upsert),
+                    actor.clone(),
+                    items,
+                    100,
+                    registry(),
+                    NOW,
+                    batch,
+                )
+                .await
+                .unwrap();
+                outcomes.push(outcome.counts);
+            }
+            // A unit naming a subject twice: the block path declines it.
+            let mut twice = vec![
+                xd_state("XDQ9", "Nine", 5),
+                xd_state("XDQ9", "Nine, again", 6),
+            ];
+            twice.push(xd_state("XDQ10", "Ten", 7));
+            let outcome = run_sync(
+                &store,
+                &pipeline,
+                sync_header(Mode::Upsert),
+                actor,
+                twice,
+                100,
+                registry(),
+                NOW,
+                batch,
+            )
+            .await
+            .unwrap();
+            outcomes.push(outcome.counts);
+            let records: Vec<_> = store.records(MIRROR_XD).iter().map(comparable).collect();
+            let jobs: Vec<_> = store
+                .records(INSTANCE_LOG)
+                .iter()
+                .filter(|r| r.header().payload_type == "scatter:v0/logevent")
+                .map(params_of)
+                .collect();
+            (outcomes, records, jobs)
+        };
+        let (one, records_one, jobs_one) = run(1).await;
+        let (block, records_block, jobs_block) = run(100).await;
+        assert_eq!(block, one, "the same counts");
+        assert_eq!(
+            (
+                one[1].created,
+                one[1].merged,
+                one[1].unchanged,
+                one[1].tombstoned,
+                one[1].other,
+                one[1].rejected
+            ),
+            (2, 1, 2, 1, 1, 1),
+            "the second pass: XDQ6 and XDQ8 created, XDQ1 merged, XDQ5 and XDQ98 unchanged, \
+             XDQ2 tombstoned, XDQ4 redirected, one reject"
+        );
+        assert_eq!(
+            records_block, records_one,
+            "the same records, field by field"
+        );
+        assert_eq!(jobs_block, jobs_one, "the same job records");
+    });
+}
+
+/// The ordinary write path hands the projections each change-set record's operation with
+/// the body it was encoded into (`IngestStore::encoded`; 0013 A74): the record appended
+/// carries those content bytes, and decoding it gives that operation, so what a store
+/// keeps can stand for decoding it.
+#[test]
+fn the_write_path_hands_over_what_it_appends() {
+    pollster::block_on(async {
+        let (synced, pipeline) = setup();
+        run_sync(
+            &synced,
+            &pipeline,
+            sync_header(Mode::Upsert),
+            Attestation::by("instance:scatter"),
+            bootstrap_items(),
+            100,
+            registry(),
+            NOW,
+            2,
+        )
+        .await
+        .unwrap();
+        let encoded = synced.encoded_ops();
+        let records = synced.records(MIRROR_XD);
+        assert_eq!(records.len(), 4);
+        for record in &records {
+            let bytes = record.body().content().bytes().unwrap();
+            let (_, op) = encoded
+                .iter()
+                .find(|(b, _)| b.as_slice() == bytes)
+                .expect("each record's content was handed over");
+            assert_eq!(&operation_of(record), op);
+        }
+    });
+}
+
+/// A bootstrap load hands each record's operation, with the body it was encoded into, to
+/// the projections' warm hook on the preparing thread (0013 A74): the body is the appended
+/// record's, byte for byte, and the operation is what decoding that record gives, so what
+/// the hook keeps can stand for decoding it.
+#[test]
+fn a_bootstrap_load_warms_with_what_it_appends() {
+    pollster::block_on(async {
+        type Warmed = Vec<(String, Vec<u8>, Operation)>;
+        let warmed: std::sync::Arc<std::sync::Mutex<Warmed>> = std::sync::Arc::default();
+        let seen = std::sync::Arc::clone(&warmed);
+        let warm: scatter_ingest::Warm = std::sync::Arc::new(move |graph, body, op| {
+            seen.lock().unwrap().push((
+                graph.to_string(),
+                body.content().bytes().unwrap().to_vec(),
+                op,
+            ));
+        });
+        let (loaded, pipeline) = setup();
+        scatter_ingest::run_bootstrap(
+            &loaded,
+            &pipeline,
+            sync_header(Mode::Upsert),
+            Attestation::by("instance:scatter"),
+            registry(),
+            NOW,
+            2,
+            |prepare| {
+                let prepare = prepare.warmed_by(warm);
+                bootstrap_items()
+                    .into_iter()
+                    .map(move |item| prepare.item(item))
+                    .collect::<Vec<_>>()
+            },
+        )
+        .await
+        .unwrap();
+        let warmed = warmed.lock().unwrap();
+        let records = loaded.records(MIRROR_XD);
+        assert_eq!(records.len(), 4);
+        assert_eq!(warmed.len(), records.len(), "one call per record appended");
+        for (record, (graph, bytes, op)) in records.iter().zip(warmed.iter()) {
+            assert_eq!(graph, "mirror/internetdomains");
+            assert_eq!(record.body().content().bytes().unwrap(), bytes.as_slice());
+            assert_eq!(
+                &operation_of(record),
+                op,
+                "decoding gives the operation warmed"
+            );
+        }
+    });
+}
+
+/// What a mirror record is, but for its salts and hashes: the header fields a writer sets,
+/// the operation and the attestation.
+fn comparable(record: &Record) -> (Header, Operation, serde_json::Value) {
+    let mut h = record.header().clone();
+    h.commitment = [0; 32];
+    (h, operation_of(record), attestation_of(record))
+}
+
+/// Bootstrap mode writes what the ordinary sync writes into an empty partition (0013 §9):
+/// the same records, offsets, page and revision IDs, operations and attestations, the
+/// same counts and the same job record, in blocks; and it refuses a partition that is
+/// not empty.
+#[test]
+fn a_bootstrap_load_writes_what_a_sync_writes() {
+    pollster::block_on(async {
+        let actor = Attestation::by("instance:scatter");
+        let (synced, pipeline) = setup();
+        let ordinary = run_sync(
+            &synced,
+            &pipeline,
+            sync_header(Mode::Upsert),
+            actor.clone(),
+            bootstrap_items(),
+            100,
+            registry(),
+            NOW,
+            2,
+        )
+        .await
+        .unwrap();
+        let (loaded, pipeline) = setup();
+        let bootstrapped = scatter_ingest::run_bootstrap(
+            &loaded,
+            &pipeline,
+            sync_header(Mode::Upsert),
+            actor.clone(),
+            registry(),
+            NOW,
+            2,
+            |prepare| {
+                bootstrap_items()
+                    .into_iter()
+                    .map(move |item| prepare.item(item))
+                    .collect::<Vec<_>>()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(bootstrapped.counts, ordinary.counts);
+        assert_eq!(
+            (
+                bootstrapped.counts.created,
+                bootstrapped.counts.unchanged,
+                bootstrapped.counts.rejected,
+                bootstrapped.counts.other
+            ),
+            (3, 1, 1, 1)
+        );
+        assert_eq!(bootstrapped.job_id, ordinary.job_id);
+        let a: Vec<_> = synced.records(MIRROR_XD).iter().map(comparable).collect();
+        let b: Vec<_> = loaded.records(MIRROR_XD).iter().map(comparable).collect();
+        assert_eq!(a.len(), 4);
+        assert_eq!(b, a, "the same records, field by field");
+        // The job's finish record: the same counts, rejects and hash mismatches.
+        let finish = |store: &MemoryIngest| {
+            store
+                .records(INSTANCE_LOG)
+                .iter()
+                .filter(|r| r.header().payload_type == "scatter:v0/logevent")
+                .map(params_of)
+                .next_back()
+                .unwrap()
+        };
+        assert_eq!(finish(&loaded), finish(&synced));
+        // A partition that holds records is the ordinary sync's.
+        let err = scatter_ingest::run_bootstrap(
+            &loaded,
+            &pipeline,
+            sync_header(Mode::Upsert),
+            actor,
+            registry(),
+            NOW,
+            2,
+            |prepare| {
+                bootstrap_items()
+                    .into_iter()
+                    .map(move |item| prepare.item(item))
+                    .collect::<Vec<_>>()
+            },
+        )
+        .await
+        .unwrap_err();
+        assert!(err.to_string().contains("empty partition"), "{err}");
+    });
+}

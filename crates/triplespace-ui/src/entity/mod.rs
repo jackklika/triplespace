@@ -326,6 +326,12 @@ fn tabs(m: &Messages, title: &str, current: TabName, items: bool, history: bool)
             format!("{base}?action=history"),
         ));
     }
+    // Links here and Discussion close the row, as on a document page (19 §1.3). An
+    // entity's title is canonical (`Item:Q42`), so no site name is needed for its talk.
+    v.push(crate::document::links_here_tab(m, title));
+    if let Some(talk) = crate::document::talk_tab(m, "", title) {
+        v.push(talk);
+    }
     v
 }
 

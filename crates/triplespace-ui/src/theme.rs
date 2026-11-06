@@ -357,6 +357,10 @@ const TEXT_PAIRS: &[(&str, &str)] = &[
     ("color-progressive", "background-color-base"),
     ("color-progressive", "background-color-neutral-subtle"),
     ("color-visited", "background-color-base"),
+    // A visited link and a red link (`color-link-red`, which is `color-destructive`) on the
+    // page's canvas, where content sits as well as on the base.
+    ("color-visited", "background-color-neutral-subtle"),
+    ("color-destructive", "background-color-neutral-subtle"),
     ("color-placeholder", "background-color-base"),
     ("color-warning", "background-color-warning-subtle"),
     ("color-progressive", "background-color-progressive-subtle"),
@@ -398,7 +402,7 @@ fn problems(tokens: &Tokens, more: bool) -> Vec<String> {
                 && let Some(r) = contrast(a, b)
                 && r < min - 0.005
             {
-                out.push(format!("{fg} on {bg}: {r:.2} < {min}"));
+                out.push(format!("{fg} {a} on {bg} {b}: {r:.2} < {min}"));
             }
         }
     }
@@ -869,14 +873,20 @@ impl Theme {
         t
     }
 
-    /// A palette's stylesheet, if the wiki offers it.
+    /// A palette's stylesheet, if the wiki offers it. Its `light` rule is Codex's light
+    /// values with the palette's over them, as its dark rule is Codex's dark values with
+    /// the palette's over them, so that a token the palette leaves alone is Codex's in
+    /// either mode, as the contrast check assumes (0086 §2), and not whatever fallback a
+    /// stylesheet writes beside `var()`.
     #[must_use]
     pub fn palette_css(&self, name: &str) -> Option<String> {
         let p = self.palette(name)?;
         let s = self.served(p);
         let dark = Self::dark_block(&s);
+        let mut light = CODEX.0.clone();
+        light.extend(s.light.clone());
         let mut css = String::new();
-        Self::variant_rules(&mut css, "", &s.light, &dark, &s.light_more, &s.dark_more);
+        Self::variant_rules(&mut css, "", &light, &dark, &s.light_more, &s.dark_more);
         for key in alternate_keys() {
             if let Some(a) = self.alternate(p, &key) {
                 let alt = Self::served_alternate(&s, a);
@@ -1146,17 +1156,25 @@ mod tests {
     #[test]
     fn every_shipped_variant_meets_its_floors() {
         let t = Theme::shipped();
-        for p in &SHIPPED.palettes {
-            let problems = t.contrast_problems(&p.name);
-            assert!(problems.is_empty(), "{problems:#?}");
-        }
+        let problems: Vec<String> = SHIPPED
+            .palettes
+            .iter()
+            .flat_map(|p| t.contrast_problems(&p.name))
+            .collect();
+        assert!(problems.is_empty(), "{problems:#?}");
     }
 
     #[test]
     fn a_palette_sheet_has_every_variant_in_its_place() {
         let t = Theme::shipped();
         let css = t.palette_css("parchment").unwrap();
-        assert!(css.starts_with(":root {\n\t--background-color-base: #FCFBF8;"));
+        assert!(css.starts_with(":root {\n"));
+        // Codex's light values under the palette's own, as in dark mode: a token
+        // parchment's light leaves alone is Codex's (0086 §2).
+        let light = &css[..css.find("}\n").unwrap()];
+        assert!(light.contains("\t--background-color-base: #FCFBF8;\n"));
+        assert!(light.contains("\t--color-destructive: #bf3c2c;\n"));
+        assert!(light.contains("\t--color-link-red: var( --color-destructive );\n"));
         assert!(css.contains("\t--border-radius-base: 6px;\n"));
         assert!(css.contains(":root[data-mode=\"dark\"] {\n"));
         assert!(css.contains(

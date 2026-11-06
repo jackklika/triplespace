@@ -239,8 +239,12 @@ impl Ask {
         for k in &self.kinds {
             let _ = write!(s, "&kind={k}");
         }
+        // `filtered=1` reads a missing `bots` as off, so a link that keeps bot edits on
+        // says so, as the form's ticked box does.
         if self.hide_bots {
             s.push_str("&hidebots=1");
+        } else {
+            s.push_str("&bots=1");
         }
         if let Some(n) = &self.namespace {
             let _ = write!(s, "&namespace={n}");
@@ -475,6 +479,29 @@ pub struct RowModel {
     pub summary: SummaryModel,
     /// The tags, but for `bot`.
     pub tags: Vec<String>,
+    /// The history's compare cell, where the list has the column (0010 §5.6).
+    pub pick: Option<Pick>,
+}
+
+/// A history row's compare cell: the radio buttons that choose its revision as the older
+/// or the newer side, either absent where the row cannot be that side (19 §3.7).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct Pick {
+    /// The older side: `oldid`.
+    pub old: Option<Radio>,
+    /// The newer side: `diff`.
+    pub new: Option<Radio>,
+}
+
+/// One radio button of a compare cell.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Radio {
+    /// The revision.
+    pub revid: u64,
+    /// The accessible name.
+    pub label: String,
+    /// Whether it is chosen to begin with.
+    pub checked: bool,
 }
 
 /// A day's rows.
@@ -796,6 +823,19 @@ fn size_model(row: &ActivityRow) -> Option<Size> {
     }
 }
 
+/// The revision a row can be compared by, where it has one: a local edit's (19 §3.7). A
+/// mirror's observed states have no revision ID to compare yet.
+pub(crate) fn comparable(row: &ActivityRow) -> Option<u64> {
+    if is_thread_row(row) || row.kind != "edit" {
+        return None;
+    }
+    if row.source == "local" || row.source == "pages" {
+        row.revid
+    } else {
+        None
+    }
+}
+
 /// The diff page of a row (19 §3.8): `?diff={revid}` for a local edit, `?diff={partition}:{offset}`
 /// for a mirror sync, which has no local revision ID; nothing for the other kinds.
 fn diff_href(row: &ActivityRow) -> Option<String> {
@@ -851,6 +891,7 @@ fn row_model(m: &Messages, site: &SiteInfo, row: &ActivityRow, here: Option<u64>
                 comment: None,
             },
             tags: Vec::new(),
+            pick: None,
         };
     }
     let mut flags = Vec::new();
@@ -886,6 +927,7 @@ fn row_model(m: &Messages, site: &SiteInfo, row: &ActivityRow, here: Option<u64>
         actor: actor_model(m, site, row),
         summary: summary_model(m, row, here),
         tags: row.tags.iter().filter(|t| *t != "bot").cloned().collect(),
+        pick: None,
     }
 }
 
@@ -1310,13 +1352,29 @@ mod tests {
         assert!(empty.kinds.is_empty(), "every kind unticked is none");
     }
 
+    // 0010 §7: a link the page makes (Show them, the pager) keeps bot edits as they were;
+    // the default shows them, and `filtered=1` without `bots` hides them.
+    #[test]
+    fn a_link_keeps_bot_edits_shown() {
+        let ask = Ask::of(Which::RecentChanges, &params(&[]), None);
+        let mut with = ask.clone();
+        with.kinds.push("sync".into());
+        let href = with.href(None);
+        assert!(href.contains("&bots=1"), "{href}");
+        let back: Vec<(String, String)> =
+            url::form_urlencoded::parse(href.split_once('?').map_or("", |(_, q)| q).as_bytes())
+                .into_owned()
+                .collect();
+        assert!(!Ask::of(Which::RecentChanges, &Params::new(back), None).hide_bots);
+    }
+
     #[test]
     fn contributions_take_the_user_from_the_subpage_or_the_form() {
         let a = Ask::of(Which::Contributions, &params(&[]), Some("Alice_bot"));
         assert_eq!(a.user.as_deref(), Some("Alice bot"));
         assert_eq!(
             a.href(None),
-            "/w/index.php?title=Special:Contributions/Alice%5Fbot&filtered=1&kind=edit&kind=job&kind=log&days=30&limit=50"
+            "/w/index.php?title=Special:Contributions/Alice%5Fbot&filtered=1&kind=edit&kind=job&kind=log&bots=1&days=30&limit=50"
         );
         let b = Ask::of(Which::Contributions, &params(&[("target", " Bob ")]), None);
         assert_eq!(b.user.as_deref(), Some("Bob"));

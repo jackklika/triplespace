@@ -44,6 +44,12 @@ impl Record {
         Self { header, body }
     }
 
+    /// A header whose commitment the caller computed from `body` already
+    /// ([`crate::store::Draft::seal_committed`]); not checked here.
+    pub(crate) fn committed(header: Header, body: Body) -> Self {
+        Self { header, body }
+    }
+
     /// The header.
     #[must_use]
     pub fn header(&self) -> &Header {

@@ -131,6 +131,26 @@ pub trait Projection<B: Backend>: Send + Sync {
         record: &'a Record,
     ) -> BoxFuture<'a, Result<Applied, String>>;
 
+    /// Applies consecutive records of one partition, all accepted, inside the unit of work:
+    /// the set-based form a bulk load uses (0013 §9, A71). The default applies them one at a
+    /// time; a projection whose rows can be written for a block at once overrides it, and
+    /// must leave the same rows as applying the records in order.
+    fn apply_many<'a>(
+        &'a self,
+        cx: &'a mut B::Cx,
+        records: &'a [Record],
+    ) -> BoxFuture<'a, Result<Applied, String>> {
+        Box::pin(async move {
+            let mut out = Applied::default();
+            for record in records {
+                let applied = self.apply(cx, record).await?;
+                out.rows += applied.rows;
+                out.fanout.extend(applied.fanout);
+            }
+            Ok(out)
+        })
+    }
+
     /// Re-projects one key the record's effects reached. Returns the rows written.
     fn fanout<'a>(
         &'a self,

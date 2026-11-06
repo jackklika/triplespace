@@ -232,8 +232,7 @@ pub async fn append_projected<S: IngestStore>(
     draft: Draft,
     budget: Budget,
 ) -> Result<(Record, Inline), IngestError> {
-    let appended = store.append(cx, partition, draft.clone()).await?;
-    let record = draft.seal(partition, appended.offset);
+    let (_, record) = store.append_sealed(cx, partition, draft).await?;
     let inline = pipeline.apply_inline(store, cx, &record, budget).await?;
     Ok((record, inline))
 }
@@ -375,34 +374,65 @@ pub async fn write_to<S: IngestStore>(
     };
     // The revision ID (0013 §6; 0015 §2).
     let revid = match graph {
-        Graph::Mirror(slug) | Graph::Source(slug) => {
-            let provider = registry
-                .by_slug(slug)
-                .ok_or_else(|| IngestError::UnknownProvider(slug.clone()))?;
-            let upstream = match op {
-                Operation::Put { upstream, .. } | Operation::Tombstone { upstream, .. } => {
-                    upstream.revid
-                }
-                Operation::Redirect {
-                    upstream: Some(u), ..
-                } => u.revid,
-                _ => None,
-            };
-            match upstream {
-                Some(n) => Some(global_id(u64::from(provider.number), n).ok_or_else(|| {
-                    IngestError::Adapter(format!("upstream revision {n} is out of range"))
-                })?),
-                None => None,
-            }
-        }
+        Graph::Mirror(_) | Graph::Source(_) => upstream_revid(graph, op, registry)?,
         Graph::Local | Graph::Pages => match request.revid {
             Some(n) => Some(n),
             None => Some(store.next_id(cx, owner, &Sequence::Revision).await?),
         },
     };
+    let draft = draft_of(store, request, op, &subject, key, page_id, revid)?;
+    let (record, inline) =
+        append_projected(store, pipeline, cx, partition, draft, request.budget).await?;
+    Ok(Written {
+        partition,
+        record,
+        inline,
+    })
+}
+
+/// The revision ID of a mirror or source record: the provider's range, at the upstream
+/// revision the operation carries (0013 §6; 0015 §2).
+fn upstream_revid(
+    graph: &Graph,
+    op: &Operation,
+    registry: &Registry,
+) -> Result<Option<u64>, IngestError> {
+    let (Graph::Mirror(slug) | Graph::Source(slug)) = graph else {
+        return Ok(None);
+    };
+    let provider = registry
+        .by_slug(slug)
+        .ok_or_else(|| IngestError::UnknownProvider(slug.clone()))?;
+    let upstream = match op {
+        Operation::Put { upstream, .. } | Operation::Tombstone { upstream, .. } => upstream.revid,
+        Operation::Redirect {
+            upstream: Some(u), ..
+        } => u.revid,
+        _ => None,
+    };
+    upstream
+        .map(|n| {
+            global_id(u64::from(provider.number), n).ok_or_else(|| {
+                IngestError::Adapter(format!("upstream revision {n} is out of range"))
+            })
+        })
+        .transpose()
+}
+
+/// The draft of a change-set record, its key, page ID and revision ID settled, the
+/// operation handed to the store's projections once encoded ([`IngestStore::encoded`]).
+fn draft_of<S: IngestStore>(
+    store: &S,
+    request: &Request,
+    op: &Operation,
+    subject: &Subject,
+    key: String,
+    page_id: u64,
+    revid: Option<u64>,
+) -> Result<Draft, IngestError> {
     // Local statements without a GUID get one here, as Wikibase assigns them on save;
     // deterministic, so the same statement re-added gets the same ID (0002 §8.4).
-    let op = with_statement_ids(op, &subject);
+    let op = with_statement_ids(op, subject);
     let content = serde_json::to_value(&op).map_err(|e| e.to_string())?;
     let comment = request.comment.as_deref().map_or(Value::Null, Value::text);
     let draft = Draft {
@@ -419,13 +449,123 @@ pub async fn write_to<S: IngestStore>(
         )
         .map_err(|e| e.to_string())?,
     };
-    let (record, inline) =
-        append_projected(store, pipeline, cx, partition, draft, request.budget).await?;
-    Ok(Written {
-        partition,
-        record,
-        inline,
+    drop(content);
+    store.encoded(&draft.body, op);
+    Ok(draft)
+}
+
+/// Writes a sync unit's operations to a mirror or source graph as one block (0013 A76):
+/// what [`write_to`] writes for each, in order, with the lookups made once for the block,
+/// the records appended together ([`IngestStore::append_many`]) and the synchronous
+/// projections run over the block ([`Pipeline::apply_inline_many`]). Each operation's
+/// subject is an entity that is its own key, no two the same, and the request carries no
+/// base offset: a unit that is not so is written operation by operation.
+///
+/// # Errors
+///
+/// When an operation is not of that kind, a lookup or the append fails, or a projection
+/// fails.
+#[allow(clippy::too_many_arguments)]
+pub async fn write_block<S: IngestStore>(
+    store: &S,
+    pipeline: &Pipeline<S>,
+    cx: &mut S::Cx,
+    request: &Request,
+    partition: u64,
+    ops: &[Operation],
+    graph: &Graph,
+    registry: &Registry,
+) -> Result<Vec<Record>, IngestError> {
+    if ops.is_empty() {
+        return Ok(Vec::new());
+    }
+    if !matches!(graph, Graph::Mirror(_) | Graph::Source(_)) || request.base_offset.is_some() {
+        return Err(IngestError::Adapter(
+            "a block is written to a mirror or source graph, with no base offset".into(),
+        ));
+    }
+    let owner = match graph {
+        Graph::Mirror(_) => "",
+        _ => request.tenant.as_str(),
+    };
+    let mut subjects = Vec::with_capacity(ops.len());
+    let mut keys: Vec<String> = Vec::with_capacity(ops.len());
+    for op in ops {
+        if !op.is_record_shape() {
+            return Err(IngestError::Adapter(format!(
+                "`{}` is not a record shape; resolve it first",
+                op.name()
+            )));
+        }
+        match op.subject() {
+            Some(Subject::Entity(id))
+                if id.form() != IdForm::Keyed || registry.parse_foreign_id(id.as_str()).is_ok() =>
+            {
+                keys.push(id.as_str().to_string());
+                subjects.push(Subject::Entity(id));
+            }
+            _ => {
+                return Err(IngestError::Adapter(format!(
+                    "`{}` in a block needs an entity that is its own key",
+                    op.name()
+                )));
+            }
+        }
+    }
+    if keys.iter().collect::<std::collections::BTreeSet<_>>().len() != keys.len() {
+        return Err(IngestError::Adapter("a block names a subject twice".into()));
+    }
+    // Page IDs: the key's, or the next ones, in the order the operations come, as one
+    // write at a time takes them (0015 §2).
+    let known = store.page_ids_of(cx, &request.tenant, &keys).await?;
+    let fresh = keys.iter().filter(|k| !known.contains_key(*k)).count();
+    let mut fresh = store
+        .next_ids(cx, owner, &Sequence::Page, fresh)
+        .await?
+        .into_iter();
+    let mut settled = Vec::with_capacity(ops.len());
+    for ((op, subject), key) in ops.iter().zip(subjects).zip(keys) {
+        let page_id = match known.get(&key) {
+            Some(&p) => p,
+            None => fresh
+                .next()
+                .ok_or_else(|| IngestError::Store("a page ID for each new key".into()))?,
+        };
+        settled.push((op, subject, key, page_id));
+    }
+    // Encoding and hashing each record is its own work: on every core.
+    let drafts = scatter_projection::par_map(settled, |(op, subject, key, page_id)| {
+        let revid = upstream_revid(graph, op, registry)?;
+        let draft = draft_of(store, request, op, &subject, key, page_id, revid)?;
+        let commitment = draft.body.commitment();
+        Ok::<_, IngestError>((draft, commitment))
     })
+    .into_iter()
+    .collect::<Result<Vec<_>, _>>()?;
+    append_projected_many(store, pipeline, cx, partition, drafts, request.budget).await
+}
+
+/// [`append_projected`] for a block: drafts appended at consecutive offsets, each with its
+/// body's commitment ([`IngestStore::append_many`]), and the synchronous projections run
+/// over the block at once ([`Pipeline::apply_inline_many`]). What both a bootstrap load
+/// (0013 §9) and a sync's unit ([`write_block`]; A76) write a block with.
+///
+/// # Errors
+///
+/// When the append or a projection fails.
+pub async fn append_projected_many<S: IngestStore>(
+    store: &S,
+    pipeline: &Pipeline<S>,
+    cx: &mut S::Cx,
+    partition: u64,
+    drafts: Vec<(Draft, scatter_log::hash::Hash)>,
+    budget: Budget,
+) -> Result<Vec<Record>, IngestError> {
+    let records = store.append_many(cx, partition, drafts).await?;
+    pipeline
+        .apply_inline_many(store, cx, &records, budget)
+        .await?;
+    Ok(records)
 }
 
 /// A record whose payload the caller encodes: one this crate does not model, such as a

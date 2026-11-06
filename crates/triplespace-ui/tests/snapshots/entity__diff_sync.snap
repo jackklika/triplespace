@@ -1,5 +1,6 @@
 ---
 source: crates/triplespace-ui/tests/entity.rs
+assertion_line: 578
 expression: main
 ---
 <main class="ts-page" id="content">
@@ -15,12 +16,19 @@ expression: main
 		<a class="ts-tabs__link" href="/wiki/Domain:wikipedia.org?tab=identifiers">Identifiers</a>
 		<a class="ts-tabs__link" href="/wiki/Domain:wikipedia.org?tab=labels">Labels in other languages</a>
 		<a class="ts-tabs__link" href="/wiki/Domain:wikipedia.org?action=history" aria-current="page">History</a>
+		<a class="ts-tabs__link" href="/wiki/Special:WhatLinksHere/Domain:wikipedia.org">Links here</a>
+		<a class="ts-tabs__link" href="/wiki/Domain_talk:wikipedia.org">Discussion</a>
 	</nav>
 	<div class="ts-page__body">
-		<div class="ts-diff">
+		<div class="ts-diff" data-ts-diffnav>
 <p class="ts-diff__head">
 <a href="/wiki/Domain:wikipedia.org?oldid=1099511627817">Revision 1099511627817</a> <time datetime="2026-10-02T12:00:00Z">2026-10-02 12:00:00</time>
 </p>
+<div class="ts-page-diff__permalink">
+<label for="ts-diff-permalink">Link to this diff</label> <div class="cdx-text-input">
+<input class="cdx-text-input__input" id="ts-diff-permalink" type="text" readonly dir="ltr" value="[[Special:Diff/1099511627817]]">
+</div>
+</div>
 <div class="ts-diff__body">
 <div class="ts-diff__main">
 <p class="ts-diff__sync">Synced from upstream revision 56 to 57.</p>

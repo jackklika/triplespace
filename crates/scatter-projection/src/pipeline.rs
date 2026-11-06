@@ -71,12 +71,15 @@ pub struct Progress {
 /// Projections in step order.
 pub struct Pipeline<B: Backend> {
     projections: Vec<Arc<dyn Projection<B>>>,
+    /// Run over a block before any projection applies it ([`Self::before_block`]).
+    prelude: Option<fn(&[Record])>,
 }
 
 impl<B: Backend> Default for Pipeline<B> {
     fn default() -> Self {
         Self {
             projections: Vec::new(),
+            prelude: None,
         }
     }
 }
@@ -86,6 +89,15 @@ impl<B: Backend> Pipeline<B> {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Runs `prelude` over each block [`Self::apply_inline_many`] applies, before the first
+    /// projection: work every projection over the block would otherwise repeat, such as
+    /// decoding the records' content, done once and on as many threads as it likes.
+    #[must_use]
+    pub fn before_block(mut self, prelude: fn(&[Record])) -> Self {
+        self.prelude = Some(prelude);
+        self
     }
 
     /// Adds a projection, keeping step order; within a step, the order of addition.
@@ -176,6 +188,92 @@ impl<B: Backend> Pipeline<B> {
                     tenant: target.tenant,
                     partition: h.partition,
                     offset: h.offset,
+                    key: target.key,
+                });
+            }
+        }
+        if !queue.is_empty() {
+            out.queued = queue.len();
+            backend.queue(cx, &queue).await?;
+        }
+        Ok(out)
+    }
+
+    /// [`Self::apply_inline`] for consecutive records of one partition, a block at a time:
+    /// each synchronous projection takes the records it accepts with
+    /// [`Projection::apply_many`] and its position moves once, past the last. Projections
+    /// run in dependency order, each over the whole block, which is safe because a
+    /// projection reads only the tables of earlier steps. Fan-out the budget leaves is
+    /// queued at the block's last offset.
+    ///
+    /// # Panics
+    ///
+    /// When the records are not consecutive offsets of one partition.
+    pub async fn apply_inline_many(
+        &self,
+        backend: &B,
+        cx: &mut B::Cx,
+        records: &[Record],
+        budget: Budget,
+    ) -> Result<Inline, ProjectionError> {
+        let (Some(first), Some(last)) = (records.first(), records.last()) else {
+            return Ok(Inline::default());
+        };
+        let partition = first.header().partition;
+        assert!(
+            records
+                .iter()
+                .zip(first.header().offset..)
+                .all(|(r, o)| r.header().partition == partition && r.header().offset == o),
+            "apply_inline_many takes consecutive records of one partition"
+        );
+        let started = Instant::now();
+        if let Some(prelude) = self.prelude {
+            prelude(records);
+        }
+        let mut out = Inline::default();
+        let mut pending: Vec<(&dyn Projection<B>, Target)> = Vec::new();
+        for p in self.synchronous() {
+            // Most projections accept every record of a block; only a subset is copied.
+            let subset: Vec<Record>;
+            let accepted: &[Record] = if records.iter().all(|r| p.accepts(r.header())) {
+                records
+            } else {
+                subset = records
+                    .iter()
+                    .filter(|r| p.accepts(r.header()))
+                    .cloned()
+                    .collect();
+                &subset
+            };
+            if !accepted.is_empty() {
+                let applied = p
+                    .apply_many(cx, accepted)
+                    .await
+                    .map_err(|m| Self::failed(p, last, m))?;
+                out.rows += applied.rows;
+                pending.extend(applied.fanout.into_iter().map(|t| (p, t)));
+            }
+            backend
+                .set_applied(cx, p.name(), partition, last.header().offset + 1)
+                .await?;
+        }
+        let mut spent = 0usize;
+        let mut queue = Vec::new();
+        for (p, target) in pending {
+            if spent < budget.rows && started.elapsed() < budget.time {
+                let rows = p
+                    .fanout(cx, &target.tenant, &target.key)
+                    .await
+                    .map_err(|m| Self::failed(p, last, m))?;
+                spent += rows;
+                out.fanned_out += 1;
+            } else {
+                queue.push(Work {
+                    projection: p.name().into(),
+                    tenant: target.tenant,
+                    partition,
+                    offset: last.header().offset,
                     key: target.key,
                 });
             }

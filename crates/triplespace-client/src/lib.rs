@@ -58,8 +58,8 @@ pub use forward::Incoming;
 pub use issuers::{AccountInfo, LoginIssuer, Pending};
 pub use notifications::{Counts, Item as Notification, Listing as NotificationPage};
 pub use pages::{
-    DiffAsk, DiffEnd, DiffSide, EditForm, Lookup, PageCategory, PageDiff, PageInfo, PageList,
-    PageListQuery, PageRef, Parsed, Saved, Source, Visibility,
+    About, Backlinks, DiffAsk, DiffEnd, DiffSide, EditForm, Lookup, PageCategory, PageDiff,
+    PageInfo, PageList, PageListQuery, PageRef, Parsed, Saved, Source, Visibility,
 };
 pub use register::{
     AccountRequest, ChallengeInfo, CreateFields, CreateForm, CreateResult, LoginForm,
@@ -73,7 +73,7 @@ pub use rights::{
 pub use search::{Hit, Hits};
 pub use theme::ThemeInfo;
 pub use threads::{
-    Attached, Listed, Listing, NewThreadOn, PostForm, PostView, ThreadView, Written,
+    Attached, Listed, Listing, NewThreadOn, PostForm, PostView, ThreadChange, ThreadView, Written,
 };
 pub use transport::{
     ApiRequest, ApiResponse, ClientError, HttpTransport, ServiceTransport, Transport,

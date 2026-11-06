@@ -9,6 +9,7 @@
 use std::collections::BTreeMap;
 use std::future::Future;
 
+use scatter_log::hash::Hash;
 use scatter_log::header::Header;
 use scatter_log::record::Record;
 use scatter_log::store::{Appended, Draft};
@@ -65,6 +66,85 @@ pub trait IngestStore: Backend {
         draft: Draft,
     ) -> impl Future<Output = Result<Appended, IngestError>> + Send;
 
+    /// [`Self::append`], returning the record the draft became: sealing hashes every part
+    /// of its body, and the write path goes on to project the record. The default seals
+    /// it again; a store that sealed it to append it returns that.
+    fn append_sealed(
+        &self,
+        cx: &mut Self::Cx,
+        partition: u64,
+        draft: Draft,
+    ) -> impl Future<Output = Result<(Appended, Record), IngestError>> + Send {
+        async move {
+            let appended = self.append(cx, partition, draft.clone()).await?;
+            let record = draft.seal(partition, appended.offset);
+            Ok((appended, record))
+        }
+    }
+
+    /// Hands the projections an operation the write path has just encoded into `body`,
+    /// before the record is appended: a projection that would otherwise decode the
+    /// record's content can keep what it was encoded from (0013 A74). The default does
+    /// nothing.
+    fn encoded(&self, body: &scatter_log::body::Body, op: scatter_wikibase_changeset::Operation) {
+        let _ = (body, op);
+    }
+
+    /// Appends drafts at consecutive offsets of a partition inside the unit of work, each
+    /// with its body's commitment, which the caller computed: bootstrap mode's block write
+    /// (0013 §9). Returns the records in order. The default appends one at a time; a store
+    /// with a bulk path (binary `COPY` in Postgres) overrides it.
+    fn append_many(
+        &self,
+        cx: &mut Self::Cx,
+        partition: u64,
+        drafts: Vec<(Draft, Hash)>,
+    ) -> impl Future<Output = Result<Vec<Record>, IngestError>> + Send {
+        async move {
+            let mut out = Vec::with_capacity(drafts.len());
+            for (draft, _) in drafts {
+                let appended = self.append(cx, partition, draft.clone()).await?;
+                out.push(draft.seal(partition, appended.offset));
+            }
+            Ok(out)
+        }
+    }
+
+    /// Refreshes the query planner's statistics on the tables a load writes. A bootstrap
+    /// load (0013 §9) grows them from nothing faster than a database's own statistics
+    /// keep up with, and a plan chosen for an empty table (an index that narrows only by
+    /// tenant) costs a scan of every row written so far, on every block. The default does
+    /// nothing: a store without a planner has nothing to refresh.
+    fn refresh_statistics(
+        &self,
+        cx: &mut Self::Cx,
+    ) -> impl Future<Output = Result<(), IngestError>> + Send {
+        let _ = cx;
+        async { Ok(()) }
+    }
+
+    /// Whether the current unit of work's commit waits until it is on disk. A bootstrap
+    /// load's blocks do not (0013 §9, A72): a crash loses the last blocks committed, never
+    /// consistency, and the load's last unit, which waits, makes everything before it
+    /// durable. Only for the unit of work in `cx`; the default does nothing, for a store
+    /// whose commit has no such choice.
+    fn commit_waits_for_disk(
+        &self,
+        cx: &mut Self::Cx,
+        wait: bool,
+    ) -> impl Future<Output = Result<(), IngestError>> + Send {
+        let _ = (cx, wait);
+        async { Ok(()) }
+    }
+
+    /// How many records a partition holds: its next offset. Zero is the empty partition a
+    /// bootstrap load requires (0013 §9).
+    fn partition_size(
+        &self,
+        cx: &mut Self::Cx,
+        partition: u64,
+    ) -> impl Future<Output = Result<u64, IngestError>> + Send;
+
     /// The record at an offset; `None` when compacted away.
     fn read(
         &self,
@@ -118,6 +198,24 @@ pub trait IngestStore: Backend {
         sequence: &Sequence,
     ) -> impl Future<Output = Result<u64, IngestError>> + Send;
 
+    /// The next `n` values of a sequence, in order: a block for a bootstrap load
+    /// (0013 §9). The default takes them one at a time.
+    fn next_ids(
+        &self,
+        cx: &mut Self::Cx,
+        tenant: &str,
+        sequence: &Sequence,
+        n: usize,
+    ) -> impl Future<Output = Result<Vec<u64>, IngestError>> + Send {
+        async move {
+            let mut out = Vec::with_capacity(n);
+            for _ in 0..n {
+                out.push(self.next_id(cx, tenant, sequence).await?);
+            }
+            Ok(out)
+        }
+    }
+
     /// Raises a sequence past `consumed`, never lowering it (0035 §4).
     fn floor(
         &self,
@@ -135,6 +233,83 @@ pub trait IngestStore: Backend {
         entity_id: &EntityId,
         graph: &str,
     ) -> impl Future<Output = Result<Option<Cursor>, IngestError>> + Send;
+
+    /// [`Self::cursor`] for several entities at once: a sync's unit read set-based
+    /// (0013 A76). Those with no cursor are absent. The default asks one at a time.
+    fn cursors(
+        &self,
+        cx: &mut Self::Cx,
+        tenant: &str,
+        entity_ids: &[EntityId],
+        graph: &str,
+    ) -> impl Future<Output = Result<BTreeMap<EntityId, Cursor>, IngestError>> + Send {
+        async move {
+            let mut out = BTreeMap::new();
+            for id in entity_ids {
+                if let Some(c) = self.cursor(cx, tenant, id, graph).await? {
+                    out.insert(id.clone(), c);
+                }
+            }
+            Ok(out)
+        }
+    }
+
+    /// [`Self::read`] at several offsets of a partition at once, by offset; a compacted
+    /// slot is absent. The default reads one at a time.
+    fn read_many(
+        &self,
+        cx: &mut Self::Cx,
+        partition: u64,
+        offsets: &[u64],
+    ) -> impl Future<Output = Result<BTreeMap<u64, Record>, IngestError>> + Send {
+        async move {
+            let mut out = BTreeMap::new();
+            for &offset in offsets {
+                if let Some(r) = self.read(cx, partition, offset).await? {
+                    out.insert(offset, r);
+                }
+            }
+            Ok(out)
+        }
+    }
+
+    /// [`Self::highest_revid`] for several keys of a partition at once; keys with no
+    /// revision are absent. The default asks one at a time.
+    fn highest_revids(
+        &self,
+        cx: &mut Self::Cx,
+        partition: u64,
+        keys: &[String],
+    ) -> impl Future<Output = Result<BTreeMap<String, u64>, IngestError>> + Send {
+        async move {
+            let mut out = BTreeMap::new();
+            for key in keys {
+                if let Some(r) = self.highest_revid(cx, partition, key).await? {
+                    out.insert(key.clone(), r);
+                }
+            }
+            Ok(out)
+        }
+    }
+
+    /// [`Self::page_id_of`] for several keys at once; keys with no page ID yet are absent.
+    /// The default asks one at a time.
+    fn page_ids_of(
+        &self,
+        cx: &mut Self::Cx,
+        tenant: &str,
+        keys: &[String],
+    ) -> impl Future<Output = Result<BTreeMap<String, u64>, IngestError>> + Send {
+        async move {
+            let mut out = BTreeMap::new();
+            for key in keys {
+                if let Some(p) = self.page_id_of(cx, tenant, key).await? {
+                    out.insert(key.clone(), p);
+                }
+            }
+            Ok(out)
+        }
+    }
 
     /// Every entity a graph currently contributes to, for the `snapshot` sweep.
     fn entities_of_graph(

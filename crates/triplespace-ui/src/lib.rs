@@ -36,6 +36,7 @@
 pub mod appearance;
 pub mod assets;
 pub mod codex;
+pub mod diffview;
 pub mod discussion;
 pub mod document;
 pub mod entity;

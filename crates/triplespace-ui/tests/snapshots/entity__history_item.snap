@@ -1,5 +1,6 @@
 ---
 source: crates/triplespace-ui/tests/entity.rs
+assertion_line: 492
 expression: main
 ---
 <main class="ts-page" id="content">
@@ -18,13 +19,21 @@ expression: main
 		<a class="ts-tabs__link" href="/wiki/Item:Q6?tab=sitelinks">Sitelinks</a>
 		<a class="ts-tabs__link" href="/wiki/Item:Q6?tab=labels">Labels in other languages</a>
 		<a class="ts-tabs__link" href="/wiki/Item:Q6?action=history" aria-current="page">History</a>
+		<a class="ts-tabs__link" href="/wiki/Special:WhatLinksHere/Item:Q6">Links here</a>
+		<a class="ts-tabs__link" href="/wiki/Item_talk:Q6">Discussion</a>
 	</nav>
 	<div class="ts-page__body">
 		<div class="ts-history">
+<form class="ts-history__compare" action="/w/index.php" method="get">
+<input type="hidden" name="title" value="Item:Q6">
+<div class="ts-history__compare-actions">
+<button class="cdx-button" type="submit">Compare selected revisions</button>
+</div>
 <div class="ts-changes__scroll">
 <table class="ts-changes__table">
 <thead>
 <tr>
+<th scope="col" class="ts-change__head ts-change__head--compare">Compare</th>
 <th scope="col" class="ts-change__head ts-change__head--time">Time</th>
 <th scope="col" class="ts-change__head ts-change__head--origin">Source</th>
 <th scope="col" class="ts-change__head ts-change__head--flags">Flags</th>
@@ -36,9 +45,12 @@ expression: main
 </thead>
 <tbody>
 <tr class="ts-changes__dayrow">
-<th scope="rowgroup" colspan="7" class="ts-changes__day">2 October 2026</th>
+<th scope="rowgroup" colspan="8" class="ts-changes__day">2 October 2026</th>
 </tr>
 <tr class="ts-change ts-change--edit">
+<td class="ts-change__cell ts-change__cell--compare">
+<input class="ts-change__pick ts-change__pick--new" type="radio" name="diff" value="907" aria-label="Compare to the revision of 14:05, 2 October 2026" checked>
+</td>
 <td class="ts-change__cell ts-change__cell--time">
 <a href="/wiki/Item:Q6?diff=907" class="ts-change__diff">
 <time class="ts-change__time" datetime="2026-10-02T14:05:11Z">14:05</time>
@@ -74,9 +86,13 @@ expression: main
 </tbody>
 <tbody>
 <tr class="ts-changes__dayrow">
-<th scope="rowgroup" colspan="7" class="ts-changes__day">1 October 2026</th>
+<th scope="rowgroup" colspan="8" class="ts-changes__day">1 October 2026</th>
 </tr>
 <tr class="ts-change ts-change--edit">
+<td class="ts-change__cell ts-change__cell--compare">
+<input class="ts-change__pick" type="radio" name="oldid" value="900" aria-label="Compare from the revision of 09:30, 1 October 2026" checked>
+<input class="ts-change__pick ts-change__pick--new" type="radio" name="diff" value="900" aria-label="Compare to the revision of 09:30, 1 October 2026">
+</td>
 <td class="ts-change__cell ts-change__cell--time">
 <a href="/wiki/Item:Q6?diff=900" class="ts-change__diff">
 <time class="ts-change__time" datetime="2026-10-01T09:30:00Z">09:30</time>
@@ -118,6 +134,7 @@ expression: main
 </tbody>
 </table>
 </div>
+</form>
 </div>
 	</div>
 </main>

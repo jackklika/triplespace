@@ -80,13 +80,26 @@ impl MemoryCx {
 #[derive(Debug, Clone, Default)]
 pub struct MemoryIngest {
     state: Arc<Mutex<State>>,
+    /// What the write path handed the projections ([`IngestStore::encoded`]): each body's
+    /// content bytes and the operation it was encoded from, outside any unit of work.
+    encoded: Arc<Mutex<Vec<Encoded>>>,
 }
+
+/// A body's content bytes and the operation the write path encoded into them.
+type Encoded = (Vec<u8>, Operation);
 
 impl MemoryIngest {
     /// Empty.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// The content bytes and operations the write path handed over
+    /// ([`IngestStore::encoded`]), in order.
+    #[must_use]
+    pub fn encoded_ops(&self) -> Vec<(Vec<u8>, Operation)> {
+        self.encoded.lock().expect("not poisoned").clone()
     }
 
     /// The committed state.
@@ -376,6 +389,23 @@ impl Backend for MemoryIngest {
 }
 
 impl IngestStore for MemoryIngest {
+    fn encoded(&self, body: &scatter_log::body::Body, op: Operation) {
+        if let Some(bytes) = body.content().bytes() {
+            self.encoded
+                .lock()
+                .expect("not poisoned")
+                .push((bytes.to_vec(), op));
+        }
+    }
+
+    async fn partition_size(&self, cx: &mut MemoryCx, partition: u64) -> Result<u64, IngestError> {
+        cx.state
+            .partitions
+            .get(&partition)
+            .map(|p| p.records.len() as u64)
+            .ok_or_else(|| store(format!("no partition {partition:#x}")))
+    }
+
     async fn append(
         &self,
         cx: &mut MemoryCx,

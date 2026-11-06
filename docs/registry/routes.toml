@@ -830,17 +830,17 @@ sources = "[0019](../decisions/0019-discussions.md) §9; [0049](../decisions/004
 
 [[route]]
 routes = ["POST /thread/{page ID}/attach", "POST /thread/{page ID}/detach"]
-purpose = "`attach` and `detach`, each with a target and a base offset"
+purpose = "`attach` and `detach`, each with a target and a base offset; an actor target may name its account, as on `POST /thread` ([0019](../decisions/0019-discussions.md) A31)"
 sources = "[0019](../decisions/0019-discussions.md) §9; [0049](../decisions/0049-boards.md) §11"
 
 [[route]]
 routes = ["POST /thread/{page ID}/move"]
-purpose = "`move`, with a base offset; accepts `keep`"
+purpose = "`move`, with a base offset; accepts `keep`. An actor target may name its account ([0019](../decisions/0019-discussions.md) A31)"
 sources = "[0019](../decisions/0019-discussions.md) §9; [0049](../decisions/0049-boards.md) §11"
 
 [[route]]
 routes = ["POST /thread/{id}/pin", "POST /thread/{id}/unpin"]
-purpose = "`{target, base}`"
+purpose = "`{target, base}`; an actor target may name its account ([0019](../decisions/0019-discussions.md) A31)"
 sources = "[0069](../decisions/0069-synchronized-talk-pages.md) §9"
 
 [[route]]

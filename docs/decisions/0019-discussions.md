@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-09-27
-- **Updated:** 2026-10-25 (A30)
+- **Updated:** 2026-11-05 (A31)
 - **Author:** James Hare / Claude Fable
 - **Changes:** [0001](0001-revision-metadata-rdf.md), [0005](0005-crate-organization.md), [0008](0008-namespaces-and-document-pages.md), [0010](0010-site-ui.md), [0011](0011-logs.md), [0012](0012-api-requirements.md), [0013](0013-postgres-storage.md), [0014](0014-caches-and-search.md), [0015](0015-record-format-and-partition-registry.md), [0016](0016-permissions-and-access-control.md)
 - **Uses:** [0006](0006-log-integrity-and-erasure.md), [0007](0007-actor-identity.md), [0018](0018-tenants.md), [0022](0022-federation.md)
@@ -65,13 +65,13 @@ Two goals from the earlier ADRs constrain the design. Every unit of contribution
 
 ### 8. Rendering and the UI (extends 0010)
 
-*Changed by A2, A10, A15, A28, A30.*
+*Changed by A2, A10, A15, A28, A30, A31.*
 
 *Current text: [19](../architecture/19-site-ui.md) §6.1.*
 
 ### 9. API (extends 0012 §4 and §5)
 
-*Changed by A4, A9, A10, A16, A30.*
+*Changed by A4, A9, A10, A16, A30, A31.*
 
 *Current text: [18](../architecture/18-api.md) §2.1, §2.3, §2.4, §3.2.*
 
@@ -544,3 +544,21 @@ Replaced text ([11](../architecture/11-rendering-templates-and-modules.md) §1.2
 - **Source:** Direct: James, design discussion of 2026-10-25
 - **Change:** extends §8, §9
 - **Summary:** James asked for new topics on user talk pages in the site, with thread notifications ([0021](0021-notifications.md) A20). `POST /thread` takes an actor target by its account's name, `{kind: "actor", name}`, besides its key, resolved to a registered account or a bot on the tenant; a name none holds is `ts-no-target`, a 404. A user talk page offers **Add topic** as any talk page does, whether or not the user page exists. Chapter text: [18](../architecture/18-api.md) §3.2; [19](../architecture/19-site-ui.md) §6.1.
+
+### A31. A thread's actions from the page: the calls made building them
+
+- **Date:** 2026-11-05
+- **Source:** Direct: Claude, while building the thread actions (SCA-168), 2026-11-05; unconfirmed
+- **Change:** amends §8; extends §9
+- **Summary:** Folded into [19](../architecture/19-site-ui.md) §6.1 and [18](../architecture/18-api.md) §3.2. The calls:
+  - Every operation the records support besides posting is reached from the thread page's overflow menu, as `?action=thread&op={rename|move|attach|detach|pin|unpin|close|reopen}`: a form with a confirm button, which posts to the same address. The menu offers an item where the viewer's tenant-wide rights allow it (`move`, or `edit` for Close and Reopen) and the thread gives it something to do; the API decides the rest, page protection included, and a refusal comes back on the form.
+  - Pin, Unpin and Remove a listing choose the attachment from a select, rather than a control beside each attachment on the thread page; a talk page's thread heads carry **Pin here** and **Unpin here**, which open the pin form with that page chosen and return to the talk page.
+  - Move and List on take any title that leads to a talk page: the talk page, a board, or the subject itself. A title that cannot hold a thread is refused on the form.
+  - **Close…** posts a status of the closed category (Resolved by default), with an optional closing statement; **Reopen…** posts `open`, with an optional comment. Both are posts, so a status remains a claim in the thread by a named actor.
+  - The change routes (`rename`, `move`, `attach`, `detach`, `pin`, `unpin`) name a user talk page by its account, `{kind: "actor", name}`, as `POST /thread` does (A30), which is how the site's forms name one.
+
+  Replaced text ([19](../architecture/19-site-ui.md) §6.1, as it stood):
+
+  > A thread page has **Pin here** and **Unpin** beside each attachment, for those who hold the rights ([0049](../decisions/0049-boards.md) §13).
+  >
+  > A thread page has **List on…** and, beside each listing, **Remove from here**, for those who hold the rights ([0049](../decisions/0049-boards.md) §13). Moving a thread offers "Keep listed on the old page".

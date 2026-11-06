@@ -3632,6 +3632,7 @@ dependencies = [
  "minijinja",
  "percent-encoding",
  "rust-embed",
+ "scatter-pages",
  "scatter-titles",
  "scatter-wikibase-model",
  "scatter-wikibase-shape",

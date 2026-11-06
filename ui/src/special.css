@@ -29,7 +29,7 @@
 }
 
 .ts-report a.new {
-	color: var( --color-destructive, #d73333 );
+	color: var( --color-link-red, #bf3c2c );
 }
 
 .ts-report__note,

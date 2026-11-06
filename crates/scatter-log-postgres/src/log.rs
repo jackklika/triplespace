@@ -16,6 +16,7 @@
 //! Compaction deletes the row; the leaf stays in `log.merkle_node` (0006 A14).
 
 use scatter_log::body::Body;
+use scatter_log::hash::Hash;
 use scatter_log::header::Header;
 use scatter_log::record::Record;
 use scatter_log::store::{Appended, Draft, Head, LogStore, Slot, StoreError, check_restorable};
@@ -288,10 +289,25 @@ pub async fn append_with<C: PgClient>(
     draft: Draft,
     frontiers: &mut Frontiers,
 ) -> Result<Appended, StoreError> {
+    Ok(append_sealed_with(client, partition, draft, frontiers)
+        .await?
+        .0)
+}
+
+/// [`append_with`], returning the record the draft became as well: sealing it hashes
+/// every part of its body, which a caller that goes on to use the record need not do a
+/// second time.
+pub async fn append_sealed_with<C: PgClient>(
+    client: &C,
+    partition: u64,
+    draft: Draft,
+    frontiers: &mut Frontiers,
+) -> Result<(Appended, Record), StoreError> {
     let row = partition_row(client, partition, true).await?;
     let record = draft.seal(partition, row.size);
     insert_record(client, partition, &record, 0).await?;
-    advance(client, partition, row.size, record.leaf(), frontiers).await
+    let appended = advance(client, partition, row.size, record.leaf(), frontiers).await?;
+    Ok((appended, record))
 }
 
 /// Appends a draft at the next offset, with no frontier carried between calls: the
@@ -338,6 +354,149 @@ pub async fn append_slot<C: PgClient>(
     append_slot_with(client, partition, slot, &mut Frontiers::new()).await
 }
 
+/// Appends drafts at consecutive offsets, a block at a time, by binary `COPY`: bootstrap
+/// mode's writer (0013 §9; 05 §3.8). One row lock, one `COPY` of the records, one `COPY`
+/// of the tree nodes their leaves complete (the frontier is carried in `frontiers`, as
+/// [`append_with`] carries it), and `next_offset` moved once. Each draft comes with its
+/// body's commitment, which the caller computed on worker threads. Returns the records in
+/// order. Must run inside a transaction; a failure forgets the frontier, as an append's does.
+pub async fn append_many<C: PgClient>(
+    client: &C,
+    partition: u64,
+    drafts: Vec<(Draft, Hash)>,
+    frontiers: &mut Frontiers,
+) -> Result<Vec<Record>, StoreError> {
+    if drafts.is_empty() {
+        return Ok(Vec::new());
+    }
+    let row = partition_row(client, partition, true).await?;
+    let records: Vec<Record> = drafts
+        .into_iter()
+        .zip(row.size..)
+        .map(|((draft, commitment), offset)| draft.seal_committed(partition, offset, commitment))
+        .collect();
+    let end = row.size + records.len() as u64;
+    let written = async {
+        copy_records(client, partition, &records).await?;
+        let frontier = frontiers.load(client, partition, row.size).await?;
+        let mut nodes = Vec::with_capacity(records.len() * 2);
+        for r in &records {
+            nodes.extend(frontier.push_leaf_completing(r.leaf()));
+        }
+        copy_nodes(client, partition, &nodes).await?;
+        client
+            .execute(
+                "UPDATE log.partition SET next_offset = $2 WHERE partition = $1",
+                &[&partition_to_db(partition), &to_db(end)?],
+            )
+            .await
+            .map_err(|e| storage_error(&e))?;
+        Ok::<(), StoreError>(())
+    }
+    .await;
+    if let Err(e) = written {
+        frontiers.forget(partition);
+        return Err(e);
+    }
+    Ok(records)
+}
+
+/// The records of [`append_many`], by binary `COPY` into `log.record`, with the columns
+/// [`insert_record`] writes for an unerased record.
+async fn copy_records<C: PgClient>(
+    client: &C,
+    partition: u64,
+    records: &[Record],
+) -> Result<(), StoreError> {
+    use tokio_postgres::binary_copy::BinaryCopyInWriter;
+    use tokio_postgres::types::Type;
+    let sink = client
+        .raw()
+        .copy_in(
+            "COPY log.record (partition, \"offset\", appended_at, payload_type, key, commitment,
+                              revid, logid, page_id, header, leaf, body, erased)
+             FROM STDIN BINARY",
+        )
+        .await
+        .map_err(|e| storage_error(&e))?;
+    let writer = BinaryCopyInWriter::new(
+        sink,
+        &[
+            Type::INT8,
+            Type::INT8,
+            Type::INT8,
+            Type::TEXT,
+            Type::TEXT,
+            Type::BYTEA,
+            Type::INT8,
+            Type::INT8,
+            Type::INT8,
+            Type::BYTEA,
+            Type::BYTEA,
+            Type::BYTEA,
+            Type::INT2,
+        ],
+    );
+    let mut writer = std::pin::pin!(writer);
+    let p = partition_to_db(partition);
+    for record in records {
+        let h = record.header();
+        let header = h.encode();
+        let leaf = record.leaf();
+        let body = record.body().encode();
+        writer
+            .as_mut()
+            .write(&[
+                &p,
+                &to_db(h.offset)?,
+                &to_db(h.appended_at)?,
+                &h.payload_type,
+                &h.key,
+                &h.commitment.as_slice(),
+                &h.revid.map(to_db).transpose()?,
+                &h.logid.map(to_db).transpose()?,
+                &h.page_id.map(to_db).transpose()?,
+                &header.as_slice(),
+                &leaf.as_slice(),
+                &body.as_slice(),
+                &0i16,
+            ])
+            .await
+            .map_err(|e| storage_error(&e))?;
+    }
+    writer.finish().await.map_err(|e| storage_error(&e))?;
+    Ok(())
+}
+
+/// The tree nodes of [`append_many`], by binary `COPY` into `log.merkle_node`, as
+/// [`merkle::put_nodes`] stores them.
+async fn copy_nodes<C: PgClient>(
+    client: &C,
+    partition: u64,
+    nodes: &[(u32, u64, Hash)],
+) -> Result<(), StoreError> {
+    use tokio_postgres::binary_copy::BinaryCopyInWriter;
+    use tokio_postgres::types::Type;
+    let sink = client
+        .raw()
+        .copy_in("COPY log.merkle_node (partition, level, index, hash) FROM STDIN BINARY")
+        .await
+        .map_err(|e| storage_error(&e))?;
+    let writer = BinaryCopyInWriter::new(sink, &[Type::INT8, Type::INT2, Type::INT8, Type::BYTEA]);
+    let mut writer = std::pin::pin!(writer);
+    let p = partition_to_db(partition);
+    for (level, index, hash) in nodes {
+        let level = i16::try_from(*level).map_err(|_| StoreError::Corrupt("level".into()))?;
+        writer
+            .as_mut()
+            .write(&[&p, &level, &to_db(*index)?, &hash.as_slice()])
+            .await
+            .map_err(|e| storage_error(&e))?;
+    }
+    writer.finish().await.map_err(|e| storage_error(&e))?;
+    Ok(())
+}
+
 fn record_from(header: &[u8], body: &[u8]) -> Result<Record, StoreError> {
     Ok(Record::new(Header::decode(header)?, Body::decode(body)?)?)
 }
@@ -368,6 +527,34 @@ pub async fn read<C: PgClient>(
             StoreError::Corrupt(format!("offset {offset} has neither a row nor a leaf"))
         })?;
     Ok(Slot::Compacted { leaf })
+}
+
+/// The records at several offsets of a partition, in offset order: what a sync's unit
+/// reads at its subjects' cursors in one statement (0013 A76). A compacted offset has no
+/// row and is not returned, nor is an offset past the end.
+pub async fn read_many<C: PgClient>(
+    client: &C,
+    partition: u64,
+    offsets: &[u64],
+) -> Result<Vec<(u64, Record)>, StoreError> {
+    if offsets.is_empty() {
+        return Ok(Vec::new());
+    }
+    let offsets: Vec<i64> = offsets
+        .iter()
+        .map(|&o| to_db(o))
+        .collect::<Result<_, _>>()?;
+    let rows = client
+        .query(
+            "SELECT \"offset\", header, body FROM log.record
+             WHERE partition = $1 AND \"offset\" = ANY($2) ORDER BY \"offset\"",
+            &[&partition_to_db(partition), &offsets],
+        )
+        .await
+        .map_err(|e| storage_error(&e))?;
+    rows.iter()
+        .map(|r| Ok((from_db(r.get(0))?, record_from(r.get(1), r.get(2))?)))
+        .collect()
 }
 
 /// Every record under a header key, in offset order: the replay a projection does to

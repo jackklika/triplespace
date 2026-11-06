@@ -173,6 +173,37 @@ pub struct PageList {
     pub next: Option<String>,
 }
 
+/// A page of `list=backlinks`: the pages linking to a title.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Backlinks {
+    /// Each linking page's title, prefixed, and whether it is a redirect.
+    pub pages: Vec<(String, bool)>,
+    /// `blcontinue`, where there are more.
+    pub next: Option<String>,
+}
+
+/// What the **About this page** panel shows of a page (19 §3.1): `prop=info` with its
+/// protection, and its first revision (`prop=revisions`, `rvdir=newer`).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct About {
+    /// The title, prefixed.
+    pub title: String,
+    /// The content model.
+    pub model: String,
+    /// The latest text's size in bytes.
+    pub length: u64,
+    /// When it last changed, ISO 8601.
+    pub touched: Option<String>,
+    /// The latest revision.
+    pub lastrevid: u64,
+    /// When the first revision was saved, ISO 8601.
+    pub created: Option<String>,
+    /// Who saved it; `None` where hidden.
+    pub creator: Option<String>,
+    /// Its protection, one entry per restricted action.
+    pub protection: Vec<crate::rights::Restriction>,
+}
+
 /// What `prop=info` says of a page.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PageInfo {
@@ -301,6 +332,9 @@ pub struct EditForm<'a> {
     pub basetimestamp: Option<&'a str>,
     /// The page did not exist when the edit started: refuse if it does now.
     pub createonly: bool,
+    /// The content model of a page being created (`contentmodel`; 0041 §10); `None`
+    /// keeps the page's, or the namespace's default.
+    pub content_model: Option<&'a str>,
     /// The CSRF token.
     pub token: &'a str,
 }
@@ -341,6 +375,25 @@ impl Client {
         oldid: Option<u64>,
         follow: bool,
     ) -> Result<Fetched<Parsed>, ClientError> {
+        self.parse_page_marked(incoming, title, oldid, follow, false)
+            .await
+    }
+
+    /// As [`Self::parse_page`], with `templates` asking the API to mark the blocks each
+    /// of the page's template calls drew (`tstemplates`; 0042 §4).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::parse_page`].
+    pub async fn parse_page_marked(
+        &self,
+        incoming: &Incoming,
+        title: &str,
+        oldid: Option<u64>,
+        follow: bool,
+        templates: bool,
+    ) -> Result<Fetched<Parsed>, ClientError> {
+        let marked = if templates { "&tstemplates=1" } else { "" };
         let which = match oldid {
             Some(r) => format!("oldid={r}"),
             None if follow => format!("page={}&redirects=1", q(title)),
@@ -350,7 +403,7 @@ impl Client {
             .get(
                 incoming,
                 &format!(
-                    "/w/api.php?action=parse&{which}&prop=text%7Ccategories%7Ctemplates&format=json&formatversion=2"
+                    "/w/api.php?action=parse&{which}&prop=text%7Ccategories%7Ctemplates{marked}&format=json&formatversion=2"
                 ),
             )
             .await?;
@@ -362,7 +415,7 @@ impl Client {
     }
 
     /// `action=parse` of text under a title, with the pre-save transform: what a save
-    /// would show.
+    /// would show, in a content model (`contentmodel`; a page that exists keeps its own).
     ///
     /// # Errors
     ///
@@ -372,6 +425,7 @@ impl Client {
         incoming: &Incoming,
         title: &str,
         text: &str,
+        model: &str,
     ) -> Result<Parsed, ClientError> {
         let r = self
             .post_form(
@@ -385,7 +439,7 @@ impl Client {
                     ("text", text),
                     ("pst", "1"),
                     ("preview", "1"),
-                    ("contentmodel", "wikitext"),
+                    ("contentmodel", model),
                     ("prop", "text|categories|templates"),
                 ],
             )
@@ -448,6 +502,97 @@ impl Client {
     ) -> Result<Fetched<Lookup<PageInfo>>, ClientError> {
         self.info_of(incoming, &format!("titles={}", q(title)))
             .await
+    }
+
+    /// What the **About this page** panel shows of a title (19 §3.1), in one request:
+    /// `prop=info|revisions` with `inprop=protection` and the first revision.
+    ///
+    /// # Errors
+    ///
+    /// The API away or unreadable.
+    pub async fn page_about(
+        &self,
+        incoming: &Incoming,
+        title: &str,
+    ) -> Result<Fetched<Lookup<About>>, ClientError> {
+        let r = self
+            .get(
+                incoming,
+                &format!(
+                    "/w/api.php?action=query&prop=info%7Crevisions&inprop=protection&rvprop=ids%7Ctimestamp%7Cuser&rvdir=newer&rvlimit=1&titles={}&format=json&formatversion=2",
+                    q(title)
+                ),
+            )
+            .await?;
+        let v = check(&r)?;
+        let value = page_lookup(&v, |page| {
+            let first = &page["revisions"][0];
+            Ok(About {
+                title: page["title"].as_str().unwrap_or_default().to_string(),
+                model: page["contentmodel"]
+                    .as_str()
+                    .unwrap_or("wikitext")
+                    .to_string(),
+                length: page["length"].as_u64().unwrap_or(0),
+                touched: page["touched"].as_str().map(str::to_string),
+                lastrevid: page["lastrevid"].as_u64().unwrap_or(0),
+                created: first["timestamp"].as_str().map(str::to_string),
+                creator: first["user"].as_str().map(str::to_string),
+                protection: page["protection"]
+                    .as_array()
+                    .map(|a| a.iter().map(crate::rights::Restriction::of).collect())
+                    .unwrap_or_default(),
+            })
+        })?;
+        Ok(Fetched {
+            value,
+            cache: CacheInfo::of(&r),
+        })
+    }
+
+    /// `list=backlinks` of a title: the pages linking to it, a page at a time, from
+    /// `blcontinue` where given.
+    ///
+    /// # Errors
+    ///
+    /// The API's refusal (`invalidtitle`), or the API away or unreadable.
+    pub async fn backlinks(
+        &self,
+        incoming: &Incoming,
+        title: &str,
+        limit: u32,
+        from: Option<&str>,
+    ) -> Result<Fetched<Backlinks>, ClientError> {
+        let mut path = format!(
+            "/w/api.php?action=query&list=backlinks&bltitle={}&bllimit={limit}&format=json&formatversion=2",
+            q(title)
+        );
+        if let Some(f) = from.filter(|f| !f.is_empty()) {
+            path.push_str("&blcontinue=");
+            path.push_str(&q(f));
+        }
+        let r = self.get(incoming, &path).await?;
+        let v = check(&r)?;
+        let pages = v["query"]["backlinks"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|p| {
+                        Some((
+                            p["title"].as_str()?.to_string(),
+                            p.get("redirect").is_some_and(|r| r != &Value::Bool(false)),
+                        ))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        Ok(Fetched {
+            value: Backlinks {
+                pages,
+                next: v["continue"]["blcontinue"].as_str().map(str::to_string),
+            },
+            cache: CacheInfo::of(&r),
+        })
     }
 
     /// `list=allpages`, as asked.
@@ -566,12 +711,61 @@ impl Client {
         incoming: &Incoming,
         ask: &DiffAsk,
     ) -> Result<Fetched<PageDiff>, ClientError> {
+        self.compare_pages(incoming, ask, true).await
+    }
+
+    /// `action=compare` for the two sides only: their headers and neighbours, with
+    /// `body` and `inline` empty, in one request. The diff page's other views draw their
+    /// own diff (0010 §6).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::page_diff`].
+    pub async fn page_diff_sides(
+        &self,
+        incoming: &Incoming,
+        ask: &DiffAsk,
+    ) -> Result<Fetched<PageDiff>, ClientError> {
+        self.compare_pages(incoming, ask, false).await
+    }
+
+    async fn compare_pages(
+        &self,
+        incoming: &Incoming,
+        ask: &DiffAsk,
+        with_diff: bool,
+    ) -> Result<Fetched<PageDiff>, ClientError> {
         let which = match ask {
             DiffAsk::Revisions(from, to) => format!("fromrev={from}&torev={to}"),
             DiffAsk::Relative(from, rel) => format!("fromrev={from}&torelative={rel}"),
             DiffAsk::Latest(title) => format!("fromtitle={}&torelative=prev", q(title)),
             DiffAsk::Between(from, to) => format!("{}&{}", from.param("from"), to.param("to")),
         };
+        if !with_diff {
+            let r = self
+                .get(
+                    incoming,
+                    &format!(
+                        "/w/api.php?action=compare&{which}&prop=ids%7Ctitle%7Cuser%7Ccomment%7Csize%7Ctimestamp%7Crel&format=json&formatversion=2"
+                    ),
+                )
+                .await?;
+            let v = check(&r)?;
+            let c = &v["compare"];
+            let to = diff_side(c, "to")
+                .ok_or_else(|| ClientError::Unexpected(format!("compare answered {c}")))?;
+            return Ok(Fetched {
+                value: PageDiff {
+                    from: diff_side(c, "from"),
+                    to,
+                    body: String::new(),
+                    inline: String::new(),
+                    prev: c["prev"].as_u64(),
+                    next: c["next"].as_u64(),
+                },
+                cache: CacheInfo::of(&r),
+            });
+        }
         let table = format!(
             "/w/api.php?action=compare&{which}&prop=diff%7Cids%7Ctitle%7Cuser%7Ccomment%7Csize%7Ctimestamp%7Crel&format=json&formatversion=2"
         );
@@ -598,6 +792,42 @@ impl Client {
                 next: c["next"].as_u64(),
             },
             cache: CacheInfo::combine(&[CacheInfo::of(&r), CacheInfo::of(&ri)]),
+        })
+    }
+
+    /// The source text of one revision of a document page, `prop=revisions&revids=`;
+    /// `None` when the revision is not found or its text is hidden from the viewer.
+    ///
+    /// # Errors
+    ///
+    /// The API away or unreadable.
+    pub async fn revision_text(
+        &self,
+        incoming: &Incoming,
+        revid: u64,
+    ) -> Result<Fetched<Option<String>>, ClientError> {
+        let r = self
+            .get(
+                incoming,
+                &format!(
+                    "/w/api.php?action=query&prop=revisions&revids={revid}&rvprop=ids%7Ccontent&rvslots=main&format=json&formatversion=2"
+                ),
+            )
+            .await?;
+        let v = check(&r)?;
+        let value = v["query"]["pages"].as_array().and_then(|pages| {
+            pages.iter().find_map(|p| {
+                p["revisions"].as_array()?.iter().find_map(|rev| {
+                    (rev["revid"].as_u64() == Some(revid))
+                        .then(|| rev["slots"]["main"]["content"].as_str())
+                        .flatten()
+                        .map(str::to_string)
+                })
+            })
+        });
+        Ok(Fetched {
+            value,
+            cache: CacheInfo::of(&r),
         })
     }
 
@@ -633,6 +863,9 @@ impl Client {
         }
         if form.createonly {
             fields.push(("createonly", "1"));
+        }
+        if let Some(m) = form.content_model {
+            fields.push(("contentmodel", m));
         }
         let r = self.post_form(incoming, "/w/api.php", &fields).await?;
         let v = check(&r)?;

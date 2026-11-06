@@ -1,0 +1,5 @@
+# Wholly generated files (AGENTS.md, "Generated files"): collapsed in pull-request diffs.
+# A conflict in one is resolved by regenerating it with docs/check.sh --write, never by hand.
+docs/decisions/INDEX.md linguist-generated=true
+docs/decisions/OPEN.md linguist-generated=true
+docs/architecture/CRATES.md linguist-generated=true

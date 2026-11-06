@@ -660,7 +660,7 @@ mod tests {
         )
         .unwrap();
         assert!(html.contains("ts-bell ts-bell--unseen"), "{html}");
-        assert!(html.contains("aria-label=\"Notifications (3 unread)\""));
+        assert!(html.contains("aria-label=\"Notifications, 3 unread\""));
         assert!(html.contains("<span class=\"ts-bell__count\" aria-hidden=\"true\">3</span>"));
         assert!(html.contains(
             "You have a new message on <a href=\"/wiki/User_talk:Alice\">your talk page</a>."

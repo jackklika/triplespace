@@ -68,8 +68,11 @@ impl Ask {
             .and_then(|v| v.trim().parse::<u64>().ok());
         let diff = query.get("diff").map(|d| d.trim());
         match (oldid, diff) {
+            // The older first, whichever order they came in, as MediaWiki reads them and
+            // as a history's compare form may send them (0010 §5.6).
             (Some(a), Some(b)) if b.parse::<u64>().is_ok() => {
-                Some(Self::Compare(a, b.parse().ok()?))
+                let b: u64 = b.parse().ok()?;
+                Some(Self::Compare(a.min(b), a.max(b)))
             }
             (_, Some(d)) if d.parse::<u64>().is_ok() => Some(Self::Change(d.parse().ok()?)),
             (_, Some(d)) => {
@@ -297,6 +300,8 @@ pub struct DiffModel {
     pub main: Main,
     /// "About this edit", for a change.
     pub about: Option<About>,
+    /// The diff as a wiki link to copy, where both sides are local revisions (0010 §6).
+    pub permalink: Option<crate::document::Permalink>,
 }
 
 /// An old revision's body: the banner, the links and the statements tab as it then was.
@@ -664,10 +669,19 @@ fn diff_page_model(
         switch: None,
         main: Main::None,
         about: change.map(|c| about_model(m, site, c)),
+        permalink: None,
+    };
+    let permalink = |text: String| crate::document::Permalink {
+        label: m.get("ts-pagediff-permalink"),
+        text,
     };
     match (change, comparison) {
         (Some(c), _) => {
             model.head = Some(revision_line_model(m, &c.revision, title));
+            model.permalink = c
+                .revision
+                .revid
+                .map(|rv| permalink(crate::diffview::permalink(None, rv)));
             let prev = c.previous.as_ref().and_then(|p| p["revid"].as_u64());
             if let (Some(p), Some(rv)) = (prev, c.revision.revid) {
                 model.nav = Some(Nav {
@@ -683,6 +697,9 @@ fn diff_page_model(
             }
         }
         (None, Some(c)) => {
+            if let (Some(a), Some(b)) = (c.from.revid, c.to.revid) {
+                model.permalink = Some(permalink(crate::diffview::permalink(Some(a), b)));
+            }
             model.revisions = Some(Revisions {
                 before: revision_line_model(m, &c.from, title),
                 after: revision_line_model(m, &c.to, title),
@@ -1033,6 +1050,11 @@ mod tests {
         );
         assert_eq!(
             Ask::of(&q(&[("oldid", "900"), ("diff", "907")])),
+            Some(Ask::Compare(900, 907))
+        );
+        // 0010 §5.6: the older first, whichever order the compare form sent them in.
+        assert_eq!(
+            Ask::of(&q(&[("oldid", "907"), ("diff", "900")])),
             Some(Ask::Compare(900, 907))
         );
         assert_eq!(Ask::of(&q(&[("oldid", "900")])), Some(Ask::Old(900)));
