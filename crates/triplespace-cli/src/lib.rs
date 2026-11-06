@@ -7,6 +7,7 @@ pub mod accounts;
 pub mod adopt;
 pub mod adopt_pages;
 pub mod adopt_talk;
+pub mod bootstrap;
 pub mod challenge;
 pub mod common;
 pub mod env_file;

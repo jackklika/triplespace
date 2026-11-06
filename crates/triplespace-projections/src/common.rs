@@ -3,6 +3,7 @@
 //! records are filed under.
 
 use std::future::Future;
+use std::sync::Arc;
 
 use scatter_log::cbor::{self, Value};
 use scatter_log::record::Record;
@@ -214,36 +215,287 @@ pub fn attested(record: &Record) -> Attested {
 /// record back from the store: decoding it each time (the canonical-CBOR check re-encodes
 /// it, then serde builds the `Operation`) was about two-fifths of a Wikidata sync's client
 /// CPU (`docs/testing/performance.md` §8). Decoding is a pure function of the content
-/// bytes, so the last decoded operation is kept per thread with a copy of its bytes and
-/// returned again, cloned, when the bytes are equal. Every distinct record is still
-/// decoded and checked once.
-pub fn operation(record: &Record) -> Result<Option<Operation>, String> {
+/// bytes, so decoded operations are kept (`DECODED`) with a copy of their bytes and
+/// returned again, shared, when the bytes are equal. Every distinct record is still decoded
+/// and checked once, unless the operation was put there by whoever encoded it ([`warm`]).
+/// A block of records ([`decode_block`]) is decoded before the first projection reads it,
+/// so that each projection after it finds the block's operations instead of decoding them
+/// again.
+pub fn operation(record: &Record) -> Result<Option<Arc<Operation>>, String> {
     let Some(bytes) = record.body().content().bytes() else {
         return Ok(None);
     };
-    if let Some(hit) = LAST_OPERATION.with_borrow(|last| {
-        last.as_ref()
-            .filter(|(b, _)| b.as_slice() == bytes)
-            .map(|(_, op)| op.clone())
-    }) {
+    if let Some(hit) = with_decoded(|d| d.get(bytes).map(|e| e.op.clone())) {
         return Ok(hit);
     }
-    let op = match content(record)? {
-        None => None,
-        Some(value) => Some(
-            cbor::from_value::<Operation>(value)
-                .map_err(|e| format!("not a change-set operation: {e}"))?,
-        ),
-    };
-    LAST_OPERATION.with_borrow_mut(|last| *last = Some((bytes.to_vec(), op.clone())));
+    let op = decode_operation(record)?.map(Arc::new);
+    remember(vec![(
+        bytes.to_vec(),
+        Entry {
+            op: op.clone(),
+            hash: scatter_log::hash::content_hash(bytes),
+            rows: None,
+        },
+    )]);
     Ok(op)
 }
 
-thread_local! {
-    /// The content bytes of the last record [`operation`] decoded on this thread, and what
-    /// they decoded to.
-    static LAST_OPERATION: std::cell::RefCell<Option<(Vec<u8>, Option<Operation>)>> =
-        const { std::cell::RefCell::new(None) };
+/// The content hash of a record's content (`Body::content_hash`), `None` when erased:
+/// kept with the decoded operation, since a block's hashes are computed with its
+/// operations ([`decode_block`], [`warm`]) instead of one by one on the projections' thread.
+#[must_use]
+pub fn content_hash(record: &Record) -> Option<scatter_log::hash::Hash> {
+    let bytes = record.body().content().bytes()?;
+    Some(
+        with_decoded(|d| d.get(bytes).map(|e| e.hash))
+            .unwrap_or_else(|| scatter_log::hash::content_hash(bytes)),
+    )
+}
+
+/// The shared rows [`crate::entities`] computed ahead for a record's content in `graph`
+/// ([`warm`]), if it did.
+pub(crate) fn warmed_rows(record: &Record, graph: &str) -> Option<Arc<crate::entities::RowCore>> {
+    let bytes = record.body().content().bytes()?;
+    with_decoded(|d| d.get(bytes).and_then(|e| e.rows.clone())).filter(|rows| rows.graph == graph)
+}
+
+/// What a bootstrap load's preparing threads do for the projections
+/// (`scatter_ingest::Warm`; 0013 A74): keep the operation a record's body was just encoded
+/// from, as [`operation`] would decode it, with its content hash and, for a mirror's `put`,
+/// the entity's shared rows (`entities::RowCore`), so that the coordinator applying
+/// the block decodes and computes none of it. An operation encodes to one canonical form
+/// and decodes back to itself, which the equivalence of a bootstrap load with the ordinary
+/// sync tests.
+pub fn warm(graph: &str, body: &scatter_log::body::Body, op: Operation) {
+    let Some(bytes) = body.content().bytes() else {
+        return;
+    };
+    let rows = crate::entities::RowCore::ahead(graph, &op).map(Arc::new);
+    remember(vec![(
+        bytes.to_vec(),
+        Entry {
+            op: Some(Arc::new(op)),
+            hash: scatter_log::hash::content_hash(bytes),
+            rows,
+        },
+    )]);
+}
+
+/// The operation in a record's content, decoded and checked.
+fn decode_operation(record: &Record) -> Result<Option<Operation>, String> {
+    match content(record)? {
+        None => Ok(None),
+        Some(value) => Ok(Some(
+            cbor::from_value::<Operation>(value)
+                .map_err(|e| format!("not a change-set operation: {e}"))?,
+        )),
+    }
+}
+
+/// Decodes the operations of a block of records that [`operation`] has not decoded yet, and
+/// hashes their content ([`content_hash`]), on as many threads as the machine has, and
+/// keeps both. A projection applying a
+/// block calls this first; it is idempotent, so the projections after it find the block
+/// decoded. A record that does not decode is left for [`operation`] to report.
+pub fn decode_block(records: &[Record]) {
+    let todo: Vec<&Record> = with_decoded(|d| {
+        records
+            .iter()
+            .filter(|r| {
+                r.body()
+                    .content()
+                    .bytes()
+                    .is_some_and(|b| d.get(b).is_none())
+            })
+            .collect()
+    });
+    if todo.len() < 2 {
+        return;
+    }
+    let decoded = par_map(todo, |r| {
+        let op = decode_operation(r).ok()?.map(Arc::new);
+        let bytes = r.body().content().bytes()?;
+        let hash = scatter_log::hash::content_hash(bytes);
+        Some((
+            bytes.to_vec(),
+            Entry {
+                op,
+                hash,
+                rows: None,
+            },
+        ))
+    });
+    remember(decoded.into_iter().flatten().collect());
+}
+
+/// `items` mapped by `f` on as many threads as the machine has, in order. Each thread takes
+/// the next item when it finishes one, rather than a fixed share: a block's records differ
+/// in size by three orders of magnitude (the first Wikidata items run to megabytes), and a
+/// share holding the largest would keep the others waiting.
+///
+/// # Panics
+///
+/// When `f` panics, with its panic.
+pub fn par_map<T: Send, U: Send>(items: Vec<T>, f: impl Fn(T) -> U + Sync) -> Vec<U> {
+    let threads = std::thread::available_parallelism()
+        .map_or(1, std::num::NonZero::get)
+        .min(items.len());
+    if threads < 2 {
+        return items.into_iter().map(f).collect();
+    }
+    let slots: Vec<std::sync::Mutex<Option<T>>> = items
+        .into_iter()
+        .map(|t| std::sync::Mutex::new(Some(t)))
+        .collect();
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let mut out: Vec<Option<U>> = std::iter::repeat_with(|| None).take(slots.len()).collect();
+    std::thread::scope(|s| {
+        let handles: Vec<_> = (0..threads)
+            .map(|_| {
+                s.spawn(|| {
+                    let mut done = Vec::new();
+                    loop {
+                        let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let Some(slot) = slots.get(i) else { break };
+                        let item = slot
+                            .lock()
+                            .expect("not poisoned")
+                            .take()
+                            .expect("each item is taken once");
+                        done.push((i, f(item)));
+                    }
+                    done
+                })
+            })
+            .collect();
+        for h in handles {
+            for (i, u) in h.join().unwrap_or_else(|e| std::panic::resume_unwind(e)) {
+                out[i] = Some(u);
+            }
+        }
+    });
+    out.into_iter()
+        .map(|u| u.expect("every item is mapped"))
+        .collect()
+}
+
+/// Keeps decoded operations, forgetting the oldest when the cache is full: a block's
+/// operations are read by the projections over that block, then not again, and those
+/// [`warm`] keeps are kept in the order their blocks come.
+fn remember(decoded: Vec<(Vec<u8>, Entry)>) {
+    with_decoded(|d| {
+        for (bytes, entry) in decoded {
+            d.insert(bytes, entry);
+        }
+        while d.len > DECODED_MAX || d.bytes > DECODED_MAX_BYTES {
+            if !d.evict_oldest() {
+                break;
+            }
+        }
+    });
+}
+
+/// How many decoded operations are kept, and how many content bytes they may come from: a
+/// bootstrap load's records prepared ahead of the coordinator (`triplespace-cli`'s window,
+/// about 200 per worker thread) and the blocks being applied, without a run of
+/// megabyte-sized items holding much.
+const DECODED_MAX: usize = 8192;
+const DECODED_MAX_BYTES: usize = 128 << 20;
+
+/// Decoded operations by their content bytes, oldest first, with how many there are and
+/// the bytes' total length. They are filed by a [`fingerprint`] of the bytes and found by
+/// comparing the bytes whole: hashing every byte of every lookup (records run to
+/// megabytes) was two-fifths of a bootstrap load's coordinator
+/// (`docs/testing/performance.md` §8).
+#[derive(Default)]
+struct Decoded {
+    ops: std::collections::HashMap<u64, Vec<(Vec<u8>, u64, Entry)>>,
+    order: std::collections::VecDeque<(u64, u64)>,
+    next: u64,
+    len: usize,
+    bytes: usize,
+}
+
+/// What a record's content bytes decoded to, their content hash, and the entity's shared
+/// rows if they were computed ahead ([`warm`]).
+struct Entry {
+    op: Option<Arc<Operation>>,
+    hash: scatter_log::hash::Hash,
+    rows: Option<Arc<crate::entities::RowCore>>,
+}
+
+impl Decoded {
+    fn get(&self, bytes: &[u8]) -> Option<&Entry> {
+        self.ops
+            .get(&fingerprint(bytes))?
+            .iter()
+            .find(|(b, _, _)| b.as_slice() == bytes)
+            .map(|(_, _, e)| e)
+    }
+
+    /// Keeps `entry` for `bytes`, replacing what was kept for them: an entry from [`warm`]
+    /// carries rows a decoded one lacks.
+    fn insert(&mut self, bytes: Vec<u8>, entry: Entry) {
+        let fp = fingerprint(&bytes);
+        let seq = self.next;
+        self.next += 1;
+        let bucket = self.ops.entry(fp).or_default();
+        if let Some(slot) = bucket.iter_mut().find(|(b, _, _)| *b == bytes) {
+            if entry.rows.is_some() || slot.2.rows.is_none() {
+                slot.2 = entry;
+            }
+            return;
+        }
+        self.len += 1;
+        self.bytes += bytes.len();
+        bucket.push((bytes, seq, entry));
+        self.order.push_back((fp, seq));
+    }
+
+    /// Forgets the oldest entry; `false` when there is none.
+    fn evict_oldest(&mut self) -> bool {
+        let Some((fp, seq)) = self.order.pop_front() else {
+            return false;
+        };
+        if let Some(bucket) = self.ops.get_mut(&fp) {
+            if let Some(i) = bucket.iter().position(|(_, s, _)| *s == seq) {
+                let (bytes, _, _) = bucket.swap_remove(i);
+                self.len -= 1;
+                self.bytes -= bytes.len();
+            }
+            if bucket.is_empty() {
+                self.ops.remove(&fp);
+            }
+        }
+        true
+    }
+}
+
+/// A cheap stand-in for content bytes in [`Decoded`]: their length and three 32-byte
+/// windows (the start, the middle, the end). Bytes that differ only elsewhere share a
+/// fingerprint, which costs a comparison, never a wrong answer.
+fn fingerprint(bytes: &[u8]) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let n = bytes.len();
+    let w = 32.min(n);
+    let mid = (n - w) / 2;
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    n.hash(&mut h);
+    bytes[..w].hash(&mut h);
+    bytes[mid..mid + w].hash(&mut h);
+    bytes[n - w..].hash(&mut h);
+    h.finish()
+}
+
+/// Content bytes decoded, what they decoded to, and their hash: one cache for the process,
+/// since a bootstrap load's preparing threads fill it for the coordinator ([`warm`]).
+static DECODED: std::sync::LazyLock<std::sync::Mutex<Decoded>> =
+    std::sync::LazyLock::new(|| std::sync::Mutex::new(Decoded::default()));
+
+fn with_decoded<T>(f: impl FnOnce(&mut Decoded) -> T) -> T {
+    f(&mut DECODED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner))
 }
 
 /// The header key a subject's records are filed under: the entity ID itself, or for a
@@ -426,7 +678,7 @@ mod tests {
     }
 
     fn tombstoned(record: &Record) -> String {
-        match operation(record).unwrap() {
+        match operation(record).unwrap().as_deref() {
             Some(Operation::Tombstone { id, .. }) => id.to_string(),
             other => panic!("{other:?}"),
         }
@@ -454,6 +706,35 @@ mod tests {
             operation(&erased).unwrap().is_none(),
             "erased content is none"
         );
+    }
+
+    /// The cache forgets its oldest entries first, so those kept ahead of the coordinator
+    /// outlast the blocks it has applied; bytes sharing a fingerprint stay apart.
+    #[test]
+    fn the_cache_forgets_the_oldest_first() {
+        let entry = || Entry {
+            op: None,
+            hash: [0; 32],
+            rows: None,
+        };
+        let mut d = Decoded::default();
+        let same_shape = |c: u8| {
+            let mut b = vec![0u8; 200];
+            b[50] = c; // outside the fingerprint's three windows
+            b
+        };
+        assert_eq!(fingerprint(&same_shape(1)), fingerprint(&same_shape(2)));
+        d.insert(same_shape(1), entry());
+        d.insert(same_shape(2), entry());
+        d.insert(vec![3; 10], entry());
+        d.insert(vec![3; 10], entry());
+        assert_eq!((d.len, d.bytes), (3, 410), "an equal insert replaces");
+        assert!(d.get(&same_shape(1)).is_some() && d.get(&same_shape(2)).is_some());
+        assert!(d.evict_oldest());
+        assert!(d.get(&same_shape(1)).is_none(), "the oldest goes first");
+        assert!(d.get(&same_shape(2)).is_some() && d.get(&[3; 10]).is_some());
+        assert!(d.evict_oldest() && d.evict_oldest() && !d.evict_oldest());
+        assert_eq!((d.len, d.bytes), (0, 0));
     }
 
     #[test]

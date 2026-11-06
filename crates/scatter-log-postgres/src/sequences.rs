@@ -159,6 +159,28 @@ pub async fn next<C: PgClient>(
     from_db(row.get(0))
 }
 
+/// The next `n` values of a sequence, in order, in one statement: a bootstrap load's
+/// block of page IDs (0013 §9). Concurrent callers may interleave, so the values are
+/// increasing but not necessarily contiguous.
+pub async fn next_n<C: PgClient>(
+    client: &C,
+    tenant: &str,
+    seq: &Sequence,
+    n: usize,
+) -> Result<Vec<u64>, StoreError> {
+    let rows = client
+        .query(
+            &format!(
+                "SELECT nextval('{}') FROM generate_series(1, $1::bigint)",
+                sequence_name(tenant, seq)?
+            ),
+            &[&i64::try_from(n).map_err(|_| StoreError::Corrupt("block size".into()))?],
+        )
+        .await
+        .map_err(|e| storage_error(&e))?;
+    rows.iter().map(|r| from_db(r.get(0))).collect()
+}
+
 /// Raises the sequence so that its next value is above `consumed`, never lowering it:
 /// an adoption's floor (0035 §4).
 pub async fn floor<C: PgClient>(

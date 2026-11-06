@@ -251,7 +251,7 @@ fn changeset_columns(record: &Record, mirror: bool) -> Result<Columns, String> {
         .content()
         .bytes()
         .map(|b| i32_of(b.len() as u64));
-    let (size, delta, changes) = match &op {
+    let (size, delta, changes) = match &*op {
         Operation::Put {
             size,
             prev_size,
@@ -276,9 +276,9 @@ fn changeset_columns(record: &Record, mirror: bool) -> Result<Columns, String> {
     // bot flag, and with the source's edit summary as the source showed it, with no
     // automatic summary of the `adopt` before it (0035 A12). A `--current-only` record is
     // the job's own revision, summarized as `adopt`.
-    let history = matches!(&op, Operation::Adopt { source_revid, .. }
+    let history = matches!(&*op, Operation::Adopt { source_revid, .. }
         if record.header().revid == Some(*source_revid));
-    let (new, time, minor, bot, visibility) = match &op {
+    let (new, time, minor, bot, visibility) = match &*op {
         Operation::Adopt {
             source_parentid,
             source_time,
@@ -970,6 +970,45 @@ async fn previous_size(
 impl<B: Backend<Cx = PgCx>> Projection<B> for ActivityProjection {
     fn name(&self) -> &'static str {
         "activity"
+    }
+
+    /// Record by record, but a load's records, which are no rows (`is_load`), are left
+    /// out with one look-up of the job per block rather than one per record (0013 §9).
+    fn apply_many<'a>(
+        &'a self,
+        cx: &'a mut PgCx,
+        records: &'a [Record],
+    ) -> BoxFuture<'a, Result<Applied, String>> {
+        Box::pin(async move {
+            let mut loads: std::collections::BTreeMap<(String, u64), bool> =
+                std::collections::BTreeMap::new();
+            let mut out = Applied::default();
+            for record in records {
+                let h = record.header();
+                if h.payload_type == PAYLOAD_CHANGESET
+                    && let Some(job) = attested(record).job
+                {
+                    let info = partition_info(cx, h.partition).await?;
+                    if info.is_mirror() {
+                        let key = (info.tenant.clone(), job);
+                        let load = if let Some(&load) = loads.get(&key) {
+                            load
+                        } else {
+                            let load = is_load(cx, &info.tenant, Some(job)).await?;
+                            loads.insert(key, load);
+                            load
+                        };
+                        if load {
+                            continue;
+                        }
+                    }
+                }
+                let a = Projection::<B>::apply(self, cx, record).await?;
+                out.rows += a.rows;
+                out.fanout.extend(a.fanout);
+            }
+            Ok(out)
+        })
     }
 
     fn step(&self) -> Step {

@@ -52,22 +52,32 @@ impl<R: BufRead> Iterator for JsonDump<R> {
                 Err(e) => return Some(Err(e.into())),
             }
             self.line += 1;
-            let mut text = self.buf.trim();
-            if text == "[" || text == "]" || text.is_empty() {
-                continue;
+            if let Some(entity) = parse_line(self.line, &self.buf) {
+                return Some(entity);
             }
-            if let Some(t) = text.strip_suffix(',') {
-                text = t;
-            }
-            if text == "[" || text == "]" {
-                continue;
-            }
-            return Some(Entity::from_json(text).map_err(|e| DumpError::Entity {
-                line: self.line,
-                message: e.to_string(),
-            }));
         }
     }
+}
+
+/// One line of the dump: its entity, or `None` for the array's brackets and blank lines.
+/// `line` is 1-based, for the error. The reader's step, public so that a caller can parse
+/// lines it read itself on several threads (a bootstrap load, 0013 §9).
+#[must_use]
+pub fn parse_line(line: usize, text: &str) -> Option<Result<ParsedEntity, DumpError>> {
+    let mut text = text.trim();
+    if text == "[" || text == "]" || text.is_empty() {
+        return None;
+    }
+    if let Some(t) = text.strip_suffix(',') {
+        text = t;
+    }
+    if text == "[" || text == "]" {
+        return None;
+    }
+    Some(Entity::from_json(text).map_err(|e| DumpError::Entity {
+        line,
+        message: e.to_string(),
+    }))
 }
 
 #[cfg(test)]

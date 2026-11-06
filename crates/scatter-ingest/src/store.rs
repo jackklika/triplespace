@@ -9,6 +9,7 @@
 use std::collections::BTreeMap;
 use std::future::Future;
 
+use scatter_log::hash::Hash;
 use scatter_log::header::Header;
 use scatter_log::record::Record;
 use scatter_log::store::{Appended, Draft};
@@ -65,6 +66,61 @@ pub trait IngestStore: Backend {
         draft: Draft,
     ) -> impl Future<Output = Result<Appended, IngestError>> + Send;
 
+    /// Appends drafts at consecutive offsets of a partition inside the unit of work, each
+    /// with its body's commitment, which the caller computed: bootstrap mode's block write
+    /// (0013 §9). Returns the records in order. The default appends one at a time; a store
+    /// with a bulk path (binary `COPY` in Postgres) overrides it.
+    fn append_many(
+        &self,
+        cx: &mut Self::Cx,
+        partition: u64,
+        drafts: Vec<(Draft, Hash)>,
+    ) -> impl Future<Output = Result<Vec<Record>, IngestError>> + Send {
+        async move {
+            let mut out = Vec::with_capacity(drafts.len());
+            for (draft, _) in drafts {
+                let appended = self.append(cx, partition, draft.clone()).await?;
+                out.push(draft.seal(partition, appended.offset));
+            }
+            Ok(out)
+        }
+    }
+
+    /// Refreshes the query planner's statistics on the tables a load writes. A bootstrap
+    /// load (0013 §9) grows them from nothing faster than a database's own statistics
+    /// keep up with, and a plan chosen for an empty table (an index that narrows only by
+    /// tenant) costs a scan of every row written so far, on every block. The default does
+    /// nothing: a store without a planner has nothing to refresh.
+    fn refresh_statistics(
+        &self,
+        cx: &mut Self::Cx,
+    ) -> impl Future<Output = Result<(), IngestError>> + Send {
+        let _ = cx;
+        async { Ok(()) }
+    }
+
+    /// Whether the current unit of work's commit waits until it is on disk. A bootstrap
+    /// load's blocks do not (0013 §9, A72): a crash loses the last blocks committed, never
+    /// consistency, and the load's last unit, which waits, makes everything before it
+    /// durable. Only for the unit of work in `cx`; the default does nothing, for a store
+    /// whose commit has no such choice.
+    fn commit_waits_for_disk(
+        &self,
+        cx: &mut Self::Cx,
+        wait: bool,
+    ) -> impl Future<Output = Result<(), IngestError>> + Send {
+        let _ = (cx, wait);
+        async { Ok(()) }
+    }
+
+    /// How many records a partition holds: its next offset. Zero is the empty partition a
+    /// bootstrap load requires (0013 §9).
+    fn partition_size(
+        &self,
+        cx: &mut Self::Cx,
+        partition: u64,
+    ) -> impl Future<Output = Result<u64, IngestError>> + Send;
+
     /// The record at an offset; `None` when compacted away.
     fn read(
         &self,
@@ -117,6 +173,24 @@ pub trait IngestStore: Backend {
         tenant: &str,
         sequence: &Sequence,
     ) -> impl Future<Output = Result<u64, IngestError>> + Send;
+
+    /// The next `n` values of a sequence, in order: a block for a bootstrap load
+    /// (0013 §9). The default takes them one at a time.
+    fn next_ids(
+        &self,
+        cx: &mut Self::Cx,
+        tenant: &str,
+        sequence: &Sequence,
+        n: usize,
+    ) -> impl Future<Output = Result<Vec<u64>, IngestError>> + Send {
+        async move {
+            let mut out = Vec::with_capacity(n);
+            for _ in 0..n {
+                out.push(self.next_id(cx, tenant, sequence).await?);
+            }
+            Ok(out)
+        }
+    }
 
     /// Raises a sequence past `consumed`, never lowering it (0035 §4).
     fn floor(

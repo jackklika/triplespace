@@ -24,6 +24,7 @@
 
 pub mod adopt;
 pub mod batch;
+pub mod bootstrap;
 pub mod follow;
 pub mod job;
 pub mod memory;
@@ -33,6 +34,7 @@ pub mod write;
 
 pub use adopt::{Adoption, AdoptionOutcome, Floors};
 pub use batch::{BatchOutcome, run_batch};
+pub use bootstrap::{Prepare, Prepared, Warm, run_bootstrap};
 pub use follow::{ChangeBatch, ChangeSource, FollowOutcome, run_follow};
 pub use job::{Counts, Job, Reject};
 pub use store::{Cursor, IngestStore, Sequence};

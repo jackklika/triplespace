@@ -308,6 +308,150 @@ two runs each: CPU 130 s / 104 s (−20%) / 96 s (−26%); wall 185 s / 169 s / 
 runs vary by ±6%); peak RSS 49 MB / 128 MB / 85 MB. mimalloc is now the binaries' allocator
 (0033 A24; 22 §4.2).
 
+**The 2M set again, at `867c673` (2026-11-05).** Same file, settings and machine as the
+baseline: 2,014,017 created, 0 rejected, 0 unreadable, 0 hash mismatches, in **5 h 18 min
+(105 entities/s), against 9 h 28 min (59/s): −44% wall, +78% throughput**. Client CPU 12,653 s
+against 23,818 (−47%); Postgres execution 1,862 s against 4,463 (−58%), still 20.0 statements
+per entity (the job lookup replaced the activity insert); database 19 GB against 39 GB, with
+`view.term` 5.1M rows and 1.1 GB against 110.8M and 18 GB, and `view.activity` 3 rows. Unlike
+the baseline, the articles went slower than the dense items (99/s against 110/s). Per entity:
+9.5 ms wall, of which client CPU 6.3 ms (66%), Postgres execution 0.9 ms (10%), round trips
+and the rest about 2.3 ms (24%). The client is still the larger share, so preparing entities
+on worker threads (§6 item 1, for parsing, ID rewriting, hash checks and CBOR encoding) and
+then batch-shaped writes (§6 items 2–4) are next.
+
+**Bootstrap mode, stage A (2026-11-05).** 0013 §9 for an empty instance mirror without a key
+map and a JSON dump (A70; 05 §3.8): each record is a new subject's `put`, so it is prepared
+from the dump alone on worker threads (parsing, the hash check, the operation, its encoding,
+the part hashes), and one coordinator gives offsets and page IDs in dump order and appends a
+block at a time by binary `COPY` of the records and the tree nodes (`append_many`), with one
+partition lock, one page-ID reservation and one commit per block. The projections still run
+per record, inline, so the key index stays; set-based projections and the deferred index build
+are stage B. On the 20k slice: 178 s → 89 s (112 → 225 entities/s), with the same records,
+tree and view rows as the ordinary sync and a rebuild identical to the load. **On the 2M set:
+2 h 56 min (190 entities/s), against 5 h 18 min at `867c673` and 9 h 28 min at `26f7754`
+(3.2×)**: 159/s over the dense items and 244/s over the articles; 11.0 statements per entity
+against 20.0, Postgres execution 1,456 s against 1,862, the database the same 19 GB. Peak RSS
+rose to 1.44 GB (386 MB in the ordinary sync; 658 MB on the 20k slice), not yet explained: the
+queues between the threads and the coordinator are bounded, so the growth with the load's size
+is worth a look before a 122M-entity load. What is left is the per-record projection work on the coordinator's thread
+(the client was at about 110% of one core at the end): stage B's set-based projections.
+
+**Bootstrap mode, set-based projections (2026-11-05).** The projections run over each block at
+once (`Projection::apply_many`, `Pipeline::apply_inline_many`; 0013 A71): the entity source is
+one multi-row upsert per block; a mirror's `put` of a subject no other graph or overlay holds is
+resolved from its own state on worker threads, and its entity rows, terms (in the instance's term
+languages) and identifiers are written with one statement per table; activity looks a load's job
+up once per block. Any other record goes record by record. On the 20k slice: 89 s → 62 s
+(225 → 321 entities/s), the same rows as the ordinary sync, a rebuild identical. **On the 2M set:
+1 h 44 min (321 entities/s), against 2 h 56 min with projections record by record, and 9 h 28 min
+at `26f7754` (5.4×)**: 278/s over the dense items, 358/s over the articles; 0.13 statements per
+entity, Postgres execution 719 s; every view row the same as the record-by-record load's. The
+client was at about 180% of one core and Postgres at about 12%: the coordinator's thread (the
+append, the block's encoding for `COPY`, the rows' assembly) is the limit now. Peak RSS was
+1.75 GB; the next paragraph explains it.
+
+**A bootstrap load's memory (2026-11-05).** Peak RSS does not grow with the length of a load: it
+is reached in the first minute and follows the size of the entities then in flight. RSS sampled
+every 5 s over 300k entities: the dense start of the 2M file (38 KB a line) peaked at 1,744 MB
+within a minute, then held 600–1,000 MB and ended near 300 MB; the articles at its end (16 KB)
+peaked at 853 MB, then fell to 140–340 MB. The 2M run's 1.75 GB is the first peak: the dump
+opens with Wikidata's largest items (Q1 onwards average 160 KB of JSON; record bodies there
+average 76 KB, the largest 1.9 MB). On the first 60k lines: mimalloc as shipped 1,641 MB;
+`MIMALLOC_PURGE_DELAY=0` 1,430 MB; the system allocator 1,580 MB, flat at about 1.5 GB to the
+end and 38% slower. So the peak is live data, which mimalloc's delayed purge adds about an
+eighth to and returns as the load goes on. massif on the first 2,000 items put 69% of the peak
+in prepared record bodies waiting between the workers and the coordinator, 8% in copies of the
+block's records made per projection, 7% in entities decoded for the block's projections. The
+bodies piled up because the collector's reorder buffer was unbounded: while the next unit in
+order was still being prepared (a unit holding megabyte-sized items), the collector kept taking
+later units into it, freeing the channels for the other workers; halving the channels lowered
+the steady state by a quarter but the peak by 7%. Three changes: the units in flight anywhere
+between the reader and the coordinator are bounded (`UNITS_PER_WORKER`, 3 per worker: the
+reader takes a permit per unit, the collector returns it when it takes the unit up); an encoded
+part is trimmed to its length (`Part::of`: the encoder's buffer grows by doubling); a projection
+that accepts every record of a block takes the block without a copy (`apply_inline_many`). On
+the same 60k lines: peak 1,641 → 1,286 and 1,231 MB (two runs), steady state 900–1,300 → 600–800
+MB, time 472 s → 515 s and 474 s (runs vary by about 6%). What remains of the peak is a window
+of 42 units of the largest items, the projections' working set for a block of them, and
+mimalloc's retention; bounding the window by bytes rather than units would take it lower still.
+
+**Each block decoded once (2026-11-05).** callgrind per thread over a 2,000-item bootstrap load:
+88% of the coordinator's instructions were `common::operation`, decoding each record's content
+again for every projection. The memo kept only the last record decoded, and a block is applied a
+projection at a time, so every projection after the first missed it. The memo is now a cache of
+decoded operations per thread, keyed by the content bytes (4,096 operations or 64 MiB, cleared
+when full), and the pipeline runs a prelude over each block before its first projection
+(`Pipeline::before_block`), which the projections' pipeline sets to `common::decode_block`: the
+block's operations decoded on every core. The workers' own cost (JSON to CBOR, canonical JSON)
+is spread over 14 threads and is not the limit. On the 20k slice: 62 s → 38 s (321 → 532
+entities/s); every compared row the same as the ordinary sync, a rebuild identical; the ordinary
+sync on the same run took 149 s (178 s before, not rerun to separate the cause). **On the 2M set:
+49 min 15 s (681 entities/s), against 1 h 44 min (2.1×) and the 9 h 28 min baseline (11.5×)**;
+the same row counts in `view.entity`, `view.term`, `view.identifier` and `view.entity_source`
+as the previous load; peak RSS 1.68 GB; client CPU 9,525 s, about 310% of one core, with
+Postgres at 83–94% while the dense items loaded and about 30% after. From the 5-minute samples,
+roughly 570 entities/s over the first half of the file and 850/s over the rest.
+
+**The second profile: hashes, statistics, commits (2026-11-05).** callgrind again on the 2,000
+items: the coordinator now 9.5% of the client's instructions (it was the larger part), and of
+those, 54% SHA-256 of each record's content for `view.entity_source.content_hash`, on the
+coordinator and in software (this CPU has no SHA extensions). The hash is now computed with the
+block's decoding on every core and kept beside the decoded operation (`common::content_hash`).
+Per-thread CPU over a real load of the 20k slice then showed no thread near one core (the
+coordinator 19% of wall, each worker 8%) and Postgres's backend at 61%: the load was waiting on
+Postgres. `pg_stat_statements`: three-quarters of its time in the block's `DELETE FROM view.term`
+and `view.identifier` `… entity_id = ANY(…)`, which delete nothing in a load. `auto_explain`
+showed why: with no statistics on a table growing from empty, the planner served the term delete
+through `term_prefix`, an index that narrows by tenant only, and rechecked every term row
+written so far, about 180 ms a block by the end of 20k entities and growing with the table. A
+bootstrap load now refreshes the planner's statistics on the `log` and `view` tables each time
+its block count doubles (0013 A73; about 4 s each at 2M entities). On the 20k slice Postgres
+execution fell from 19.4 s to 6.1 s, and the load from 38 s to about 20–25 s; the parallel work
+(`common::par_map`) now hands records out one at a time rather than in fixed shares, which
+made little difference (the decoding prelude 3.6 s → 3.1 s). Timing the coordinator's phases on
+the slice: projections 13–14 s (entity rows 7.0, the decoding prelude 3.1, entity source 1.8,
+keyed map 1.2), append 2.2 s, waiting for prepared records 0.2 s, ANALYZE 1.1 s, and commits
+1.2 to 9.9 s from run to run: each block's commit waited for its write-ahead log on disk. **On
+the 2M set: 40 min 56 s (820 entities/s)**, the same row counts; peak RSS 1.81 GB (1.68 GB
+before; the decoding cache's copies of content bytes, up to 64 MiB, are the likeliest part);
+client CPU 9,954 s, about 400% of one core; Postgres about 35% after the first minutes, against
+83–94% early in the previous run. A block's commit now does not wait for the disk (0013 A72,
+James's decision): `synchronous_commit` off for each block's transaction, on for the last, which
+finishes the job and so makes the load durable once it returns. On the 20k slice: 16, 25 and
+23 s in three runs, the rows the same as the ordinary sync's and a rebuild identical; the disk's
+variance makes the slice too short to measure it. **On the 2M set: 39 min 14 s (856 entities/s)**
+against 40 min 56 s (4%), the same row counts, peak RSS 1.77 GB; 14.5× the 9 h 28 min baseline.
+
+**The coordinator's own work (2026-11-06).** callgrind on the 2,000 items, the coordinator's
+thread alone: 39% SipHash, hashing every byte of a record's content on every lookup in the
+decoding cache, which was keyed by the bytes; 24% cloning a decoded operation out of the cache
+for each projection that read it; 14% `memcpy`. The cache now files content by a fingerprint
+(its length and three 32-byte windows) and confirms a hit by comparing the bytes whole, so it
+still never answers wrongly, and keeps each operation behind an `Arc`, which projections share
+(`common::operation` returns `Arc<Operation>`); the block path clones an entity only on the
+threads that build its rows. The coordinator then used 2.7 s of CPU over a 20k load. On the 20k
+slice: 14 s against 16 s, the rows the same as the ordinary sync's and a rebuild identical. **On
+the 2M set: 31 min 51 s (1,054 entities/s)** against 39 min 14 s, the same row counts, peak RSS
+1.81 GB, client CPU 9,039 s; 17.8× the baseline. The client stayed under five of its cores and
+Postgres under half of one: each block still waits on its writes before the next block's
+projections start.
+
+**The projections' work moved to the preparing threads (2026-11-06).** Timing the coordinator's
+phases over a 20k load (14 s): the block's decoding 3.0 s and the entity rows' computation
+2.0 s, both spread over every core while the coordinator waited, against about 6.5 s of
+statements (the entity rows 3.5, the append 2.3, the entity source 0.45) and 0.2 s waiting for
+prepared records; the preparing threads were mostly idle. Those threads now hand each record's
+operation, with the body it was encoded into, to the projections (`scatter_ingest::Warm`,
+`common::warm`; 0013 A74), which keep it, its content hash and a mirror entity's rows but for
+its page ID, in a cache shared by the process and forgetting its oldest entries first; the
+coordinator then decodes and resolves nothing. On the 20k slice: 8 s against 14 s, the records,
+Merkle nodes and views the same as the ordinary sync's and a rebuild identical; peak RSS
+1.33 GB against 0.78 GB, the work done ahead being held until its block is applied. **On the
+2M set: 24 min 11 s (1,389 entities/s)** against 31 min 51 s, the same row counts, peak RSS
+2.35 GB against 1.81 GB, client CPU 8,546 s, the client at 510–630% and Postgres about 50%;
+23.5× the 9 h 28 min baseline.
+
 **`term_prefix` is not yet as 03 §4.3 has it.** The chapter's index is partial over tenant rows
 (`WHERE tenant <> ''`); the migration's (`0002_view.sql`) covers every row, shared ones included,
 and `wbsearchentities` reads shared rows through it (`t.tenant IN ($1, '')`). Making it partial
