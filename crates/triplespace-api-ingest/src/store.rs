@@ -232,6 +232,38 @@ impl IngestStore for PgIngest {
         Ok(log::append_with(conn, partition, draft, frontiers).await?)
     }
 
+    /// `ANALYZE` of every table in the `log` and `view` schemas: those a load writes, and
+    /// the only ones its statements read.
+    async fn refresh_statistics(&self, cx: &mut PgCx) -> Result<(), IngestError> {
+        let row = cx
+            .query_one(
+                "SELECT string_agg(format('%I.%I', n.nspname, c.relname), ', ')
+                 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                 WHERE n.nspname IN ('log', 'view') AND c.relkind IN ('r', 'p')",
+                &[],
+            )
+            .await
+            .map_err(store)?;
+        let Some(tables) = row.get::<_, Option<String>>(0) else {
+            return Ok(());
+        };
+        cx.batch_execute(&format!("ANALYZE {tables}"))
+            .await
+            .map_err(store)
+    }
+
+    /// `synchronous_commit` for this transaction only (`SET LOCAL`), so that a pooled
+    /// connection does not keep it.
+    async fn commit_waits_for_disk(&self, cx: &mut PgCx, wait: bool) -> Result<(), IngestError> {
+        cx.batch_execute(if wait {
+            "SET LOCAL synchronous_commit = on"
+        } else {
+            "SET LOCAL synchronous_commit = off"
+        })
+        .await
+        .map_err(store)
+    }
+
     async fn partition_size(&self, cx: &mut PgCx, partition: u64) -> Result<u64, IngestError> {
         Ok(log::head(&*cx, partition).await?.size)
     }

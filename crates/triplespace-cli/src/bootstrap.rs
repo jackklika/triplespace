@@ -65,31 +65,40 @@ pub fn prepared(
     for _ in 0..window {
         permit_tx.try_send(()).expect("room for every permit");
     }
-    std::thread::spawn({
-        let tally = Arc::clone(tally);
-        move || read_units(reader, &unit_tx, &permit_rx, &tally)
-    });
+    // Named, so that a profile or `top -H` tells the reader and the workers apart.
+    std::thread::Builder::new()
+        .name("bootstrap-read".into())
+        .spawn({
+            let tally = Arc::clone(tally);
+            move || read_units(reader, &unit_tx, &permit_rx, &tally)
+        })
+        .map_err(|e| e.to_string())?;
     let unit_rx = Arc::new(Mutex::new(unit_rx));
     let prepare = Arc::new(prepare);
-    for _ in 0..workers {
+    for worker in 0..workers {
         let unit_rx = Arc::clone(&unit_rx);
         let done_tx = done_tx.clone();
         let adapter = Arc::clone(adapter);
         let prepare = Arc::clone(&prepare);
         let tally = Arc::clone(tally);
-        std::thread::spawn(move || {
-            loop {
-                let unit = unit_rx.lock().expect("not poisoned").recv();
-                let Ok((seq, lines)) = unit else { break };
-                let out = lines
-                    .into_iter()
-                    .flat_map(|(line, text)| prepare_line(line, &text, &adapter, &prepare, &tally))
-                    .collect();
-                if done_tx.send((seq, out)).is_err() {
-                    break;
+        let spawned = std::thread::Builder::new()
+            .name(format!("bootstrap-{worker}"))
+            .spawn(move || {
+                loop {
+                    let unit = unit_rx.lock().expect("not poisoned").recv();
+                    let Ok((seq, lines)) = unit else { break };
+                    let out = lines
+                        .into_iter()
+                        .flat_map(|(line, text)| {
+                            prepare_line(line, &text, &adapter, &prepare, &tally)
+                        })
+                        .collect();
+                    if done_tx.send((seq, out)).is_err() {
+                        break;
+                    }
                 }
-            }
-        });
+            });
+        spawned.map_err(|e| e.to_string())?;
     }
     drop(done_tx);
     Ok(Ordered {

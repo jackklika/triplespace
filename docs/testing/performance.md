@@ -393,6 +393,36 @@ as the previous load; peak RSS 1.68 GB; client CPU 9,525 s, about 310% of one co
 Postgres at 83–94% while the dense items loaded and about 30% after. From the 5-minute samples,
 roughly 570 entities/s over the first half of the file and 850/s over the rest.
 
+**The second profile: hashes, statistics, commits (2026-11-05).** callgrind again on the 2,000
+items: the coordinator now 9.5% of the client's instructions (it was the larger part), and of
+those, 54% SHA-256 of each record's content for `view.entity_source.content_hash`, on the
+coordinator and in software (this CPU has no SHA extensions). The hash is now computed with the
+block's decoding on every core and kept beside the decoded operation (`common::content_hash`).
+Per-thread CPU over a real load of the 20k slice then showed no thread near one core (the
+coordinator 19% of wall, each worker 8%) and Postgres's backend at 61%: the load was waiting on
+Postgres. `pg_stat_statements`: three-quarters of its time in the block's `DELETE FROM view.term`
+and `view.identifier` `… entity_id = ANY(…)`, which delete nothing in a load. `auto_explain`
+showed why: with no statistics on a table growing from empty, the planner served the term delete
+through `term_prefix`, an index that narrows by tenant only, and rechecked every term row
+written so far, about 180 ms a block by the end of 20k entities and growing with the table. A
+bootstrap load now refreshes the planner's statistics on the `log` and `view` tables each time
+its block count doubles (0013 A73; about 4 s each at 2M entities). On the 20k slice Postgres
+execution fell from 19.4 s to 6.1 s, and the load from 38 s to about 20–25 s; the parallel work
+(`common::par_map`) now hands records out one at a time rather than in fixed shares, which
+made little difference (the decoding prelude 3.6 s → 3.1 s). Timing the coordinator's phases on
+the slice: projections 13–14 s (entity rows 7.0, the decoding prelude 3.1, entity source 1.8,
+keyed map 1.2), append 2.2 s, waiting for prepared records 0.2 s, ANALYZE 1.1 s, and commits
+1.2 to 9.9 s from run to run: each block's commit waited for its write-ahead log on disk. **On
+the 2M set: 40 min 56 s (820 entities/s)**, the same row counts; peak RSS 1.81 GB (1.68 GB
+before; the decoding cache's copies of content bytes, up to 64 MiB, are the likeliest part);
+client CPU 9,954 s, about 400% of one core; Postgres about 35% after the first minutes, against
+83–94% early in the previous run. A block's commit now does not wait for the disk (0013 A72,
+James's decision): `synchronous_commit` off for each block's transaction, on for the last, which
+finishes the job and so makes the load durable once it returns. On the 20k slice: 16, 25 and
+23 s in three runs, the rows the same as the ordinary sync's and a rebuild identical; the disk's
+variance makes the slice too short to measure it. **On the 2M set: 39 min 14 s (856 entities/s)**
+against 40 min 56 s (4%), the same row counts, peak RSS 1.77 GB; 14.5× the 9 h 28 min baseline.
+
 **`term_prefix` is not yet as 03 §4.3 has it.** The chapter's index is partial over tenant rows
 (`WHERE tenant <> ''`); the migration's (`0002_view.sql`) covers every row, shared ones included,
 and `wbsearchentities` reads shared rows through it (`t.tenant IN ($1, '')`). Making it partial

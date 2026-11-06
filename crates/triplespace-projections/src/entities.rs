@@ -654,35 +654,10 @@ fn shared_rows(
                 .collect(),
         })
     };
-    let threads = std::thread::available_parallelism().map_or(4, std::num::NonZero::get);
-    if fast.len() < 64 || threads < 2 {
+    if fast.len() < 64 {
         return fast.into_iter().map(one).collect();
     }
-    let per = fast.len().div_ceil(threads);
-    let mut chunks: Vec<Vec<_>> = Vec::new();
-    let mut items = fast.into_iter();
-    loop {
-        let chunk: Vec<_> = items.by_ref().take(per).collect();
-        if chunk.is_empty() {
-            break;
-        }
-        chunks.push(chunk);
-    }
-    let one = &one;
-    std::thread::scope(|s| {
-        let handles: Vec<_> = chunks
-            .into_iter()
-            .map(|chunk| s.spawn(move || chunk.into_iter().map(one).collect::<Result<Vec<_>, _>>()))
-            .collect();
-        let mut out = Vec::new();
-        for h in handles {
-            out.extend(
-                h.join()
-                    .map_err(|_| "a worker thread panicked".to_string())??,
-            );
-        }
-        Ok(out)
-    })
+    crate::common::par_map(fast, one).into_iter().collect()
 }
 
 /// Writes [`SharedRows`] for a block: one upsert of `view.entity`, and the terms (in the

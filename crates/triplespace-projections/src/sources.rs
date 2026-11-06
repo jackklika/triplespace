@@ -12,8 +12,8 @@ use scatter_wikibase_model::id::{EntityId, IdForm, Subject};
 
 use crate::backend::PgCx;
 use crate::common::{
-    PAYLOAD_CHANGESET, PAYLOAD_KEYED_SURROGATE, PartitionInfo, attested, content, offset_db,
-    operation, parse_surrogate_key, partition_info, quote, time_of,
+    PAYLOAD_CHANGESET, PAYLOAD_KEYED_SURROGATE, PartitionInfo, attested, content, content_hash,
+    offset_db, operation, parse_surrogate_key, partition_info, quote, time_of,
 };
 use scatter_log_postgres::PgClient;
 
@@ -154,10 +154,7 @@ impl EntitySourceProjection {
             prev,
             size,
         } = cursor;
-        let hash = record
-            .body()
-            .content_hash()
-            .ok_or("the content part is present")?;
+        let hash = content_hash(record).ok_or("the content part is present")?;
         let job = attested(record)
             .job
             .map(i64::try_from)
@@ -352,9 +349,7 @@ impl<B: Backend<Cx = PgCx>> Projection<B> for EntitySourceProjection {
                 versions.push(cursor.version);
                 prevs.push(cursor.prev);
                 hashes.push(
-                    record
-                        .body()
-                        .content_hash()
+                    content_hash(record)
                         .ok_or("the content part is present")?
                         .to_vec(),
                 );

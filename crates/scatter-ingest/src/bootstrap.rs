@@ -20,6 +20,16 @@
 //! several processes resuming a block, is not needed by one in-process coordinator and is
 //! not built.
 //!
+//! A block's commit does not wait for the disk ([`IngestStore::commit_waits_for_disk`];
+//! 0013 A72): a crash loses at most the last blocks committed, which the rerun loads
+//! again; the last unit, which finishes the job, waits, and so makes the whole load
+//! durable once it returns.
+//!
+//! The tables a load writes grow from nothing faster than the database's own statistics
+//! follow, so the load refreshes them ([`IngestStore::refresh_statistics`]) each time the
+//! number of blocks written doubles (0013 A73): a plan chosen for an empty table scans every row
+//! written so far on every block, which makes a load quadratic.
+//!
 //! Only an instance mirror whose subjects are their own keys is bootstrapped: a keyed
 //! subject's surrogate is minted on the write path (0009 §7), so a key-mapped provider
 //! loads through the ordinary sync.
@@ -250,6 +260,7 @@ where
     let mut counts = Counts::default();
     let mut rejected_line = 1usize;
     let mut block: Vec<(Draft, Hash)> = Vec::with_capacity(batch);
+    let mut blocks = 0u64;
     for prepared in items(prepare) {
         match prepared? {
             Prepared::Record {
@@ -278,6 +289,16 @@ where
                     .await?;
                     store.commit(cx).await?;
                     cx = store.begin().await?;
+                    store.commit_waits_for_disk(&mut cx, false).await?;
+                    blocks += 1;
+                    // The tables have doubled since the last refresh (0013 A73): about 20 for a
+                    // full Wikidata load.
+                    if blocks.is_power_of_two() {
+                        store.refresh_statistics(&mut cx).await?;
+                        store.commit(cx).await?;
+                        cx = store.begin().await?;
+                        store.commit_waits_for_disk(&mut cx, false).await?;
+                    }
                 }
             }
             Prepared::Rejected {
@@ -295,6 +316,8 @@ where
             Prepared::Unchanged => counts.unchanged += 1,
         }
     }
+    // The last unit waits for the disk, and with it every block committed before it.
+    store.commit_waits_for_disk(&mut cx, true).await?;
     write_block(store, pipeline, &mut cx, partition, block).await?;
     job.finish(
         store,

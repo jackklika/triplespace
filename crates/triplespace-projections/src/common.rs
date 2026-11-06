@@ -223,12 +223,31 @@ pub fn operation(record: &Record) -> Result<Option<Operation>, String> {
     let Some(bytes) = record.body().content().bytes() else {
         return Ok(None);
     };
-    if let Some(hit) = DECODED.with_borrow(|d| d.get(bytes).cloned()) {
+    if let Some(hit) = DECODED.with_borrow(|d| d.get(bytes).map(|e| e.op.clone())) {
         return Ok(hit);
     }
     let op = decode_operation(record)?;
-    remember(vec![(bytes.to_vec(), op.clone())]);
+    remember(vec![(
+        bytes.to_vec(),
+        Entry {
+            op: op.clone(),
+            hash: scatter_log::hash::content_hash(bytes),
+        },
+    )]);
     Ok(op)
+}
+
+/// The content hash of a record's content (`Body::content_hash`), `None` when erased:
+/// kept with the decoded operation, since a block's hashes are computed with its
+/// operations ([`decode_block`]) instead of one by one on the projections' thread.
+#[must_use]
+pub fn content_hash(record: &Record) -> Option<scatter_log::hash::Hash> {
+    let bytes = record.body().content().bytes()?;
+    Some(
+        DECODED
+            .with_borrow(|d| d.get(bytes).map(|e| e.hash))
+            .unwrap_or_else(|| scatter_log::hash::content_hash(bytes)),
+    )
 }
 
 /// The operation in a record's content, decoded and checked.
@@ -242,8 +261,9 @@ fn decode_operation(record: &Record) -> Result<Option<Operation>, String> {
     }
 }
 
-/// Decodes the operations of a block of records that [`operation`] has not decoded yet, on
-/// as many threads as the machine has, and keeps them for it. A projection applying a
+/// Decodes the operations of a block of records that [`operation`] has not decoded yet, and
+/// hashes their content ([`content_hash`]), on as many threads as the machine has, and
+/// keeps both. A projection applying a
 /// block calls this first; it is idempotent, so the projections after it find the block
 /// decoded. A record that does not decode is left for [`operation`] to report.
 pub fn decode_block(records: &[Record]) {
@@ -261,35 +281,69 @@ pub fn decode_block(records: &[Record]) {
     if todo.len() < 2 {
         return;
     }
+    let decoded = par_map(todo, |r| {
+        let op = decode_operation(r).ok()?;
+        let bytes = r.body().content().bytes()?;
+        let hash = scatter_log::hash::content_hash(bytes);
+        Some((bytes.to_vec(), Entry { op, hash }))
+    });
+    remember(decoded.into_iter().flatten().collect());
+}
+
+/// `items` mapped by `f` on as many threads as the machine has, in order. Each thread takes
+/// the next item when it finishes one, rather than a fixed share: a block's records differ
+/// in size by three orders of magnitude (the first Wikidata items run to megabytes), and a
+/// share holding the largest would keep the others waiting.
+///
+/// # Panics
+///
+/// When `f` panics, with its panic.
+pub fn par_map<T: Send, U: Send>(items: Vec<T>, f: impl Fn(T) -> U + Sync) -> Vec<U> {
     let threads = std::thread::available_parallelism()
         .map_or(1, std::num::NonZero::get)
-        .min(todo.len());
-    let chunk = todo.len().div_ceil(threads);
-    let decoded: Vec<(Vec<u8>, Option<Operation>)> = std::thread::scope(|s| {
-        let handles: Vec<_> = todo
-            .chunks(chunk)
-            .map(|part| {
-                s.spawn(move || {
-                    part.iter()
-                        .filter_map(|r| {
-                            let op = decode_operation(r).ok()?;
-                            Some((r.body().content().bytes()?.to_vec(), op))
-                        })
-                        .collect::<Vec<_>>()
+        .min(items.len());
+    if threads < 2 {
+        return items.into_iter().map(f).collect();
+    }
+    let slots: Vec<std::sync::Mutex<Option<T>>> = items
+        .into_iter()
+        .map(|t| std::sync::Mutex::new(Some(t)))
+        .collect();
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let mut out: Vec<Option<U>> = std::iter::repeat_with(|| None).take(slots.len()).collect();
+    std::thread::scope(|s| {
+        let handles: Vec<_> = (0..threads)
+            .map(|_| {
+                s.spawn(|| {
+                    let mut done = Vec::new();
+                    loop {
+                        let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let Some(slot) = slots.get(i) else { break };
+                        let item = slot
+                            .lock()
+                            .expect("not poisoned")
+                            .take()
+                            .expect("each item is taken once");
+                        done.push((i, f(item)));
+                    }
+                    done
                 })
             })
             .collect();
-        handles
-            .into_iter()
-            .flat_map(|h| h.join().expect("a decoding thread does not panic"))
-            .collect()
+        for h in handles {
+            for (i, u) in h.join().unwrap_or_else(|e| std::panic::resume_unwind(e)) {
+                out[i] = Some(u);
+            }
+        }
     });
-    remember(decoded);
+    out.into_iter()
+        .map(|u| u.expect("every item is mapped"))
+        .collect()
 }
 
 /// Keeps decoded operations, forgetting all those kept before when the cache is full: a
 /// block's operations are read by the projections over that block, then not again.
-fn remember(decoded: Vec<(Vec<u8>, Option<Operation>)>) {
+fn remember(decoded: Vec<(Vec<u8>, Entry)>) {
     DECODED.with_borrow_mut(|d| {
         let adding: usize = decoded.iter().map(|(b, _)| b.len()).sum();
         if d.ops.len() + decoded.len() > DECODED_MAX || d.bytes + adding > DECODED_MAX_BYTES {
@@ -311,12 +365,18 @@ const DECODED_MAX_BYTES: usize = 64 << 20;
 /// Decoded operations by their content bytes, with the bytes' total length.
 #[derive(Default)]
 struct Decoded {
-    ops: std::collections::HashMap<Vec<u8>, Option<Operation>>,
+    ops: std::collections::HashMap<Vec<u8>, Entry>,
     bytes: usize,
 }
 
+/// What a record's content bytes decoded to, and their content hash.
+struct Entry {
+    op: Option<Operation>,
+    hash: scatter_log::hash::Hash,
+}
+
 impl Decoded {
-    fn get(&self, bytes: &[u8]) -> Option<&Option<Operation>> {
+    fn get(&self, bytes: &[u8]) -> Option<&Entry> {
         self.ops.get(bytes)
     }
 
@@ -326,7 +386,7 @@ impl Decoded {
 }
 
 thread_local! {
-    /// Content bytes this thread has decoded, and what they decoded to.
+    /// Content bytes this thread has decoded, what they decoded to, and their hash.
     static DECODED: std::cell::RefCell<Decoded> = std::cell::RefCell::new(Decoded::default());
 }
 

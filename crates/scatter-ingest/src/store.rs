@@ -86,6 +86,33 @@ pub trait IngestStore: Backend {
         }
     }
 
+    /// Refreshes the query planner's statistics on the tables a load writes. A bootstrap
+    /// load (0013 §9) grows them from nothing faster than a database's own statistics
+    /// keep up with, and a plan chosen for an empty table (an index that narrows only by
+    /// tenant) costs a scan of every row written so far, on every block. The default does
+    /// nothing: a store without a planner has nothing to refresh.
+    fn refresh_statistics(
+        &self,
+        cx: &mut Self::Cx,
+    ) -> impl Future<Output = Result<(), IngestError>> + Send {
+        let _ = cx;
+        async { Ok(()) }
+    }
+
+    /// Whether the current unit of work's commit waits until it is on disk. A bootstrap
+    /// load's blocks do not (0013 §9, A72): a crash loses the last blocks committed, never
+    /// consistency, and the load's last unit, which waits, makes everything before it
+    /// durable. Only for the unit of work in `cx`; the default does nothing, for a store
+    /// whose commit has no such choice.
+    fn commit_waits_for_disk(
+        &self,
+        cx: &mut Self::Cx,
+        wait: bool,
+    ) -> impl Future<Output = Result<(), IngestError>> + Send {
+        let _ = (cx, wait);
+        async { Ok(()) }
+    }
+
     /// How many records a partition holds: its next offset. Zero is the empty partition a
     /// bootstrap load requires (0013 §9).
     fn partition_size(
