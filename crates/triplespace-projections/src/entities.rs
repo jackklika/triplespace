@@ -604,9 +604,18 @@ impl EntityProjection {
 /// ([`EntityProjection::apply_block`]).
 struct SharedRows {
     id: String,
-    type_name: String,
     page_id: i64,
     first_seen: std::time::SystemTime,
+    core: Arc<RowCore>,
+}
+
+/// The part of [`SharedRows`] that the entity's state and graph determine, the record's
+/// header aside: what a bootstrap load computes ahead, where the record is prepared
+/// ([`crate::common::warm`]; 0013 A74).
+pub(crate) struct RowCore {
+    /// The graph it was resolved in.
+    pub(crate) graph: String,
+    type_name: String,
     kind: &'static str,
     blob: Option<Vec<u8>>,
     size: i32,
@@ -616,37 +625,25 @@ struct SharedRows {
     identifiers: Vec<(String, String, String, String)>,
 }
 
-/// The shared rows of entities each held by one mirror record and nothing else, resolved
-/// as [`EntityProjection::resolve_subject`] resolves such an entity: the record's state its
-/// one contribution, no corrections, the page ID its header's, `first_seen` its append time
-/// (the entity source's `synced_at`). Spread over worker threads for a large block.
-fn shared_rows(
-    graph: &str,
-    fast: Vec<(&Record, Arc<Operation>)>,
-) -> Result<Vec<SharedRows>, String> {
-    let one = |(record, op): (&Record, Arc<Operation>)| -> Result<SharedRows, String> {
-        let h = record.header();
-        let (id, entity) = put(&op);
+impl RowCore {
+    /// The rows of an entity that is its graph's one contribution, resolved as
+    /// [`EntityProjection::resolve_subject`] resolves such an entity: no corrections.
+    fn of(graph: &str, entity: &Entity) -> Result<Self, String> {
         let contributions = [Contribution {
             graph: graph.to_string(),
             entity: entity.clone(),
         }];
         let resolved =
             resolve(&contributions, &BTreeMap::new()).ok_or("one contribution resolves")?;
-        let page_id = h
-            .page_id
-            .ok_or_else(|| format!("no record for `{id}` carries a page ID (0013 §6)"))?;
         let json = resolved.canonical_json();
         let (kind, blob) = if resolved.equals_given(&json, &contributions[0].entity) {
             ("source", None)
         } else {
             ("materialized", Some(json.as_bytes().to_vec()))
         };
-        Ok(SharedRows {
-            id: id.as_str().to_string(),
+        Ok(Self {
+            graph: graph.to_string(),
             type_name: resolved.entity.entity_type.name().to_string(),
-            page_id: i64::try_from(page_id).map_err(|e| e.to_string())?,
-            first_seen: time_of(h.appended_at),
             kind,
             blob,
             size: i32::try_from(json.len()).unwrap_or(i32::MAX),
@@ -659,8 +656,59 @@ fn shared_rows(
                 .map(|((p, key, g), sid)| (p.to_string(), key, g.to_string(), sid.to_string()))
                 .collect(),
         })
+    }
+
+    /// The rows [`EntityProjection::apply_block`] may write for `op` in `graph`, computed
+    /// ahead: for a mirror's `put` of an unkeyed subject, whether or not the block later
+    /// finds the subject held elsewhere (it then resolves it the full way).
+    pub(crate) fn ahead(graph: &str, op: &Operation) -> Option<Self> {
+        match op {
+            Operation::Put { id, entity, .. }
+                if graph.starts_with("mirror/") && id.form() != IdForm::Keyed =>
+            {
+                Self::of(graph, entity).ok()
+            }
+            _ => None,
+        }
+    }
+}
+
+/// The shared rows of entities each held by one mirror record and nothing else, resolved
+/// as [`EntityProjection::resolve_subject`] resolves such an entity: the record's state its
+/// one contribution, no corrections, the page ID its header's, `first_seen` its append time
+/// (the entity source's `synced_at`). Rows computed ahead ([`RowCore`]) are used as they
+/// are; the rest are spread over worker threads for a large block.
+fn shared_rows(
+    graph: &str,
+    fast: Vec<(&Record, Arc<Operation>)>,
+) -> Result<Vec<SharedRows>, String> {
+    let one = |(record, op, core): (&Record, Arc<Operation>, Option<Arc<RowCore>>)| {
+        let h = record.header();
+        let (id, entity) = put(&op);
+        let page_id = h
+            .page_id
+            .ok_or_else(|| format!("no record for `{id}` carries a page ID (0013 §6)"))?;
+        let core = match core {
+            Some(core) => core,
+            None => Arc::new(RowCore::of(graph, entity)?),
+        };
+        Ok(SharedRows {
+            id: id.as_str().to_string(),
+            page_id: i64::try_from(page_id).map_err(|e| e.to_string())?,
+            first_seen: time_of(h.appended_at),
+            core,
+        })
     };
-    if fast.len() < 64 {
+    // Rows computed ahead (0013 A74) are taken as they are; the rest are computed here.
+    let fast: Vec<_> = fast
+        .into_iter()
+        .map(|(r, op)| {
+            let core = crate::common::warmed_rows(r, graph);
+            (r, op, core)
+        })
+        .collect();
+    let todo = fast.iter().filter(|(_, _, c)| c.is_none()).count();
+    if todo < 64 {
         return fast.into_iter().map(one).collect();
     }
     crate::common::par_map(fast, one).into_iter().collect()
@@ -683,12 +731,12 @@ async fn write_shared_rows(cx: &PgCx, rows: &[SharedRows]) -> Result<u64, String
         return Ok(0);
     }
     let ids: Vec<&str> = rows.iter().map(|r| r.id.as_str()).collect();
-    let types: Vec<&str> = rows.iter().map(|r| r.type_name.as_str()).collect();
+    let types: Vec<&str> = rows.iter().map(|r| r.core.type_name.as_str()).collect();
     let pages: Vec<i64> = rows.iter().map(|r| r.page_id).collect();
     let first: Vec<std::time::SystemTime> = rows.iter().map(|r| r.first_seen).collect();
-    let kinds: Vec<&str> = rows.iter().map(|r| r.kind).collect();
-    let blobs: Vec<Option<&[u8]>> = rows.iter().map(|r| r.blob.as_deref()).collect();
-    let sizes: Vec<i32> = rows.iter().map(|r| r.size).collect();
+    let kinds: Vec<&str> = rows.iter().map(|r| r.core.kind).collect();
+    let blobs: Vec<Option<&[u8]>> = rows.iter().map(|r| r.core.blob.as_deref()).collect();
+    let sizes: Vec<i32> = rows.iter().map(|r| r.core.size).collect();
     let mut n = cx
         .execute(
             "INSERT INTO view.entity (tenant, id, type, page_id, surrogate, cluster_id, canonical_id, retention,
@@ -722,14 +770,14 @@ async fn write_shared_rows(cx: &PgCx, rows: &[SharedRows]) -> Result<u64, String
     let (mut ie, mut ip, mut iv, mut ig, mut is) =
         (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
     for r in rows {
-        for (kind, lang, ordinal, text) in &r.terms {
+        for (kind, lang, ordinal, text) in &r.core.terms {
             te.push(r.id.as_str());
             tk.push(*kind);
             tl.push(lang.as_str());
             to.push(*ordinal);
             tx.push(text.as_str());
         }
-        for (property, key, graph, sid) in &r.identifiers {
+        for (property, key, graph, sid) in &r.core.identifiers {
             ie.push(r.id.as_str());
             ip.push(property.as_str());
             iv.push(key.as_str());

@@ -30,6 +30,10 @@
 //! number of blocks written doubles (0013 A73): a plan chosen for an empty table scans every row
 //! written so far on every block, which makes a load quadratic.
 //!
+//! A [`Prepare`] may be given the projections' per-record work ([`Warm`]; 0013 A74), which
+//! then runs on the threads that prepare the records, ahead of the coordinator, so that
+//! applying a block is little more than its statements.
+//!
 //! Only an instance mirror whose subjects are their own keys is bootstrapped: a keyed
 //! subject's surrogate is minted on the write path (0009 §7), so a key-mapped provider
 //! loads through the ordinary sync.
@@ -52,12 +56,33 @@ use crate::sync::{SyncItem, SyncOutcome};
 use crate::write::{Attestation, PAYLOAD_CHANGESET};
 
 /// What preparing a record needs, fixed for the whole load: shared by the worker threads.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Prepare {
     hasher: Hasher,
     attestation: Value,
     now: u64,
     provider_number: u64,
+    graph: String,
+    warm: Option<Warm>,
+}
+
+/// Work the projections do per record, run where the record is prepared (0013 A74): given
+/// the graph, the record's body and the operation it carries, a projection can compute
+/// ahead, off the coordinator, what it would otherwise compute from the record when its
+/// block is applied. The records are appended as prepared, so the content bytes it sees
+/// are the record's.
+pub type Warm = std::sync::Arc<dyn Fn(&str, &Body, Operation) + Send + Sync>;
+
+impl std::fmt::Debug for Prepare {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Prepare")
+            .field("hasher", &self.hasher)
+            .field("now", &self.now)
+            .field("provider_number", &self.provider_number)
+            .field("graph", &self.graph)
+            .field("warm", &self.warm.is_some())
+            .finish_non_exhaustive()
+    }
 }
 
 /// One sync item, prepared.
@@ -87,6 +112,13 @@ pub enum Prepared {
 }
 
 impl Prepare {
+    /// The same, with `warm` run on each record prepared ([`Warm`]).
+    #[must_use]
+    pub fn warmed_by(mut self, warm: Warm) -> Self {
+        self.warm = Some(warm);
+        self
+    }
+
     /// The record a sync item becomes in an empty partition. Touches no store.
     pub fn item(&self, item: SyncItem) -> Result<Prepared, IngestError> {
         match item {
@@ -117,7 +149,7 @@ impl Prepare {
                     upstream_id,
                     upstream_aliases,
                 };
-                let (draft, commitment) = self.draft(&id, revid, &op)?;
+                let (draft, commitment) = self.draft(&id, revid, op)?;
                 Ok(Prepared::Record {
                     draft,
                     commitment,
@@ -132,7 +164,7 @@ impl Prepare {
                     to,
                     upstream: Some(upstream),
                 };
-                let (draft, commitment) = self.draft(&from, revid, &op)?;
+                let (draft, commitment) = self.draft(&from, revid, op)?;
                 Ok(Prepared::Record {
                     draft,
                     commitment,
@@ -153,13 +185,13 @@ impl Prepare {
 
     /// The draft of a mirror operation on `subject`, as [`crate::write::write_to`] builds it
     /// (the subject its own key, the provider-ranged revision ID, no comment), and its
-    /// body's commitment. Mirror operations carry their adapter's statement IDs, so none
-    /// are filled in.
+    /// body's commitment, the operation then handed to [`Warm`] if there is one. Mirror
+    /// operations carry their adapter's statement IDs, so none are filled in.
     fn draft(
         &self,
         subject: &EntityId,
         upstream_revid: Option<u64>,
-        op: &Operation,
+        op: Operation,
     ) -> Result<(Draft, Hash), IngestError> {
         if subject.form() == IdForm::Keyed {
             return Err(IngestError::Adapter(format!(
@@ -173,10 +205,14 @@ impl Prepare {
                 })
             })
             .transpose()?;
-        let content = serde_json::to_value(op).map_err(|e| e.to_string())?;
+        let content = serde_json::to_value(&op).map_err(|e| e.to_string())?;
         let body = Body::core(&Value::from_json(&content), &Value::Null, &self.attestation)
             .map_err(|e| e.to_string())?;
+        drop(content);
         let commitment = body.commitment();
+        if let Some(warm) = &self.warm {
+            warm(&self.graph, &body, op);
+        }
         Ok((
             Draft {
                 appended_at: self.now,
@@ -255,6 +291,8 @@ where
         attestation: job.record_attestation().to_value(),
         now,
         provider_number: u64::from(provider.number),
+        graph: graph_name.clone(),
+        warm: None,
     };
     let batch = batch.max(1);
     let mut counts = Counts::default();

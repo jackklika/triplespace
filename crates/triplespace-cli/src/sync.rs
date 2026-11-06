@@ -508,6 +508,8 @@ async fn load_bootstrapped(
         now(),
         args.batch.max(1),
         |prepare| {
+            // The projections' per-record work runs on the workers too (0013 A74).
+            let prepare = prepare.warmed_by(Arc::new(triplespace_projections::common::warm));
             let prepared: Box<dyn Iterator<Item = Result<Prepared, IngestError>>> =
                 match crate::bootstrap::prepared(&args.dump, &adapter, prepare, workers, &tally) {
                     Ok(ordered) => Box::new(ordered),

@@ -1530,6 +1530,58 @@ fn bootstrap_items() -> Vec<SyncItem> {
     ]
 }
 
+/// A bootstrap load hands each record's operation, with the body it was encoded into, to
+/// the projections' warm hook on the preparing thread (0013 A74): the body is the appended
+/// record's, byte for byte, and the operation is what decoding that record gives, so what
+/// the hook keeps can stand for decoding it.
+#[test]
+fn a_bootstrap_load_warms_with_what_it_appends() {
+    pollster::block_on(async {
+        type Warmed = Vec<(String, Vec<u8>, Operation)>;
+        let warmed: std::sync::Arc<std::sync::Mutex<Warmed>> = std::sync::Arc::default();
+        let seen = std::sync::Arc::clone(&warmed);
+        let warm: scatter_ingest::Warm = std::sync::Arc::new(move |graph, body, op| {
+            seen.lock().unwrap().push((
+                graph.to_string(),
+                body.content().bytes().unwrap().to_vec(),
+                op,
+            ));
+        });
+        let (loaded, pipeline) = setup();
+        scatter_ingest::run_bootstrap(
+            &loaded,
+            &pipeline,
+            sync_header(Mode::Upsert),
+            Attestation::by("instance:scatter"),
+            registry(),
+            NOW,
+            2,
+            |prepare| {
+                let prepare = prepare.warmed_by(warm);
+                bootstrap_items()
+                    .into_iter()
+                    .map(move |item| prepare.item(item))
+                    .collect::<Vec<_>>()
+            },
+        )
+        .await
+        .unwrap();
+        let warmed = warmed.lock().unwrap();
+        let records = loaded.records(MIRROR_XD);
+        assert_eq!(records.len(), 4);
+        assert_eq!(warmed.len(), records.len(), "one call per record appended");
+        for (record, (graph, bytes, op)) in records.iter().zip(warmed.iter()) {
+            assert_eq!(graph, "mirror/internetdomains");
+            assert_eq!(record.body().content().bytes().unwrap(), bytes.as_slice());
+            assert_eq!(
+                &operation_of(record),
+                op,
+                "decoding gives the operation warmed"
+            );
+        }
+    });
+}
+
 /// What a mirror record is, but for its salts and hashes: the header fields a writer sets,
 /// the operation and the attestation.
 fn comparable(record: &Record) -> (Header, Operation, serde_json::Value) {

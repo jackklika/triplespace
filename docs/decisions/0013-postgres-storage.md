@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-09-26
-- **Updated:** 2026-11-05 (A73)
+- **Updated:** 2026-11-06 (A74)
 - **Author:** James Hare / Claude Fable
 - **Changes:** [0000](0000-init.md), [0001](0001-revision-metadata-rdf.md), [0002](0002-source-graphs-and-mass-ingest.md), [0005](0005-crate-organization.md), [0006](0006-log-integrity-and-erasure.md), [0008](0008-namespaces-and-document-pages.md), [0010](0010-site-ui.md), [0011](0011-logs.md), [0012](0012-api-requirements.md)
 - **Uses:** [0004](0004-identity-clusters-and-equivalence.md), [0007](0007-actor-identity.md), [0009](0009-keyed-entity-types-and-domain.md), [0014](0014-caches-and-search.md)
@@ -129,7 +129,7 @@ PostgreSQL is already part of the deployment stack, and the only question the st
 
 ### 9. Bootstrap mode (extends 0002 §8.6; uses 0006 §5)
 
-*Changed by A31, A53, A70, A71, A72, A73.*
+*Changed by A31, A53, A70, A71, A72, A73, A74.*
 
 *Current text: [05](../architecture/05-providers-and-ingest.md) §3.8.*
 
@@ -1009,3 +1009,10 @@ Replaced text ([05](../architecture/05-providers-and-ingest.md) §3.8, as it sto
 - **Source:** Direct: Claude, while building bootstrap mode's set-based projections, 2026-11-05; unconfirmed
 - **Change:** extends §9
 - **Summary:** A bootstrap load runs `ANALYZE` over the tables of the `log` and `view` schemas after its 1st, 2nd, 4th, 8th… committed block (`IngestStore::refresh_statistics`; a store without a planner does nothing). The tables grow from empty faster than autovacuum's statistics follow, and with none the planner served each block's `DELETE FROM view.term … entity_id = ANY(…)` through `term_prefix`, which narrows by tenant only, rechecking every term row written so far: three-quarters of Postgres's time on the 20k slice and a load quadratic in its length. About twenty refreshes for a full Wikidata load, each about 4 s at 2M entities. On the 20k slice Postgres execution fell from 19.4 s to 6.1 s (`docs/testing/performance.md` §8).
+
+### A74. A bootstrap load's projections compute ahead on the preparing threads
+
+- **Date:** 2026-11-06
+- **Source:** Direct: Claude, while building bootstrap mode's pipelining, 2026-11-06; unconfirmed
+- **Change:** extends §9
+- **Summary:** The worker threads that prepare a bootstrap load's records also do the projections' work that depends on a record alone, through a hook the load is given (`scatter_ingest::Warm`, set by `triplespace sync` to `triplespace_projections::common::warm`): with the operation a record's body was just encoded from, they keep it, its content hash and, for a mirror's `put`, the entity's shared rows but for the header's page ID and time, in a cache keyed by the content bytes, so that the coordinator applying the block decodes and resolves none of it and issues only the block's statements. The operation kept is taken to be what decoding the record gives, an operation having one canonical encoding; a test checks it on the load's own records, and the equivalence of a bootstrap load with the ordinary sync checks the views. The cache is the process's, kept in the order records are prepared and forgetting the oldest first, so what is computed ahead outlasts the blocks applied; what it has forgotten is computed on the coordinator as before. The alternative, overlapping a block's statements with the next block's computation on the coordinator, would leave that work on one block's critical path and need the next block's records before the current one is written. On the 20k slice a load fell from 14 s to 8 s and on the 2M Wikidata set from 31 min 51 s to 24 min 11 s, its peak memory rising from 1.81 GB to 2.35 GB (`docs/testing/performance.md` §8).

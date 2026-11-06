@@ -437,6 +437,21 @@ the 2M set: 31 min 51 s (1,054 entities/s)** against 39 min 14 s, the same row c
 Postgres under half of one: each block still waits on its writes before the next block's
 projections start.
 
+**The projections' work moved to the preparing threads (2026-11-06).** Timing the coordinator's
+phases over a 20k load (14 s): the block's decoding 3.0 s and the entity rows' computation
+2.0 s, both spread over every core while the coordinator waited, against about 6.5 s of
+statements (the entity rows 3.5, the append 2.3, the entity source 0.45) and 0.2 s waiting for
+prepared records; the preparing threads were mostly idle. Those threads now hand each record's
+operation, with the body it was encoded into, to the projections (`scatter_ingest::Warm`,
+`common::warm`; 0013 A74), which keep it, its content hash and a mirror entity's rows but for
+its page ID, in a cache shared by the process and forgetting its oldest entries first; the
+coordinator then decodes and resolves nothing. On the 20k slice: 8 s against 14 s, the records,
+Merkle nodes and views the same as the ordinary sync's and a rebuild identical; peak RSS
+1.33 GB against 0.78 GB, the work done ahead being held until its block is applied. **On the
+2M set: 24 min 11 s (1,389 entities/s)** against 31 min 51 s, the same row counts, peak RSS
+2.35 GB against 1.81 GB, client CPU 8,546 s, the client at 510–630% and Postgres about 50%;
+23.5× the 9 h 28 min baseline.
+
 **`term_prefix` is not yet as 03 §4.3 has it.** The chapter's index is partial over tenant rows
 (`WHERE tenant <> ''`); the migration's (`0002_view.sql`) covers every row, shared ones included,
 and `wbsearchentities` reads shared rows through it (`t.tenant IN ($1, '')`). Making it partial
