@@ -972,7 +972,7 @@ impl<B: Backend<Cx = PgCx>> Projection<B> for ActivityProjection {
         "activity"
     }
 
-    /// Record by record, but a load's records, which are no rows ([`is_load`]), are left
+    /// Record by record, but a load's records, which are no rows (`is_load`), are left
     /// out with one look-up of the job per block rather than one per record (0013 §9).
     fn apply_many<'a>(
         &'a self,

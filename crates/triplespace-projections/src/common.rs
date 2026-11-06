@@ -215,7 +215,7 @@ pub fn attested(record: &Record) -> Attested {
 /// record back from the store: decoding it each time (the canonical-CBOR check re-encodes
 /// it, then serde builds the `Operation`) was about two-fifths of a Wikidata sync's client
 /// CPU (`docs/testing/performance.md` §8). Decoding is a pure function of the content
-/// bytes, so decoded operations are kept per thread ([`DECODED`]) with a copy of their
+/// bytes, so decoded operations are kept per thread (`DECODED`) with a copy of their
 /// bytes and returned again, shared, when the bytes are equal. Every distinct record is
 /// still decoded and checked once. A block of records ([`decode_block`]) is decoded before
 /// the first projection reads it, so that each projection after it finds the block's

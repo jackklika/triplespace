@@ -6,7 +6,7 @@
 //! this on one thread, between round trips.
 //!
 //! A JSON dump only: its lines are independent, so they can be parsed apart. The units in
-//! flight anywhere between the reader and the caller are bounded ([`UNITS_PER_WORKER`]),
+//! flight anywhere between the reader and the caller are bounded (`UNITS_PER_WORKER`),
 //! so memory follows the size of the entities being loaded, not the dump's.
 
 use std::collections::{BTreeMap, VecDeque};
@@ -111,7 +111,7 @@ pub fn prepared(
 }
 
 /// The reader thread: the dump's lines, `LINES_PER_UNIT` at a time, numbered in order, each
-/// unit sent only with a permit ([`UNITS_PER_WORKER`]).
+/// unit sent only with a permit (`UNITS_PER_WORKER`).
 fn read_units(
     mut reader: Box<dyn BufRead + Send>,
     tx: &SyncSender<Unit>,
