@@ -869,7 +869,7 @@ async fn dispatch_post(
         };
         return crate::watch::post(site, headers, &incoming, cx, title, a, form).await;
     }
-    if let Some(a) = action.filter(|a| *a == "addtopic" || *a == "reply")
+    if let Some(a) = action.filter(|a| matches!(a.as_str(), "addtopic" | "reply" | "thread"))
         && !title.is_empty()
         && special::name_of(title).is_none()
     {

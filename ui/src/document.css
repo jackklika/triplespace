@@ -72,6 +72,19 @@
 	text-underline-offset: 0.15em;
 }
 
+/*
+ * Links that follow text on the same line, in the About this page panel ("… by Alice",
+ * "… (diff)"), on Special:WhatLinksHere's lead line and on a thread action's form, are
+ * underlined too, for the same reason (WCAG 1.4.1; axe's link-in-text-block).
+ */
+.ts-about__fact a,
+.ts-whatlinkshere__intro a,
+.ts-thread-action__intro a {
+	text-decoration: underline;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 0.15em;
+}
+
 /* A red link: a page that does not exist yet, in Codex's red-link colour. */
 .mw-parser-output a.new,
 .ts-markdown a.new {

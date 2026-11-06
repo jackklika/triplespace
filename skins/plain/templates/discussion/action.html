@@ -1,0 +1,13 @@
+{#- A thread action's form (0019 §8; 19 §6.1; `triplespace_ui::discussion::actions`):
+    what it does, the thread it does it to, its fields and options, and the confirm
+    button. The base offset the form was drawn at goes with it, so a change made in the
+    meantime is an edit conflict. -#}
+{%- import "codex.html" as codex -%}
+{%- import "forms.html" as forms -%}
+<div class="ts-thread-action"><p class="ts-thread-action__intro">{{ intro }} <a href="{{ thread.href }}" class="ts-thread-action__thread">{{ thread.label }}</a></p>
+{%- if notice %}{{ codex.message(notice) }}{% endif -%}
+<form class="ts-form ts-thread-action__form" method="post" action="{{ action }}"><input type="hidden" name="wpEditToken" value="{{ token }}"><input type="hidden" name="op" value="{{ op }}"><input type="hidden" name="base" value="{{ base }}">
+{%- if returnto %}<input type="hidden" name="returnto" value="{{ returnto }}">{% endif -%}
+{%- for f in fields %}{{ forms.field(f) }}{% endfor -%}
+{%- for c in checks %}{{ forms.check(c) }}{% endfor -%}
+<div class="ts-form__actions">{{ codex.button(submit) }} <a href="{{ cancel.href }}" class="ts-thread-action__cancel">{{ cancel.label }}</a></div></form></div>

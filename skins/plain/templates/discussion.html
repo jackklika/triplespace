@@ -55,7 +55,7 @@
 {%- macro listed(t) -%}
 <section class="ts-thread" id="thread-{{ t.id }}"><div class="ts-thread__head">
 {%- if t.pinned %}<span class="ts-thread__pin" role="img" aria-label="{{ t.pinned }}" title="{{ t.pinned }}"></span>{% endif -%}
-<h2 class="ts-thread__subject"><a href="{{ t.subject.href }}">{{ t.subject.label }}</a></h2>{% if t.chip %}{{ chip(t.chip) }}{% endif %}</div>
+<h2 class="ts-thread__subject"><a href="{{ t.subject.href }}">{{ t.subject.label }}</a></h2>{% if t.chip %}{{ chip(t.chip) }}{% endif %}{% if t.pin %}<a href="{{ t.pin.href }}" class="ts-thread__pin-action">{{ t.pin.label }}</a>{% endif %}</div>
 <p class="ts-thread__meta">{{ t.meta }}{% if t.elsewhere %} · {{ t.elsewhere.label }} {% for p in t.elsewhere.pages %}{% if not loop.first %}, {% endif %}<a href="{{ p.href }}">{{ p.label }}</a>{% endfor %}{% endif %}</p>
 {%- if t.closed %}<details class="ts-thread__closed"><summary>{{ t.closed }}</summary>{{ posts(t.posts) }}</details>{% else %}{{ posts(t.posts) }}{% endif -%}
 </section>

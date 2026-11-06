@@ -1,6 +1,7 @@
 //! The modules, by `action`.
 
 pub mod account;
+pub mod backlinks;
 pub mod block;
 pub mod changes;
 pub mod compare;

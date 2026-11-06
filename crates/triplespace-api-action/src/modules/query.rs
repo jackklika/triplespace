@@ -17,6 +17,7 @@ use crate::auth::set_cookie;
 use crate::response::{ApiError, ApiResponse};
 
 /// Runs `action=query`.
+#[allow(clippy::too_many_lines, reason = "one arm per submodule")]
 pub async fn run(ctx: &mut Ctx) -> Result<ApiResponse, ApiError> {
     let mut query = Map::new();
     let mut body = Map::new();
@@ -95,6 +96,9 @@ pub async fn run(ctx: &mut Ctx) -> Result<ApiResponse, ApiError> {
             }
             "allpages" => {
                 super::info::allpages(ctx, &mut query, &mut body, &mut response).await?;
+            }
+            "backlinks" => {
+                super::backlinks::backlinks(ctx, &mut query, &mut body, &mut response).await?;
             }
             "protectedpages" => super::protected::pages(ctx, &mut query, &mut body).await?,
             "protectedtitles" => super::protected::titles(ctx, &mut query, &mut body).await?,
@@ -1099,6 +1103,7 @@ const QUERY_MODULES: &[(&str, &[&str])] = &[
             "usercontribs",
             "logevents",
             "allpages",
+            "backlinks",
             "protectedpages",
             "protectedtitles",
             "protectedsets",
@@ -1563,6 +1568,25 @@ fn module_parameters(name: &str) -> Vec<Value> {
                 json!("ascending"),
             )),
         ],
+        "backlinks" => vec![
+            Value::Object(parameter(0, "title", json!("string"))),
+            Value::Object(parameter(1, "pageid", json!("integer"))),
+            Value::Object(parameter(2, "continue", json!("string"))),
+            Value::Object(multi(parameter(3, "namespace", json!("namespace")), 50)),
+            Value::Object(with_default(
+                parameter(
+                    4,
+                    "filterredir",
+                    json!(["all", "redirects", "nonredirects"]),
+                ),
+                json!("all"),
+            )),
+            Value::Object(with_default(
+                limit_parameter(parameter(5, "limit", json!("limit")), 500, 5000),
+                json!(10),
+            )),
+            Value::Object(parameter(6, "redirect", json!("boolean"))),
+        ],
         "querypage" => vec![
             Value::Object(parameter(
                 0,
@@ -1851,6 +1875,7 @@ pub fn paraminfo_modules(requested: &[String]) -> Vec<Value> {
                             "info" => "in",
                             "templates" => "tl",
                             "allpages" => "ap",
+                            "backlinks" => "bl",
                             "protectedpages" => "pr",
                             "protectedtitles" => "pt",
                             "protectedsets" => "ps",

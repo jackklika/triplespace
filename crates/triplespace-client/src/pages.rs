@@ -173,6 +173,37 @@ pub struct PageList {
     pub next: Option<String>,
 }
 
+/// A page of `list=backlinks`: the pages linking to a title.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Backlinks {
+    /// Each linking page's title, prefixed, and whether it is a redirect.
+    pub pages: Vec<(String, bool)>,
+    /// `blcontinue`, where there are more.
+    pub next: Option<String>,
+}
+
+/// What the **About this page** panel shows of a page (19 §3.1): `prop=info` with its
+/// protection, and its first revision (`prop=revisions`, `rvdir=newer`).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct About {
+    /// The title, prefixed.
+    pub title: String,
+    /// The content model.
+    pub model: String,
+    /// The latest text's size in bytes.
+    pub length: u64,
+    /// When it last changed, ISO 8601.
+    pub touched: Option<String>,
+    /// The latest revision.
+    pub lastrevid: u64,
+    /// When the first revision was saved, ISO 8601.
+    pub created: Option<String>,
+    /// Who saved it; `None` where hidden.
+    pub creator: Option<String>,
+    /// Its protection, one entry per restricted action.
+    pub protection: Vec<crate::rights::Restriction>,
+}
+
 /// What `prop=info` says of a page.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PageInfo {
@@ -301,6 +332,9 @@ pub struct EditForm<'a> {
     pub basetimestamp: Option<&'a str>,
     /// The page did not exist when the edit started: refuse if it does now.
     pub createonly: bool,
+    /// The content model of a page being created (`contentmodel`; 0041 §10); `None`
+    /// keeps the page's, or the namespace's default.
+    pub content_model: Option<&'a str>,
     /// The CSRF token.
     pub token: &'a str,
 }
@@ -381,7 +415,7 @@ impl Client {
     }
 
     /// `action=parse` of text under a title, with the pre-save transform: what a save
-    /// would show.
+    /// would show, in a content model (`contentmodel`; a page that exists keeps its own).
     ///
     /// # Errors
     ///
@@ -391,6 +425,7 @@ impl Client {
         incoming: &Incoming,
         title: &str,
         text: &str,
+        model: &str,
     ) -> Result<Parsed, ClientError> {
         let r = self
             .post_form(
@@ -404,7 +439,7 @@ impl Client {
                     ("text", text),
                     ("pst", "1"),
                     ("preview", "1"),
-                    ("contentmodel", "wikitext"),
+                    ("contentmodel", model),
                     ("prop", "text|categories|templates"),
                 ],
             )
@@ -467,6 +502,97 @@ impl Client {
     ) -> Result<Fetched<Lookup<PageInfo>>, ClientError> {
         self.info_of(incoming, &format!("titles={}", q(title)))
             .await
+    }
+
+    /// What the **About this page** panel shows of a title (19 §3.1), in one request:
+    /// `prop=info|revisions` with `inprop=protection` and the first revision.
+    ///
+    /// # Errors
+    ///
+    /// The API away or unreadable.
+    pub async fn page_about(
+        &self,
+        incoming: &Incoming,
+        title: &str,
+    ) -> Result<Fetched<Lookup<About>>, ClientError> {
+        let r = self
+            .get(
+                incoming,
+                &format!(
+                    "/w/api.php?action=query&prop=info%7Crevisions&inprop=protection&rvprop=ids%7Ctimestamp%7Cuser&rvdir=newer&rvlimit=1&titles={}&format=json&formatversion=2",
+                    q(title)
+                ),
+            )
+            .await?;
+        let v = check(&r)?;
+        let value = page_lookup(&v, |page| {
+            let first = &page["revisions"][0];
+            Ok(About {
+                title: page["title"].as_str().unwrap_or_default().to_string(),
+                model: page["contentmodel"]
+                    .as_str()
+                    .unwrap_or("wikitext")
+                    .to_string(),
+                length: page["length"].as_u64().unwrap_or(0),
+                touched: page["touched"].as_str().map(str::to_string),
+                lastrevid: page["lastrevid"].as_u64().unwrap_or(0),
+                created: first["timestamp"].as_str().map(str::to_string),
+                creator: first["user"].as_str().map(str::to_string),
+                protection: page["protection"]
+                    .as_array()
+                    .map(|a| a.iter().map(crate::rights::Restriction::of).collect())
+                    .unwrap_or_default(),
+            })
+        })?;
+        Ok(Fetched {
+            value,
+            cache: CacheInfo::of(&r),
+        })
+    }
+
+    /// `list=backlinks` of a title: the pages linking to it, a page at a time, from
+    /// `blcontinue` where given.
+    ///
+    /// # Errors
+    ///
+    /// The API's refusal (`invalidtitle`), or the API away or unreadable.
+    pub async fn backlinks(
+        &self,
+        incoming: &Incoming,
+        title: &str,
+        limit: u32,
+        from: Option<&str>,
+    ) -> Result<Fetched<Backlinks>, ClientError> {
+        let mut path = format!(
+            "/w/api.php?action=query&list=backlinks&bltitle={}&bllimit={limit}&format=json&formatversion=2",
+            q(title)
+        );
+        if let Some(f) = from.filter(|f| !f.is_empty()) {
+            path.push_str("&blcontinue=");
+            path.push_str(&q(f));
+        }
+        let r = self.get(incoming, &path).await?;
+        let v = check(&r)?;
+        let pages = v["query"]["backlinks"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|p| {
+                        Some((
+                            p["title"].as_str()?.to_string(),
+                            p.get("redirect").is_some_and(|r| r != &Value::Bool(false)),
+                        ))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        Ok(Fetched {
+            value: Backlinks {
+                pages,
+                next: v["continue"]["blcontinue"].as_str().map(str::to_string),
+            },
+            cache: CacheInfo::of(&r),
+        })
     }
 
     /// `list=allpages`, as asked.
@@ -737,6 +863,9 @@ impl Client {
         }
         if form.createonly {
             fields.push(("createonly", "1"));
+        }
+        if let Some(m) = form.content_model {
+            fields.push(("contentmodel", m));
         }
         let r = self.post_form(incoming, "/w/api.php", &fields).await?;
         let v = check(&r)?;

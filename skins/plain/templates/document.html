@@ -3,11 +3,20 @@
     API's rendering of the page, sanitized there (0008 A39); `body_html` and
     `inline_html` are MediaWiki's diff rows, built by `scatter_pages::diff`. -#}
 {%- import "codex.html" as codex -%}
+{%- import "forms.html" as forms -%}
 
 {#- A page's content, as `action=render` and the Read tab show it. -#}
 {%- macro content(c) -%}
 <div class="ts-document__content">{{ c.content_html|safe }}</div>
 {%- if c.categories %}<div class="ts-catlinks"><span class="ts-catlinks__label">{{ c.categories.label }}</span><ul class="ts-catlinks__list">{% for i in c.categories.items %}<li class="ts-catlinks__item"><a href="{{ i.href }}">{{ i.label }}</a></li>{% endfor %}</ul></div>{% endif -%}
+{%- endmacro -%}
+
+{#- The About this page panel (19 §3.1): what the page is, as facts, and the pages about
+    it. -#}
+{%- macro about(a) -%}
+<aside class="ts-about" aria-labelledby="ts-about-heading"><h2 class="ts-about__heading" id="ts-about-heading">{{ a.heading }}</h2><dl class="ts-about__facts">
+{%- for f in a.facts %}<div class="ts-about__fact"><dt>{{ f.label }}</dt><dd>{{ f.value }}{% if f.link %} <a href="{{ f.link.href }}">{{ f.link.label }}</a>{% endif %}</dd></div>{% endfor -%}
+</dl><ul class="ts-about__links">{% for l in a.links %}<li><a href="{{ l.href }}">{{ l.label }}</a></li>{% endfor %}</ul></aside>
 {%- endmacro -%}
 
 {#- A text area of the edit form. -#}
@@ -21,6 +30,7 @@
 {%- if f.base is not none %}<input type="hidden" name="baseRevId" value="{{ f.base }}">{% endif -%}
 {%- if f.base_time %}<input type="hidden" name="wpEdittime" value="{{ f.base_time }}">{% endif -%}
 {%- if f.create %}<input type="hidden" name="wpCreateonly" value="1">{% endif -%}
+{%- if f.format %}{{ forms.field(f.format) }}{% endif -%}
 <div class="cdx-field"><div class="cdx-label"><label class="cdx-label__label" for="wpTextbox1"><span class="cdx-label__label__text">{{ f.text_label }}</span></label></div><div class="cdx-field__control">{{ textarea("wpTextbox1", "wpTextbox1", f.text, none, 25, false) }}</div></div>
 {{- codex.field(f.summary) -}}
 <div class="cdx-checkbox"><div class="cdx-checkbox__wrapper"><input class="cdx-checkbox__input" type="checkbox" id="wpMinoredit" name="wpMinoredit" value="1"{% if f.minor %} checked{% endif %}><span class="cdx-checkbox__icon"></span><div class="cdx-checkbox__label cdx-label"><label class="cdx-label__label" for="wpMinoredit"><span class="cdx-label__label__text">{{ f.minor_label }}</span></label></div></div></div>

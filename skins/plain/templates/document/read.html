@@ -1,3 +1,4 @@
-{#- The Read tab. -#}
+{#- The Read tab: the content, then the About this page panel (19 §3.1). -#}
 {%- import "document.html" as document -%}
 <div class="ts-document">{{ document.content(content) }}</div>
+{%- if about %}{{ document.about(about) }}{% endif -%}

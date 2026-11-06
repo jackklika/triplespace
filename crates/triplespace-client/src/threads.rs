@@ -1,6 +1,7 @@
 //! Threads and talk pages (0019 §9; 18 §3.2): a talk page's listing, a thread made ready
-//! for display (`GET /thread/{id}?html=1`), and the writes a reader makes from the site,
-//! starting a thread and replying to one.
+//! for display (`GET /thread/{id}?html=1`), and the writes a reader makes from the site:
+//! starting a thread, replying to one, and changing its subject or where it is attached
+//! (rename, move, attach, detach, pin, unpin).
 
 use axum::http::{Method, StatusCode};
 use serde_json::{Value, json};
@@ -271,13 +272,78 @@ fn written(r: &ApiResponse) -> Result<Written, ClientError> {
     }
 }
 
-/// Where a new thread goes.
+/// Where a new thread goes, or the attachment a change names: a page's talk page (a
+/// board being its own), or a user's talk page.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NewThreadOn<'a> {
     /// The talk page of the page with this ID.
     Page(u64),
     /// The user talk page of the account with this name.
     User(&'a str),
+}
+
+impl NewThreadOn<'_> {
+    /// The target as the thread routes read it.
+    #[must_use]
+    pub fn json(&self) -> Value {
+        match self {
+            Self::Page(id) => json!({"kind": "page", "id": id}),
+            Self::User(name) => json!({"kind": "actor", "name": name}),
+        }
+    }
+}
+
+/// A change to a thread's subject or attachments (14 §1.2): every operation but `create`,
+/// `post` and `edit` a person makes from the site.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThreadChange<'a> {
+    /// `rename`: the new subject.
+    Rename(&'a str),
+    /// `move`: the new home, and whether the old one stays as a listing.
+    Move(NewThreadOn<'a>, bool),
+    /// `attach`: list it on a further talk page or board.
+    Attach(NewThreadOn<'a>),
+    /// `detach`: remove a listing.
+    Detach(NewThreadOn<'a>),
+    /// `pin` on one of its attachments.
+    Pin(NewThreadOn<'a>),
+    /// `unpin` there.
+    Unpin(NewThreadOn<'a>),
+}
+
+impl ThreadChange<'_> {
+    /// The route's last segment.
+    #[must_use]
+    pub fn route(&self) -> &'static str {
+        match self {
+            Self::Rename(_) => "rename",
+            Self::Move(..) => "move",
+            Self::Attach(_) => "attach",
+            Self::Detach(_) => "detach",
+            Self::Pin(_) => "pin",
+            Self::Unpin(_) => "unpin",
+        }
+    }
+
+    fn body(&self, base: u64, summary: &str, token: &str) -> Value {
+        let mut b = json!({"base": base, "token": token});
+        if !summary.is_empty() {
+            b["summary"] = json!(summary);
+        }
+        match self {
+            Self::Rename(subject) => b["subject"] = json!(subject),
+            Self::Move(to, keep) => {
+                b["target"] = to.json();
+                if *keep {
+                    b["keep"] = json!(true);
+                }
+            }
+            Self::Attach(t) | Self::Detach(t) | Self::Pin(t) | Self::Unpin(t) => {
+                b["target"] = t.json();
+            }
+        }
+        b
+    }
 }
 
 impl Client {
@@ -334,13 +400,9 @@ impl Client {
         subject: &str,
         form: &PostForm<'_>,
     ) -> Result<Written, ClientError> {
-        let target = match on {
-            NewThreadOn::Page(id) => json!({"kind": "page", "id": id}),
-            NewThreadOn::User(name) => json!({"kind": "actor", "name": name}),
-        };
         let body = json!({
             "subject": subject,
-            "target": target,
+            "target": on.json(),
             "text": form.text,
             "token": form.token,
         });
@@ -378,11 +440,56 @@ impl Client {
             .await?;
         written(&r)
     }
+
+    /// `POST /thread/{id}/{rename|move|attach|detach|pin|unpin}`, with the base offset
+    /// the form was drawn at, so that a change made since is an `editconflict`.
+    ///
+    /// # Errors
+    ///
+    /// The API away or unreadable; a refusal is [`Written::Refused`].
+    pub async fn change_thread(
+        &self,
+        incoming: &Incoming,
+        thread: u64,
+        change: &ThreadChange<'_>,
+        base: u64,
+        summary: &str,
+        token: &str,
+    ) -> Result<Written, ClientError> {
+        let r = self
+            .send_json(
+                incoming,
+                Method::POST,
+                &format!("{REST}/thread/{thread}/{}", change.route()),
+                &change.body(base, summary, token),
+            )
+            .await?;
+        written(&r)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_change_names_its_route_and_target() {
+        let c = ThreadChange::Move(NewThreadOn::User("Alice"), true);
+        assert_eq!(c.route(), "move");
+        assert_eq!(
+            c.body(40, "", "t"),
+            json!({"base": 40, "token": "t", "target": {"kind": "actor", "name": "Alice"}, "keep": true})
+        );
+        let c = ThreadChange::Rename("Scope");
+        assert_eq!(
+            c.body(41, "tidier", "t"),
+            json!({"base": 41, "token": "t", "summary": "tidier", "subject": "Scope"})
+        );
+        assert_eq!(
+            ThreadChange::Pin(NewThreadOn::Page(9)).body(1, "", "t")["target"],
+            json!({"kind": "page", "id": 9})
+        );
+    }
 
     #[test]
     fn a_thread_body_reads_into_its_view() {

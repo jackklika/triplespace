@@ -239,8 +239,12 @@ impl Ask {
         for k in &self.kinds {
             let _ = write!(s, "&kind={k}");
         }
+        // `filtered=1` reads a missing `bots` as off, so a link that keeps bot edits on
+        // says so, as the form's ticked box does.
         if self.hide_bots {
             s.push_str("&hidebots=1");
+        } else {
+            s.push_str("&bots=1");
         }
         if let Some(n) = &self.namespace {
             let _ = write!(s, "&namespace={n}");
@@ -1348,13 +1352,29 @@ mod tests {
         assert!(empty.kinds.is_empty(), "every kind unticked is none");
     }
 
+    // 0010 §7: a link the page makes (Show them, the pager) keeps bot edits as they were;
+    // the default shows them, and `filtered=1` without `bots` hides them.
+    #[test]
+    fn a_link_keeps_bot_edits_shown() {
+        let ask = Ask::of(Which::RecentChanges, &params(&[]), None);
+        let mut with = ask.clone();
+        with.kinds.push("sync".into());
+        let href = with.href(None);
+        assert!(href.contains("&bots=1"), "{href}");
+        let back: Vec<(String, String)> =
+            url::form_urlencoded::parse(href.split_once('?').map_or("", |(_, q)| q).as_bytes())
+                .into_owned()
+                .collect();
+        assert!(!Ask::of(Which::RecentChanges, &Params::new(back), None).hide_bots);
+    }
+
     #[test]
     fn contributions_take_the_user_from_the_subpage_or_the_form() {
         let a = Ask::of(Which::Contributions, &params(&[]), Some("Alice_bot"));
         assert_eq!(a.user.as_deref(), Some("Alice bot"));
         assert_eq!(
             a.href(None),
-            "/w/index.php?title=Special:Contributions/Alice%5Fbot&filtered=1&kind=edit&kind=job&kind=log&days=30&limit=50"
+            "/w/index.php?title=Special:Contributions/Alice%5Fbot&filtered=1&kind=edit&kind=job&kind=log&bots=1&days=30&limit=50"
         );
         let b = Ask::of(Which::Contributions, &params(&[("target", " Bob ")]), None);
         assert_eq!(b.user.as_deref(), Some("Bob"));

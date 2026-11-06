@@ -22,8 +22,13 @@
 //! - **History** (`?action=history`) is the talk page's composite history, or the thread's
 //!   own, each row saying what it did ("replied", "listed the thread here").
 //!
-//! Not yet: the Page data tab, Pin here, List on… and Move, starting a thread on a user talk page, boards,
-//! foreign threads, and a talk title in a namespace whose local name is not `… talk`.
+//! - **Actions** (`?action=thread&op=…`; [`actions`]): rename, move, list on another page,
+//!   remove a listing, pin and unpin, close and reopen, each from a form with a confirm
+//!   button, offered in the thread page's overflow menu; **Pin here** and **Unpin here** on
+//!   each thread of a talk page.
+//!
+//! Not yet: the Page data tab, starting a thread on a user talk page, boards, foreign
+//! threads, and a talk title in a namespace whose local name is not `… talk`.
 
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
@@ -43,6 +48,8 @@ use crate::frame::{Page, Tab, title_url};
 use crate::i18n::Messages;
 use crate::pages::{self, Context, Params};
 use crate::special::changes::{clock, date};
+
+pub mod actions;
 
 /// The deepest a post is indented; a deeper one is shown at this depth with a "replying
 /// to" line. The instance's `thread.max_depth` is not reported yet.
@@ -310,6 +317,8 @@ pub struct ListedThread {
     pub closed: Option<String>,
     /// The posts.
     pub posts: Vec<PostItem>,
+    /// **Pin here** or **Unpin here**, for a viewer who may.
+    pub pin: Option<Choice>,
 }
 
 /// A talk page.
@@ -743,8 +752,10 @@ pub async fn serve(
     params: &Params,
 ) -> Result<Response, Context> {
     let action = params.map.get("action").map(String::as_str);
-    if !matches!(action, None | Some("view" | "addtopic" | "history"))
-        || params.map.contains_key("diff")
+    if !matches!(
+        action,
+        None | Some("view" | "addtopic" | "history" | "thread")
+    ) || params.map.contains_key("diff")
         || params.map.contains_key("oldid")
         || !may_be_discussion(title)
     {
@@ -765,6 +776,14 @@ pub async fn serve(
         ..Kept::default()
     };
     let reply_to = params.map.get("replyto").and_then(|r| r.parse().ok());
+    if action == Some("thread") {
+        return match kind_of(ns) {
+            Some(Kind::Thread) => {
+                Ok(actions::form(site, cx, headers, incoming, info.value, params).await)
+            }
+            _ => Err(cx),
+        };
+    }
     if action == Some("history") {
         return match kind_of(ns) {
             Some(k) => Ok(history(site, cx, headers, incoming, info.value, k, params).await),
@@ -934,7 +953,14 @@ async fn talk(
                     .flatten(),
                 empty: (threads.is_empty() && !adding)
                     .then(|| message_model(MessageKind::Notice, &m.get("ts-talk-empty"))),
-                threads: threads.iter().map(|t| listed_thread(m, t, tid)).collect(),
+                threads: threads
+                    .iter()
+                    .map(|t| ListedThread {
+                        pin: talk_id
+                            .and_then(|_| actions::pin_here(&cx, t, &prefixed, t.attached_to(tid))),
+                        ..listed_thread(m, t, tid)
+                    })
+                    .collect(),
             },
         );
         Page {
@@ -1025,6 +1051,7 @@ fn listed_thread(m: &Messages, t: &ThreadView, talk_id: u64) -> ListedThread {
         posts: posts_model(m, t, &|p| {
             Some(format!("{}?replyto={}#reply", thread_href(&t.title), p.id))
         }),
+        pin: None,
     }
 }
 
@@ -1071,6 +1098,7 @@ async fn thread(
         StatusCode::OK
     };
     let watch = crate::watch::control(site, &cx, incoming, &format!("Thread:{}", t.title)).await;
+    let menu = actions::menu(&cx, &t);
     let r = pages::respond(&cx, headers, status, |m| {
         let title = t.title.clone();
         let body = cx.draw(
@@ -1119,6 +1147,7 @@ async fn thread(
             title: full.clone(),
             returnto: Some(full),
             tabs: thread_tabs(m, &t.title),
+            actions: menu,
             body,
             watch,
             ..Page::default()
@@ -1149,7 +1178,7 @@ pub async fn post(
     action: &str,
     form: &Params,
 ) -> Result<Response, Context> {
-    if !matches!(action, "addtopic" | "reply") || !may_be_discussion(title) {
+    if !matches!(action, "addtopic" | "reply" | "thread") || !may_be_discussion(title) {
         return Err(cx);
     }
     // The page is the viewer's alone: it holds their token and their text.
@@ -1171,6 +1200,9 @@ pub async fn post(
         Lookup::Invalid => return Err(cx),
     };
     match (kind_of(ns), action) {
+        (Some(Kind::Thread), "thread") => {
+            Ok(actions::post(site, headers, incoming, cx, info, form).await)
+        }
         (Some(Kind::Talk), "addtopic") => {
             let prefixed = match &info {
                 Lookup::Found(p) => p.title.clone(),

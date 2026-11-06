@@ -498,8 +498,9 @@ fn page_title(cx: &Context, raw: &str) -> Option<String> {
 }
 
 /// The talk page of a title, from the namespace registry; a talk title is its own. `None`
-/// where the namespace has no talk pages (`Thread:`, `DOI:`).
-fn talk_of(title: &str) -> Option<String> {
+/// where the namespace has no talk pages (`Thread:`, `DOI:`). The title is canonical
+/// ([`pages::canonical`]): `Project:Home`, not the site's own name for the namespace.
+pub(crate) fn talk_of(title: &str) -> Option<String> {
     let (ns, rest) = split(title)?;
     if ns.default_model.as_deref() == Some("triplespace-talk") {
         return Some(title.to_string());

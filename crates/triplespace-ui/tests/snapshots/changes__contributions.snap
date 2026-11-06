@@ -1,5 +1,6 @@
 ---
 source: crates/triplespace-ui/tests/changes.rs
+assertion_line: 221
 expression: main
 ---
 <main class="ts-page" id="content">
@@ -128,7 +129,7 @@ expression: main
 </table>
 </div>
 <nav class="ts-pager" aria-label="More results">
-<a href="/w/index.php?title=Special:Contributions/Alice%5Fbot&amp;filtered=1&amp;kind=edit&amp;kind=job&amp;kind=log&amp;days=30&amp;limit=50&amp;continue=1700000000000000%7C4098%7C2" rel="next">Older</a>
+<a href="/w/index.php?title=Special:Contributions/Alice%5Fbot&amp;filtered=1&amp;kind=edit&amp;kind=job&amp;kind=log&amp;bots=1&amp;days=30&amp;limit=50&amp;continue=1700000000000000%7C4098%7C2" rel="next">Older</a>
 </nav>
 </div>
 	</div>

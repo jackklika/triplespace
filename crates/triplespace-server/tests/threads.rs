@@ -1413,6 +1413,34 @@ async fn thread_notifications() {
     assert_eq!(r.status, StatusCode::NOT_FOUND, "{}", r.body);
     assert_eq!(r.body["code"], "ts-no-target", "{}", r.body);
 
+    // The change routes name a user talk page by its account too, as the site's forms do
+    // (0019 §9, A30): Alice pins the thread on her talk page and unpins it, by her name.
+    let at2 = alice.csrf().await;
+    for (op, status) in [("pin", StatusCode::OK), ("unpin", StatusCode::OK)] {
+        let base = alice
+            .rest("GET", &format!("/thread/{talk_thread}"), None)
+            .await
+            .body["base"]
+            .as_u64()
+            .unwrap();
+        let r = alice
+            .rest(
+                "POST",
+                &format!("/thread/{talk_thread}/{op}"),
+                Some(json!({"target": {"kind": "actor", "name": "Alice"}, "base": base, "token": at2})),
+            )
+            .await;
+        assert_eq!(r.status, status, "{op}: {}", r.body);
+    }
+    let r = alice
+        .rest(
+            "POST",
+            &format!("/thread/{talk_thread}/pin"),
+            Some(json!({"target": {"kind": "actor", "name": "Nobody"}, "base": 0, "token": at2})),
+        )
+        .await;
+    assert_eq!(r.body["code"], "ts-no-target", "{}", r.body);
+
     let (items, counts) = inbox(&mut alice).await;
     assert_eq!(
         items,

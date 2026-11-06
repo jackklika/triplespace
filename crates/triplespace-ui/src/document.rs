@@ -10,12 +10,23 @@
 //!   a signed-in viewer; the main page with no page of its own is the generated one
 //!   ([`crate::home`]). `?tstemplates=1` asks the API to mark each block a template drew
 //!   with `data-ts-template` and `data-ts-template-at`, for template debugging (0042 §4).
+//! - **About this page** (19 §3.1) is a panel under the Read tab: when and by whom the
+//!   page was created, when it last changed, its size, content model, protection and
+//!   categories, from one `prop=info|revisions` request of its own; a panel that cannot
+//!   be fetched is left out, not an error. The counts of 19 §3.1 that need projected
+//!   counters (revisions by origin, backlinks, page statements, scopes) are not shown yet.
+//! - **Tabs** (19 §1.3): Read, Edit, History, **Links here** (`Special:WhatLinksHere`) and
+//!   **Discussion**, the talk page, which lists its threads or offers to start one.
 //! - **Edit** is a form of the source, a summary and the minor flag, posted with the
 //!   viewer's CSRF token and the revision it started from, which is the edit's base
-//!   (18 §2.3). **Show preview** renders the text through `action=parse` with the
-//!   pre-save transform. A save that conflicts keeps the viewer's text, shows the current
-//!   one under it, and takes the current revision as the new base. `index.php?action=edit`
-//!   without a title is the **New page** form, which asks for one.
+//!   (18 §2.3). It edits any text model the API edits directly (0041 §5), not only
+//!   wikitext. A page being created, in a namespace that allows more than one such model,
+//!   has a **Format** selector (`model`, as MediaWiki's `?action=edit&model=` reads it;
+//!   0041 §10), sent as `contentmodel`. **Show preview** renders the text through
+//!   `action=parse` with the pre-save transform. A save that conflicts keeps the viewer's
+//!   text, shows the current one under it, and takes the current revision as the new
+//!   base. `index.php?action=edit` without a title is the **New page** form, which asks
+//!   for one.
 //! - **History** is the page's rows of the activity feed (`target=page:{id}`), drawn as an
 //!   entity's history is ([`crate::entity::history`]).
 //!
@@ -24,18 +35,21 @@
 //!   newer revision rendered below it unless `diffonly=1`. History and recent-changes rows
 //!   link to them.
 //!
-//! Not yet (19 §3.1–3.2): the "About this page" panel, the Page data, Links here and Talk
-//! tabs, the side-by-side live preview in WebAssembly, CodeMirror, link autocomplete,
-//! **Insert template…**, line-marked conflicts and the Format selector.
+//! Not yet (19 §1.4, §3.1–3.2): the Page data tab, which waits on the statement UI for
+//! pages (0038 §7); changing an existing page's model (`action=changecontentmodel`); the
+//! side-by-side live preview in WebAssembly, CodeMirror, link autocomplete and **Insert
+//! template…** (SCA-167). Not for milestone 1: line-marked conflicts, where the current
+//! text shown under the form stays the way to merge.
 
 use std::fmt::Write as _;
 
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
+use scatter_titles::Namespaces;
 use serde::Serialize;
 use triplespace_client::{
-    CacheInfo, ClientError, DiffAsk, DiffSide, EditForm, Incoming, Lookup, PageDiff, Parsed, Saved,
-    Source,
+    About, CacheInfo, ClientError, DiffAsk, DiffSide, EditForm, Incoming, Lookup, PageDiff, Parsed,
+    Saved, Source,
 };
 
 use crate::Site;
@@ -50,6 +64,8 @@ use crate::entity::model::Restricted;
 use crate::frame::{Page, Tab, title_url};
 use crate::i18n::Messages;
 use crate::pages::{self, Context, ModerationTabs, Params};
+use crate::special::changes::{clock, date};
+use crate::special::controls::{ControlModel, FieldRow, OptionModel};
 use crate::{home, special};
 
 /// What the request asks of the title.
@@ -84,7 +100,10 @@ enum TabName {
     History,
 }
 
-fn tabs(m: &Messages, title: &str, exists: bool, current: TabName) -> Vec<Tab> {
+/// A page's tabs (19 §1.3): Read, Edit (Create for a free title), History, Links here
+/// (`Special:WhatLinksHere`, which a free title has too: its wanted links) and Discussion,
+/// the talk page, for a page that exists. `sitename` is the site's name for `Project:`.
+fn tabs(m: &Messages, sitename: &str, title: &str, exists: bool, current: TabName) -> Vec<Tab> {
     let base = format!("/wiki/{}", title_url(title));
     let tab = |name: TabName, key: &str, href: String| Tab {
         label: m.get(key),
@@ -110,7 +129,31 @@ fn tabs(m: &Messages, title: &str, exists: bool, current: TabName) -> Vec<Tab> {
             format!("{base}?action=history"),
         ));
     }
+    v.push(links_here_tab(m, title));
+    if exists && let Some(talk) = talk_tab(m, sitename, title) {
+        v.push(talk);
+    }
     v
+}
+
+/// The Links here tab of a page or an entity (19 §1.3): `Special:WhatLinksHere/{title}`.
+pub(crate) fn links_here_tab(m: &Messages, title: &str) -> Tab {
+    Tab {
+        label: m.get("ts-tab-links-here"),
+        href: format!("/wiki/Special:WhatLinksHere/{}", title_url(title)),
+        current: false,
+    }
+}
+
+/// The Discussion tab of a page or an entity (19 §1.3; 0019 §2): its talk page, which
+/// lists its threads or offers to start one. `None` where the namespace has no talk pages.
+pub(crate) fn talk_tab(m: &Messages, sitename: &str, title: &str) -> Option<Tab> {
+    let talk = crate::special::redirects::talk_of(&pages::canonical(title, sitename))?;
+    Some(Tab {
+        label: m.get("ts-tab-discussion"),
+        href: format!("/wiki/{}", title_url(&talk)),
+        current: false,
+    })
 }
 
 /// The overflow menu (19 §1.3): **Protect…** for a holder of `protect`, a free title
@@ -194,6 +237,35 @@ pub struct Identity {
     pub restricted: Option<Restricted>,
 }
 
+/// One line of the **About this page** panel.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Fact {
+    /// What it is.
+    pub label: String,
+    /// Its value as text.
+    pub value: String,
+    /// A link after the value: the creator's user page, the latest diff.
+    pub link: Option<Choice>,
+}
+
+/// The **About this page** panel (19 §3.1).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AboutPanel {
+    /// "About this page".
+    pub heading: String,
+    /// The facts.
+    pub facts: Vec<Fact>,
+    /// **Page information** and the other pages about it.
+    pub links: Vec<Choice>,
+}
+
+/// The Read tab: the content and the panel.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+struct ReadCtx {
+    content: Content,
+    about: Option<AboutPanel>,
+}
+
 /// A page a title has none of.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Missing {
@@ -225,6 +297,9 @@ pub struct EditFormModel {
     pub base_time: Option<String>,
     /// Whether the page is being created.
     pub create: bool,
+    /// The content model of the page being created: **Format**, where the namespace
+    /// offers more than one (0041 §10).
+    pub format: Option<FieldRow>,
     /// The text area's label.
     pub text_label: String,
     /// The text, with the leading newline the textarea's parser eats.
@@ -477,6 +552,17 @@ async fn read(
         return pages::fragment(&cx, headers, StatusCode::OK, || content_html(&cx, &parsed));
     }
     let watch = crate::watch::control(site, &cx, incoming, &parsed.title).await;
+    // The panel is its own request (19 §3.1); a page reads without it.
+    let about = match site.client().page_about(incoming, &parsed.title).await {
+        Ok(f) => {
+            cx.inputs.push(f.cache);
+            match f.value {
+                Lookup::Found(a) => Some(a),
+                _ => None,
+            }
+        }
+        Err(_) => None,
+    };
     pages::respond(&cx, headers, StatusCode::OK, |m| Page {
         title: parsed.title.clone(),
         returnto: Some(parsed.title.clone()),
@@ -495,16 +581,159 @@ async fn read(
         }),
         subtitle_html: subtitle_model(m, &parsed, oldid)
             .map(|subtitle| cx.draw("document/subtitle.html", SubtitleCtx { subtitle })),
-        tabs: tabs(m, &parsed.title, true, TabName::Read),
+        tabs: tabs(m, &cx.site.sitename, &parsed.title, true, TabName::Read),
         actions: actions(m, &parsed.title, true, cx.moderation_tabs()),
         body: cx.draw(
             "document/read.html",
-            ContentCtx {
+            ReadCtx {
                 content: content_model(m, &parsed),
+                about: about.as_ref().map(|a| about_model(m, a, &parsed)),
             },
         ),
         ..Page::default()
     })
+}
+
+/// The **About this page** panel's model (19 §3.1).
+fn about_model(m: &Messages, a: &About, parsed: &Parsed) -> AboutPanel {
+    let when = |iso: &str| format!("{}, {}", clock(iso), date(m, iso));
+    let mut facts = Vec::new();
+    if let Some(created) = &a.created {
+        facts.push(Fact {
+            label: m.get("ts-about-created"),
+            value: when(created),
+            link: a
+                .creator
+                .as_ref()
+                .map(|u| choice(format!("/wiki/User:{}", title_url(u)), u.clone())),
+        });
+    }
+    if let Some(touched) = &a.touched {
+        facts.push(Fact {
+            label: m.get("ts-about-last-edit"),
+            value: when(touched),
+            link: (a.lastrevid > 0).then(|| {
+                choice(
+                    format!(
+                        "/w/index.php?title={}&diff={}",
+                        title_url(&a.title),
+                        a.lastrevid
+                    ),
+                    m.get("ts-about-diff"),
+                )
+            }),
+        });
+    }
+    facts.push(Fact {
+        label: m.get("ts-about-size"),
+        value: m.with("ts-about-bytes", &[&a.length.to_string()]),
+        link: None,
+    });
+    facts.push(Fact {
+        label: m.get("ts-about-model"),
+        value: model_label(m, &a.model),
+        link: None,
+    });
+    let protection: Vec<String> = a
+        .protection
+        .iter()
+        .filter(|r| r.source.is_none())
+        .map(|r| format!("{} ({})", restriction_label(m, &r.kind), r.level))
+        .collect();
+    facts.push(Fact {
+        label: m.get("ts-about-protection"),
+        value: if protection.is_empty() {
+            m.get("ts-about-not-protected")
+        } else {
+            protection.join(", ")
+        },
+        link: None,
+    });
+    facts.push(Fact {
+        label: m.get("ts-about-categories"),
+        value: parsed.categories.len().to_string(),
+        link: None,
+    });
+    AboutPanel {
+        heading: m.get("ts-about-heading"),
+        facts,
+        links: vec![
+            choice(
+                format!("/wiki/{}?action=history", title_url(&a.title)),
+                m.get("ts-tab-history"),
+            ),
+            {
+                let t = links_here_tab(m, &a.title);
+                choice(t.href, t.label)
+            },
+        ],
+    }
+}
+
+/// A protected action's name, as the Protect form calls it.
+fn restriction_label(m: &Messages, kind: &str) -> String {
+    let key = format!("ts-protect-action-{kind}");
+    if m.has(&key) {
+        m.get(&key)
+    } else {
+        kind.to_string()
+    }
+}
+
+/// A content model's name for readers: `Markdown`, `Wikitext`; its ID where the site has
+/// no name for it.
+fn model_label(m: &Messages, model: &str) -> String {
+    let key = format!("ts-contentmodel-{model}");
+    if m.has(&key) {
+        m.get(&key)
+    } else {
+        model.to_string()
+    }
+}
+
+/// Whether the edit form edits a model: a text model the API edits directly (0041 §5).
+fn form_edits(model: &str) -> bool {
+    scatter_pages::ContentModels::embedded()
+        .get(model)
+        .is_some_and(|c| {
+            c.direct_editing && c.implemented && c.source == Some(scatter_pages::ModelSource::Text)
+        })
+}
+
+/// The models the Format selector offers for a new page at a title, the namespace's
+/// default first: those of its namespace's models the form edits, or none where there is
+/// only one (19 §3.2).
+fn formats(sitename: &str, title: &str) -> Vec<String> {
+    let t = pages::canonical(title, sitename);
+    let namespaces = Namespaces::embedded();
+    let ns = t
+        .split_once(':')
+        .and_then(|(p, _)| {
+            namespaces.iter().find(|n| {
+                !n.canonical.is_empty()
+                    && (n.canonical.eq_ignore_ascii_case(p.trim())
+                        || n.name
+                            .as_deref()
+                            .is_some_and(|l| l.eq_ignore_ascii_case(p.trim())))
+            })
+        })
+        .or_else(|| namespaces.get(0));
+    let Some(ns) = ns else {
+        return Vec::new();
+    };
+    let mut v: Vec<String> = ns
+        .content_models
+        .iter()
+        .filter(|m| form_edits(m))
+        .cloned()
+        .collect();
+    if let Some(d) = &ns.default_model
+        && let Some(i) = v.iter().position(|m| m == d)
+    {
+        let first = v.remove(i);
+        v.insert(0, first);
+    }
+    if v.len() < 2 { Vec::new() } else { v }
 }
 
 /// A title with no page: the generated main page for the main page's title, the `404`
@@ -537,7 +766,7 @@ fn missing(cx: &Context, headers: &HeaderMap, title: String, render: bool) -> Re
         );
         Page {
             returnto: Some(title.clone()),
-            tabs: tabs(m, &title, false, TabName::Read),
+            tabs: tabs(m, &cx.site.sitename, &title, false, TabName::Read),
             actions: actions(m, &title, false, cx.moderation_tabs()),
             title,
             body,
@@ -587,6 +816,10 @@ struct Draft {
     base: Option<u64>,
     /// The base revision's time.
     base_time: Option<String>,
+    /// The content model; for a new page, the one the Format selector chose.
+    model: String,
+    /// What the Format selector offers a new page; empty where it is not shown.
+    formats: Vec<String>,
 }
 
 impl Draft {
@@ -597,17 +830,47 @@ impl Draft {
             text: s.text.clone(),
             base: Some(s.revid),
             base_time: Some(s.timestamp.clone()),
+            model: s.model.clone(),
             ..Self::default()
         }
     }
 
-    fn of_form(title: &str, form: &Params) -> Self {
+    /// A page to create at a title: the model asked for (`model=`) where the selector
+    /// offers it, else the namespace's default.
+    fn new_at(sitename: &str, title: String, asked: Option<&str>) -> Self {
+        let formats = formats(sitename, &title);
+        let model = asked
+            .filter(|a| formats.iter().any(|f| f == a))
+            .map(str::to_string)
+            .or_else(|| formats.first().cloned())
+            .unwrap_or_else(|| "wikitext".into());
+        Self {
+            title,
+            model,
+            formats,
+            ..Self::default()
+        }
+    }
+
+    fn of_form(sitename: &str, title: &str, form: &Params) -> Self {
         let get = |k: &str| form.map.get(k).cloned().unwrap_or_default();
         // A textarea's value comes back with CRLF line ends; the page's are LF.
         let text = get("wpTextbox1").replace("\r\n", "\n");
+        let exists = !form.map.contains_key("wpCreateonly");
+        let new = (!exists).then(|| {
+            Self::new_at(
+                sitename,
+                title.to_string(),
+                form.map.get("model").map(String::as_str),
+            )
+        });
         Self {
             title: title.to_string(),
-            exists: !form.map.contains_key("wpCreateonly"),
+            exists,
+            model: new
+                .as_ref()
+                .map_or_else(|| "wikitext".into(), |n| n.model.clone()),
+            formats: new.map(|n| n.formats).unwrap_or_default(),
             text,
             summary: get("wpSummary"),
             minor: form.map.contains_key("wpMinoredit"),
@@ -629,6 +892,27 @@ fn edit_form_model(m: &Messages, token: &str, d: &Draft) -> EditFormModel {
         base: d.base,
         base_time: d.base_time.clone(),
         create: !d.exists,
+        format: (!d.exists && !d.formats.is_empty()).then(|| FieldRow {
+            id: "ts-pageedit-model".into(),
+            label: m.get("ts-pageedit-model"),
+            class: None,
+            control: ControlModel::Select {
+                id: Some("ts-pageedit-model".into()),
+                name: "model".into(),
+                options: d
+                    .formats
+                    .iter()
+                    .map(|f| OptionModel {
+                        value: f.clone(),
+                        label: model_label(m, f),
+                        selected: *f == d.model,
+                    })
+                    .collect(),
+                described_by: None,
+            },
+            help: None,
+            help_id: None,
+        }),
         text_label: m.get("ts-pageedit-text"),
         // A leading newline would be eaten by the parser of the textarea's content.
         text: format!("\n{}", d.text),
@@ -704,7 +988,7 @@ fn edit_page(
             ),
             doc_title: None,
             returnto: Some(d.title.clone()),
-            tabs: tabs(m, &d.title, d.exists, TabName::Edit),
+            tabs: tabs(m, &cx.site.sitename, &d.title, d.exists, TabName::Edit),
             actions: actions(m, &d.title, d.exists, cx.moderation_tabs()),
             body,
             ..Page::default()
@@ -791,6 +1075,7 @@ async fn edit(
     headers: &HeaderMap,
     incoming: &Incoming,
     title: String,
+    asked_model: Option<&str>,
 ) -> Response {
     if cx.user.is_none() {
         return login_needed(&cx, headers, &title);
@@ -801,15 +1086,12 @@ async fn edit(
     };
     let draft = match source {
         Lookup::Found(s) => {
-            if s.model != "wikitext" {
+            if !form_edits(&s.model) {
                 return unsupported(&cx, headers, &s);
             }
             Draft::of_source(&s)
         }
-        Lookup::Missing { title, .. } => Draft {
-            title,
-            ..Draft::default()
-        },
+        Lookup::Missing { title, .. } => Draft::new_at(&cx.site.sitename, title, asked_model),
         Lookup::Invalid => return bad_title(&cx, headers, &title),
     };
     let (token, cookies) = match token(site, &mut cx, incoming).await {
@@ -827,7 +1109,7 @@ fn unsupported(cx: &Context, headers: &HeaderMap, s: &Source) -> Response {
     pages::respond(cx, headers, StatusCode::OK, |m| Page {
         title: s.title.clone(),
         returnto: Some(s.title.clone()),
-        tabs: tabs(m, &s.title, true, TabName::Edit),
+        tabs: tabs(m, &cx.site.sitename, &s.title, true, TabName::Edit),
         actions: actions(m, &s.title, true, cx.moderation_tabs()),
         body: cx.message(
             MessageKind::Notice,
@@ -849,12 +1131,16 @@ pub async fn post(
     if cx.user.is_none() {
         return login_needed(&cx, headers, title);
     }
-    let mut draft = Draft::of_form(title, form);
+    let mut draft = Draft::of_form(&cx.site.sitename, title, form);
     let posted = form.map.get("wpEditToken").cloned().unwrap_or_default();
     // The page is the viewer's alone: it holds their token and their text.
     cx.inputs.push(CacheInfo::default());
     if form.map.contains_key("wpPreview") {
-        return match site.client().preview(incoming, title, &draft.text).await {
+        return match site
+            .client()
+            .preview(incoming, title, &draft.text, &draft.model)
+            .await
+        {
             Ok(p) => edit_page(&cx, headers, &posted, &draft, &[], Some(&p), None),
             Err(ClientError::Api { info, .. }) => {
                 let notices = [(MessageKind::Error, info)];
@@ -875,6 +1161,7 @@ pub async fn post(
                 baserevid: draft.base,
                 basetimestamp: draft.base_time.as_deref(),
                 createonly: !draft.exists,
+                content_model: (!draft.exists).then_some(draft.model.as_str()),
                 token: &posted,
             },
         )
@@ -971,7 +1258,7 @@ async fn page_history(
     pages::respond(&cx, headers, StatusCode::OK, |m| Page {
         title: info.title.clone(),
         returnto: Some(info.title.clone()),
-        tabs: tabs(m, &info.title, true, TabName::History),
+        tabs: tabs(m, &cx.site.sitename, &info.title, true, TabName::History),
         actions: actions(m, &info.title, true, cx.moderation_tabs()),
         body: history::body(&cx, &info.title, &ask, None, &rows.value),
         ..Page::default()
@@ -1348,7 +1635,7 @@ async fn page_diff(
         Page {
             doc_title: Some(m.with("ts-pagediff-title", &[&page_title])),
             returnto: Some(page_title.clone()),
-            tabs: tabs(m, &page_title, true, TabName::History),
+            tabs: tabs(m, &cx.site.sitename, &page_title, true, TabName::History),
             actions: actions(m, &page_title, true, cx.moderation_tabs()),
             title: page_title.clone(),
             body,
@@ -1383,7 +1670,10 @@ pub async fn serve(
     match ask {
         Ask::Read => read(site, cx, headers, incoming, title, params, false).await,
         Ask::Render => read(site, cx, headers, incoming, title, params, true).await,
-        Ask::Edit => edit(site, cx, headers, incoming, title).await,
+        Ask::Edit => {
+            let model = params.map.get("model").map(String::as_str);
+            edit(site, cx, headers, incoming, title, model).await
+        }
         Ask::History => page_history(site, cx, headers, incoming, title, params).await,
         Ask::Diff => page_diff(site, cx, headers, incoming, title, params).await,
     }
@@ -1505,8 +1795,15 @@ mod tests {
     #[test]
     fn tabs_of_a_page_and_a_missing_one() {
         let m = Messages::for_language("en");
-        let t = tabs(&m, "Project:Home", true, TabName::History);
-        assert_eq!(t.len(), 3);
+        let t = tabs(&m, "Librarybase", "Project:Home", true, TabName::History);
+        assert_eq!(t.len(), 5);
+        // 19 §1.3: Links here and the talk page close the row.
+        assert_eq!(t[3].href, "/wiki/Special:WhatLinksHere/Project:Home");
+        assert_eq!(t[4].href, "/wiki/Project_talk:Home");
+        assert_eq!(t[4].label, m.get("ts-tab-discussion"));
+        // The site's own name for the namespace leads to the same talk page.
+        let own = tabs(&m, "Librarybase", "Librarybase:Home", true, TabName::Read);
+        assert_eq!(own[4].href, "/wiki/Project_talk:Home");
         let a = actions(
             &m,
             "Project:Home",
@@ -1527,8 +1824,10 @@ mod tests {
         assert_eq!(t[1].href, "/wiki/Project:Home?action=edit");
         assert_eq!(t[1].label, m.get("ts-tab-edit"));
         assert!(t[2].current);
-        let t = tabs(&m, "Project:New one", false, TabName::Read);
-        assert_eq!(t.len(), 2);
+        let t = tabs(&m, "Librarybase", "Project:New one", false, TabName::Read);
+        // A free title has no talk page (14 §1.3), but its wanted links are listed.
+        assert_eq!(t.len(), 3);
+        assert_eq!(t[2].label, m.get("ts-tab-links-here"));
         assert_eq!(t[1].label, m.get("ts-tab-create"));
         assert_eq!(t[1].href, "/wiki/Project:New_one?action=edit");
     }
@@ -1556,6 +1855,58 @@ mod tests {
         assert_eq!(content_model(&m, &Parsed::default()).categories, None);
     }
 
+    // 0041 §10, 19 §3.2: a new page's Format selector offers its namespace's text models,
+    // the default first, and only where there is more than one.
+    #[test]
+    fn a_new_page_offers_the_formats_its_namespace_allows() {
+        let main = formats("Librarybase", "Sandbox");
+        assert_eq!(main.first().map(String::as_str), Some("wikitext"));
+        assert!(main.iter().any(|f| f == "markdown"));
+        assert!(!main.iter().any(|f| f == "triplespace-talk"));
+        assert!(formats("Librarybase", "Librarybase:Sandbox").len() > 1);
+        assert!(formats("Librarybase", "Thread:2026-11-05/Scope").is_empty());
+        let d = Draft::new_at("Librarybase", "Sandbox".into(), Some("markdown"));
+        assert_eq!(d.model, "markdown");
+        let d = Draft::new_at("Librarybase", "Sandbox".into(), Some("triplespace-talk"));
+        assert_eq!(d.model, "wikitext");
+        let m = Messages::for_language("en");
+        let f = edit_form_model(&m, "t", &d).format.expect("a selector");
+        assert_eq!(f.label, m.get("ts-pageedit-model"));
+        assert!(form_edits("markdown") && form_edits("wikitext"));
+        assert!(!form_edits("wikibase-item") && !form_edits("triplespace-talk"));
+    }
+
+    // 0038 §7, 19 §3.1: the panel's facts, from prop=info|revisions.
+    #[test]
+    fn the_about_panel_says_what_the_page_is() {
+        let m = Messages::for_language("en");
+        let a = About {
+            title: "Project:Home".into(),
+            model: "wikitext".into(),
+            length: 1234,
+            touched: Some("2026-11-05T10:00:00Z".into()),
+            lastrevid: 99,
+            created: Some("2026-01-02T03:04:05Z".into()),
+            creator: Some("Alice".into()),
+            protection: vec![],
+        };
+        let p = about_model(&m, &a, &Parsed::default());
+        assert_eq!(
+            p.facts[0].link.as_ref().map(|l| l.label.as_str()),
+            Some("Alice")
+        );
+        assert_eq!(
+            p.facts[1].link.as_ref().map(|l| l.href.as_str()),
+            Some("/w/index.php?title=Project:Home&diff=99")
+        );
+        assert!(
+            p.facts
+                .iter()
+                .any(|f| f.value == m.get("ts-about-not-protected"))
+        );
+        assert_eq!(p.links[1].href, "/wiki/Special:WhatLinksHere/Project:Home");
+    }
+
     #[test]
     fn the_form_round_trips_a_draft() {
         let m = Messages::for_language("en");
@@ -1567,6 +1918,7 @@ mod tests {
             minor: true,
             base: Some(7),
             base_time: Some("2026-10-19T00:00:00Z".into()),
+            ..Draft::default()
         };
         let f = edit_form_model(&m, "tok+\\", &d);
         assert_eq!(f.action, "/w/index.php?title=Project:Sandbox&action=submit");
@@ -1581,6 +1933,7 @@ mod tests {
         assert!(!f.create);
         assert_eq!(f.save.label, m.get("ts-pageedit-save"));
         let back = Draft::of_form(
+            "Librarybase",
             "Project:Sandbox",
             &params(&[
                 ("wpTextbox1", "line\r\nline"),
@@ -1593,7 +1946,11 @@ mod tests {
         assert_eq!(back.base, Some(7));
         assert!(back.exists);
         assert!(!back.minor);
-        let new = Draft::of_form("Project:X", &params(&[("wpCreateonly", "1")]));
+        let new = Draft::of_form(
+            "Librarybase",
+            "Project:X",
+            &params(&[("wpCreateonly", "1")]),
+        );
         assert!(!new.exists);
         assert_eq!(new.base, None);
     }
