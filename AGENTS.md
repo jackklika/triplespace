@@ -47,7 +47,15 @@ crate table in chapter 22 §2.1 with `docs/architecture/CRATES.md` (`crates.py -
 `registry/crates.toml`), and the route, Action API, permission and log-event tables in 18 §3.2, 18 §2.3,
 09 §2.2 and 16 §2.3 (`catalogues.py --write`, from `registry/routes.toml`, `action-api.toml`,
 `permissions.toml` + `groups.toml`, `log-events.toml`). A new crate, route, module, permission or
-log event is an edit to its registry file.
+log event is an edit to its registry file. `docs/decisions/OPEN.md` is generated with `INDEX.md`.
+
+**A merge or rebase conflict in a generated file is resolved by regenerating it, never by hand.**
+Most changes regenerate `INDEX.md` and `OPEN.md`, so two branches that each did will conflict once
+either merges, however current each was when pushed. Take either side (`git checkout --theirs --
+<file>`), run `docs/check.sh --write`, then `git add` the result. Where the conflict also touches a
+chapter's hand-written text around a generated table, resolve the text by hand and let
+`--write` rebuild the table. `.gitattributes` marks the wholly generated files, so pull requests
+collapse their diffs.
 
 **Secrets.** `owner.pw` and `triplespace.key` at the root are local, gitignored secrets. Do not
 read, print, copy or commit them.

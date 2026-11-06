@@ -178,6 +178,12 @@ README's table matches the files.
 
 Never hand-edit `INDEX.md`. Regenerate it.
 
+A merge or rebase conflict in a generated file (`INDEX.md`, `OPEN.md`, `CRATES.md`, or a generated
+table in chapters 09, 16, 18, 22 or 23) is resolved the same way: take either side
+(`git checkout --theirs -- <file>`), run `docs/check.sh --write`, and `git add` the result; in a
+rebase, at each commit that stops on it. Hand-merging conflict markers in these files is never right,
+even when it looks trivial.
+
 ## Bulk edits
 
 To touch many ADRs at once, use a Python script with exact-match replacement that fails
