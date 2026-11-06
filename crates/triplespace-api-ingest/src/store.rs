@@ -232,6 +232,20 @@ impl IngestStore for PgIngest {
         Ok(log::append_with(conn, partition, draft, frontiers).await?)
     }
 
+    async fn append_sealed(
+        &self,
+        cx: &mut PgCx,
+        partition: u64,
+        draft: Draft,
+    ) -> Result<(Appended, Record), IngestError> {
+        let (conn, frontiers) = cx.for_append();
+        Ok(log::append_sealed_with(conn, partition, draft, frontiers).await?)
+    }
+
+    fn encoded(&self, body: &scatter_log::body::Body, op: scatter_wikibase_changeset::Operation) {
+        triplespace_projections::common::remember_encoded(body, op);
+    }
+
     /// `ANALYZE` of every table in the `log` and `view` schemas: those a load writes, and
     /// the only ones its statements read.
     async fn refresh_statistics(&self, cx: &mut PgCx) -> Result<(), IngestError> {

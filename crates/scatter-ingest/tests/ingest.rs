@@ -1530,6 +1530,41 @@ fn bootstrap_items() -> Vec<SyncItem> {
     ]
 }
 
+/// The ordinary write path hands the projections each change-set record's operation with
+/// the body it was encoded into (`IngestStore::encoded`; 0013 A74): the record appended
+/// carries those content bytes, and decoding it gives that operation, so what a store
+/// keeps can stand for decoding it.
+#[test]
+fn the_write_path_hands_over_what_it_appends() {
+    pollster::block_on(async {
+        let (synced, pipeline) = setup();
+        run_sync(
+            &synced,
+            &pipeline,
+            sync_header(Mode::Upsert),
+            Attestation::by("instance:scatter"),
+            bootstrap_items(),
+            100,
+            registry(),
+            NOW,
+            2,
+        )
+        .await
+        .unwrap();
+        let encoded = synced.encoded_ops();
+        let records = synced.records(MIRROR_XD);
+        assert_eq!(records.len(), 4);
+        for record in &records {
+            let bytes = record.body().content().bytes().unwrap();
+            let (_, op) = encoded
+                .iter()
+                .find(|(b, _)| b.as_slice() == bytes)
+                .expect("each record's content was handed over");
+            assert_eq!(&operation_of(record), op);
+        }
+    });
+}
+
 /// A bootstrap load hands each record's operation, with the body it was encoded into, to
 /// the projections' warm hook on the preparing thread (0013 A74): the body is the appended
 /// record's, byte for byte, and the operation is what decoding that record gives, so what

@@ -232,8 +232,7 @@ pub async fn append_projected<S: IngestStore>(
     draft: Draft,
     budget: Budget,
 ) -> Result<(Record, Inline), IngestError> {
-    let appended = store.append(cx, partition, draft.clone()).await?;
-    let record = draft.seal(partition, appended.offset);
+    let (_, record) = store.append_sealed(cx, partition, draft).await?;
     let inline = pipeline.apply_inline(store, cx, &record, budget).await?;
     Ok((record, inline))
 }
@@ -419,6 +418,8 @@ pub async fn write_to<S: IngestStore>(
         )
         .map_err(|e| e.to_string())?,
     };
+    drop(content);
+    store.encoded(&draft.body, op);
     let (record, inline) =
         append_projected(store, pipeline, cx, partition, draft, request.budget).await?;
     Ok(Written {

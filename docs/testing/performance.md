@@ -452,6 +452,24 @@ Merkle nodes and views the same as the ordinary sync's and a rebuild identical; 
 2.35 GB against 1.81 GB, client CPU 8,546 s, the client at 510–630% and Postgres about 50%;
 23.5× the 9 h 28 min baseline.
 
+**The ordinary sync, profiled (2026-11-06).** The 20k slice through `sync --no-bootstrap`: 148 s
+(135 entities/s). The client's main thread 85 s of CPU, its runtime threads about 10 s each,
+Postgres's backends 41 s; 403,336 statements, about 20 an entity, one round trip at a time, of
+which execution was 13 s and planning about 5 s (`pg_stat_statements`); 1,396 commits. No
+planner trouble: the entity's term and identifier deletes are point lookups, 0.14 s in all.
+callgrind of the client on the 2,000 items: everything on one thread, and about 40% of it
+repeated work: each record's part hashes computed three times (sealed in the store's append,
+sealed again by the write path, and checked again when the entity projection read the record
+back by offset), the projections decoding the operation the write path had just encoded, and
+each entity's canonical JSON built three times (its size, the resolved state, the comparison
+with it). SHA-256 alone was 20% of the client. The store now returns the record it sealed
+(`IngestStore::append_sealed`), the write path hands the projections the operation it encoded
+(`IngestStore::encoded`), and the entity projection takes the record being applied as it is
+(0013 A75). The canonical JSON is still built three times: removing the third means carrying
+it from the sync through the write path, for about 5% of the client. The client's main
+thread then used 65 s of CPU and the load took 137–140 s; the ordinary sync's views the same
+as a bootstrap load's, a rebuild identical. What is left is mostly the round trips.
+
 **`term_prefix` is not yet as 03 §4.3 has it.** The chapter's index is partial over tenant rows
 (`WHERE tenant <> ''`); the migration's (`0002_view.sql`) covers every row, shared ones included,
 and `wbsearchentities` reads shared rows through it (`t.tenant IN ($1, '')`). Making it partial

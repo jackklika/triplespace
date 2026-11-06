@@ -267,10 +267,26 @@ pub(crate) fn warmed_rows(record: &Record, graph: &str) -> Option<Arc<crate::ent
 /// and decodes back to itself, which the equivalence of a bootstrap load with the ordinary
 /// sync tests.
 pub fn warm(graph: &str, body: &scatter_log::body::Body, op: Operation) {
+    let rows = crate::entities::RowCore::ahead(graph, &op).map(Arc::new);
+    keep_encoded(body, op, rows);
+}
+
+/// What the ordinary write path does for the projections (`IngestStore::encoded`): keep
+/// the operation a record's body was just encoded from, with its content hash, as
+/// [`warm`] does but for the entity rows, which only a bootstrap block's set-based path
+/// reads. The projections that apply the record then decode none of it.
+pub fn remember_encoded(body: &scatter_log::body::Body, op: Operation) {
+    keep_encoded(body, op, None);
+}
+
+fn keep_encoded(
+    body: &scatter_log::body::Body,
+    op: Operation,
+    rows: Option<Arc<crate::entities::RowCore>>,
+) {
     let Some(bytes) = body.content().bytes() else {
         return;
     };
-    let rows = crate::entities::RowCore::ahead(graph, &op).map(Arc::new);
     remember(vec![(
         bytes.to_vec(),
         Entry {

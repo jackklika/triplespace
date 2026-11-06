@@ -66,6 +66,30 @@ pub trait IngestStore: Backend {
         draft: Draft,
     ) -> impl Future<Output = Result<Appended, IngestError>> + Send;
 
+    /// [`Self::append`], returning the record the draft became: sealing hashes every part
+    /// of its body, and the write path goes on to project the record. The default seals
+    /// it again; a store that sealed it to append it returns that.
+    fn append_sealed(
+        &self,
+        cx: &mut Self::Cx,
+        partition: u64,
+        draft: Draft,
+    ) -> impl Future<Output = Result<(Appended, Record), IngestError>> + Send {
+        async move {
+            let appended = self.append(cx, partition, draft.clone()).await?;
+            let record = draft.seal(partition, appended.offset);
+            Ok((appended, record))
+        }
+    }
+
+    /// Hands the projections an operation the write path has just encoded into `body`,
+    /// before the record is appended: a projection that would otherwise decode the
+    /// record's content can keep what it was encoded from (0013 A74). The default does
+    /// nothing.
+    fn encoded(&self, body: &scatter_log::body::Body, op: scatter_wikibase_changeset::Operation) {
+        let _ = (body, op);
+    }
+
     /// Appends drafts at consecutive offsets of a partition inside the unit of work, each
     /// with its body's commitment, which the caller computed: bootstrap mode's block write
     /// (0013 §9). Returns the records in order. The default appends one at a time; a store

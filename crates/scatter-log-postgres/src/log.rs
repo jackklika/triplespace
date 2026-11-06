@@ -289,10 +289,25 @@ pub async fn append_with<C: PgClient>(
     draft: Draft,
     frontiers: &mut Frontiers,
 ) -> Result<Appended, StoreError> {
+    Ok(append_sealed_with(client, partition, draft, frontiers)
+        .await?
+        .0)
+}
+
+/// [`append_with`], returning the record the draft became as well: sealing it hashes
+/// every part of its body, which a caller that goes on to use the record need not do a
+/// second time.
+pub async fn append_sealed_with<C: PgClient>(
+    client: &C,
+    partition: u64,
+    draft: Draft,
+    frontiers: &mut Frontiers,
+) -> Result<(Appended, Record), StoreError> {
     let row = partition_row(client, partition, true).await?;
     let record = draft.seal(partition, row.size);
     insert_record(client, partition, &record, 0).await?;
-    advance(client, partition, row.size, record.leaf(), frontiers).await
+    let appended = advance(client, partition, row.size, record.leaf(), frontiers).await?;
+    Ok((appended, record))
 }
 
 /// Appends a draft at the next offset, with no frontier carried between calls: the
