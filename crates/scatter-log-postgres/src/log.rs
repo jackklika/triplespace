@@ -529,6 +529,34 @@ pub async fn read<C: PgClient>(
     Ok(Slot::Compacted { leaf })
 }
 
+/// The records at several offsets of a partition, in offset order: what a sync's unit
+/// reads at its subjects' cursors in one statement (0013 A76). A compacted offset has no
+/// row and is not returned, nor is an offset past the end.
+pub async fn read_many<C: PgClient>(
+    client: &C,
+    partition: u64,
+    offsets: &[u64],
+) -> Result<Vec<(u64, Record)>, StoreError> {
+    if offsets.is_empty() {
+        return Ok(Vec::new());
+    }
+    let offsets: Vec<i64> = offsets
+        .iter()
+        .map(|&o| to_db(o))
+        .collect::<Result<_, _>>()?;
+    let rows = client
+        .query(
+            "SELECT \"offset\", header, body FROM log.record
+             WHERE partition = $1 AND \"offset\" = ANY($2) ORDER BY \"offset\"",
+            &[&partition_to_db(partition), &offsets],
+        )
+        .await
+        .map_err(|e| storage_error(&e))?;
+    rows.iter()
+        .map(|r| Ok((from_db(r.get(0))?, record_from(r.get(1), r.get(2))?)))
+        .collect()
+}
+
 /// Every record under a header key, in offset order: the replay a projection does to
 /// fold one subject's history (0013 §2: the `(key, "offset")` index). Compacted offsets
 /// have no row and are not returned; nor is anything for a partition that does not

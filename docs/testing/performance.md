@@ -470,6 +470,26 @@ it from the sync through the write path, for about 5% of the client. The client'
 thread then used 65 s of CPU and the load took 137–140 s; the ordinary sync's views the same
 as a bootstrap load's, a rebuild identical. What is left is mostly the round trips.
 
+**The ordinary sync in blocks (2026-11-06).** A sync now reads, decides and writes each unit
+of `--batch` items (200) as a block when the unit is of the common kind (0013 A76): its
+cursors, the records at them, its keys' claimed revisions and page IDs in one statement each,
+the items decided in memory by the item-by-item path's own functions, the records appended by
+binary `COPY` and projected by the set-based block path. Checked against the item-by-item path
+(`--batch 1`) on the 20k slice and on an update pass over it (`ab-20k-v2`: every tenth
+entity's English label changed at a higher revision, 2,000 entities of the 2M set added, by
+a local script, as is the comparison): the same records, offsets,
+page and revision IDs, Merkle nodes, views and job counts, and a rebuild identical.
+
+| 20k slice, ordinary sync | item by item, `--batch 1` | item by item, 200 (step 1) | blocks of 200 |
+|---|---|---|---|
+| first load | 241 s | 137–140 s | **67 s** |
+| update pass: 2,000 changed, 2,000 new, 18,000 unchanged | 108 s | | **61 s** |
+
+`--batch 1` also commits after every item, so the fair comparison for the first load is the
+step-1 figure: about twice as fast. The update pass is mostly the 18,000 unchanged states,
+each decoded from its previous record and compared by canonical JSON on the client's one
+thread (52 s of CPU): that, and the parsing, is the parallel preparation of step 3.
+
 **`term_prefix` is not yet as 03 §4.3 has it.** The chapter's index is partial over tenant rows
 (`WHERE tenant <> ''`); the migration's (`0002_view.sql`) covers every row, shared ones included,
 and `wbsearchentities` reads shared rows through it (`t.tenant IN ($1, '')`). Making it partial

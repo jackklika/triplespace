@@ -23,6 +23,24 @@ pub struct PgIngest {
     backend: PgBackend,
 }
 
+/// A cursor from a `view.entity_source` row whose columns from `at` are `offset`,
+/// `upstream_version`, `content_hash`, `synced_at` and `size`.
+fn cursor_from(r: &tokio_postgres::Row, at: usize) -> Result<Cursor, IngestError> {
+    let hash: Vec<u8> = r.get(at + 2);
+    let synced: std::time::SystemTime = r.get(at + 3);
+    let synced_at = synced
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(store)?
+        .as_micros();
+    Ok(Cursor {
+        offset: from_db(r.get(at))?,
+        version: r.get(at + 1),
+        content_hash: hash.try_into().map_err(|_| store("a 32-byte hash"))?,
+        synced_at: u64::try_from(synced_at).map_err(store)?,
+        size: u64::try_from(r.get::<_, i32>(at + 4)).map_err(store)?,
+    })
+}
+
 fn store(e: impl std::fmt::Display) -> IngestError {
     IngestError::Store(e.to_string())
 }
@@ -425,22 +443,105 @@ impl IngestStore for PgIngest {
             )
             .await
             .map_err(store)?;
-        let Some(r) = row else {
-            return Ok(None);
+        row.map(|r| cursor_from(&r, 0)).transpose()
+    }
+
+    async fn cursors(
+        &self,
+        cx: &mut PgCx,
+        tenant: &str,
+        entity_ids: &[EntityId],
+        graph: &str,
+    ) -> Result<BTreeMap<EntityId, Cursor>, IngestError> {
+        if entity_ids.is_empty() {
+            return Ok(BTreeMap::new());
+        }
+        let owner = if graph.starts_with("mirror/") {
+            ""
+        } else {
+            tenant
         };
-        let hash: Vec<u8> = r.get(2);
-        let synced: std::time::SystemTime = r.get(3);
-        let synced_at = synced
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(store)?
-            .as_micros();
-        Ok(Some(Cursor {
-            offset: from_db(r.get(0))?,
-            version: r.get(1),
-            content_hash: hash.try_into().map_err(|_| store("a 32-byte hash"))?,
-            synced_at: u64::try_from(synced_at).map_err(store)?,
-            size: u64::try_from(r.get::<_, i32>(4)).map_err(store)?,
-        }))
+        let ids: Vec<&str> = entity_ids.iter().map(EntityId::as_str).collect();
+        let rows = cx
+            .query(
+                "SELECT \"offset\", upstream_version, content_hash, synced_at, size, entity_id
+                 FROM view.entity_source WHERE tenant = $1 AND entity_id = ANY($2) AND graph = $3",
+                &[&owner, &ids, &graph],
+            )
+            .await
+            .map_err(store)?;
+        rows.iter()
+            .map(|r| {
+                Ok((
+                    EntityId::parse(r.get(5)).map_err(store)?,
+                    cursor_from(r, 0)?,
+                ))
+            })
+            .collect()
+    }
+
+    async fn read_many(
+        &self,
+        cx: &mut PgCx,
+        partition: u64,
+        offsets: &[u64],
+    ) -> Result<BTreeMap<u64, Record>, IngestError> {
+        Ok(log::read_many(cx, partition, offsets)
+            .await?
+            .into_iter()
+            .collect())
+    }
+
+    async fn highest_revids(
+        &self,
+        cx: &mut PgCx,
+        partition: u64,
+        keys: &[String],
+    ) -> Result<BTreeMap<String, u64>, IngestError> {
+        if keys.is_empty() {
+            return Ok(BTreeMap::new());
+        }
+        let rows = cx
+            .query(
+                "SELECT key, max(revid) FROM log.record
+                 WHERE partition = $1 AND key = ANY($2) AND revid IS NOT NULL GROUP BY key",
+                &[&partition_to_db(partition), &keys],
+            )
+            .await
+            .map_err(store)?;
+        rows.iter()
+            .map(|r| Ok((r.get::<_, String>(0), from_db(r.get(1)).map_err(store)?)))
+            .collect()
+    }
+
+    async fn page_ids_of(
+        &self,
+        cx: &mut PgCx,
+        tenant: &str,
+        keys: &[String],
+    ) -> Result<BTreeMap<String, u64>, IngestError> {
+        if keys.is_empty() {
+            return Ok(BTreeMap::new());
+        }
+        let tenant = (!tenant.is_empty()).then_some(tenant);
+        let rows = cx
+            .query(
+                "SELECT DISTINCT ON (r.key) r.key, r.page_id FROM log.record r
+                 JOIN log.partition p ON p.partition = r.partition
+                 WHERE r.key = ANY($1) AND r.page_id IS NOT NULL
+                   AND (p.tenant IS NOT DISTINCT FROM $2 OR p.tenant IS NULL)",
+                &[&keys, &tenant],
+            )
+            .await
+            .map_err(store)?;
+        rows.iter()
+            .map(|r| {
+                Ok((
+                    r.get::<_, String>(0),
+                    from_db(r.get(1)).map_err(IngestError::from)?,
+                ))
+            })
+            .collect()
     }
 
     async fn entities_of_graph(

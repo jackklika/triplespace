@@ -82,8 +82,11 @@ pub struct MemoryIngest {
     state: Arc<Mutex<State>>,
     /// What the write path handed the projections ([`IngestStore::encoded`]): each body's
     /// content bytes and the operation it was encoded from, outside any unit of work.
-    encoded: Arc<Mutex<Vec<(Vec<u8>, Operation)>>>,
+    encoded: Arc<Mutex<Vec<Encoded>>>,
 }
+
+/// A body's content bytes and the operation the write path encoded into them.
+type Encoded = (Vec<u8>, Operation);
 
 impl MemoryIngest {
     /// Empty.

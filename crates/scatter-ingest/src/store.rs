@@ -234,6 +234,83 @@ pub trait IngestStore: Backend {
         graph: &str,
     ) -> impl Future<Output = Result<Option<Cursor>, IngestError>> + Send;
 
+    /// [`Self::cursor`] for several entities at once: a sync's unit read set-based
+    /// (0013 A76). Those with no cursor are absent. The default asks one at a time.
+    fn cursors(
+        &self,
+        cx: &mut Self::Cx,
+        tenant: &str,
+        entity_ids: &[EntityId],
+        graph: &str,
+    ) -> impl Future<Output = Result<BTreeMap<EntityId, Cursor>, IngestError>> + Send {
+        async move {
+            let mut out = BTreeMap::new();
+            for id in entity_ids {
+                if let Some(c) = self.cursor(cx, tenant, id, graph).await? {
+                    out.insert(id.clone(), c);
+                }
+            }
+            Ok(out)
+        }
+    }
+
+    /// [`Self::read`] at several offsets of a partition at once, by offset; a compacted
+    /// slot is absent. The default reads one at a time.
+    fn read_many(
+        &self,
+        cx: &mut Self::Cx,
+        partition: u64,
+        offsets: &[u64],
+    ) -> impl Future<Output = Result<BTreeMap<u64, Record>, IngestError>> + Send {
+        async move {
+            let mut out = BTreeMap::new();
+            for &offset in offsets {
+                if let Some(r) = self.read(cx, partition, offset).await? {
+                    out.insert(offset, r);
+                }
+            }
+            Ok(out)
+        }
+    }
+
+    /// [`Self::highest_revid`] for several keys of a partition at once; keys with no
+    /// revision are absent. The default asks one at a time.
+    fn highest_revids(
+        &self,
+        cx: &mut Self::Cx,
+        partition: u64,
+        keys: &[String],
+    ) -> impl Future<Output = Result<BTreeMap<String, u64>, IngestError>> + Send {
+        async move {
+            let mut out = BTreeMap::new();
+            for key in keys {
+                if let Some(r) = self.highest_revid(cx, partition, key).await? {
+                    out.insert(key.clone(), r);
+                }
+            }
+            Ok(out)
+        }
+    }
+
+    /// [`Self::page_id_of`] for several keys at once; keys with no page ID yet are absent.
+    /// The default asks one at a time.
+    fn page_ids_of(
+        &self,
+        cx: &mut Self::Cx,
+        tenant: &str,
+        keys: &[String],
+    ) -> impl Future<Output = Result<BTreeMap<String, u64>, IngestError>> + Send {
+        async move {
+            let mut out = BTreeMap::new();
+            for key in keys {
+                if let Some(p) = self.page_id_of(cx, tenant, key).await? {
+                    out.insert(key.clone(), p);
+                }
+            }
+            Ok(out)
+        }
+    }
+
     /// Every entity a graph currently contributes to, for the `snapshot` sweep.
     fn entities_of_graph(
         &self,

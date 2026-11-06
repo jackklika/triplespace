@@ -1530,6 +1530,115 @@ fn bootstrap_items() -> Vec<SyncItem> {
     ]
 }
 
+/// A second pass over the mirror [`bootstrap_items`] loaded: a changed state, the same
+/// state, an older revision, a deletion, a deletion of nothing, a redirect, a new entity
+/// and a reject.
+fn second_pass_items() -> Vec<SyncItem> {
+    vec![
+        xd_state("XDQ1", "One, renamed", 11),
+        xd_state("XDQ5", "Five", 50),
+        xd_state("XDQ6", "Six", 70),
+        SyncItem::Deleted {
+            id: EntityId::parse("XDQ2").unwrap(),
+            upstream: Upstream::revision(80, None),
+        },
+        SyncItem::Deleted {
+            id: EntityId::parse("XDQ98").unwrap(),
+            upstream: Upstream::revision(81, None),
+        },
+        SyncItem::Redirected {
+            from: EntityId::parse("XDQ4").unwrap(),
+            to: EntityId::parse("XDQ1").unwrap(),
+            upstream: Upstream::revision(90, None),
+        },
+        SyncItem::Rejected {
+            upstream_id: "Q7".into(),
+            reason: "not a valid domain key".into(),
+        },
+        xd_state("XDQ8", "Eight", 9),
+    ]
+}
+
+/// A sync writes its units as blocks (0013 A76) and what it writes is what writing item
+/// by item writes (`batch` 1): the same records, field by field, the same counts and the
+/// same job record, over a first load and a second pass that changes, keeps, deletes and
+/// redirects; and a unit naming a subject twice is written item by item.
+#[test]
+fn a_sync_in_blocks_writes_what_one_item_at_a_time_writes() {
+    pollster::block_on(async {
+        let run = |batch: usize| async move {
+            let (store, pipeline) = setup();
+            let actor = Attestation::by("instance:scatter");
+            let mut outcomes = Vec::new();
+            for items in [bootstrap_items(), second_pass_items()] {
+                let outcome = run_sync(
+                    &store,
+                    &pipeline,
+                    sync_header(Mode::Upsert),
+                    actor.clone(),
+                    items,
+                    100,
+                    registry(),
+                    NOW,
+                    batch,
+                )
+                .await
+                .unwrap();
+                outcomes.push(outcome.counts);
+            }
+            // A unit naming a subject twice: the block path declines it.
+            let mut twice = vec![
+                xd_state("XDQ9", "Nine", 5),
+                xd_state("XDQ9", "Nine, again", 6),
+            ];
+            twice.push(xd_state("XDQ10", "Ten", 7));
+            let outcome = run_sync(
+                &store,
+                &pipeline,
+                sync_header(Mode::Upsert),
+                actor,
+                twice,
+                100,
+                registry(),
+                NOW,
+                batch,
+            )
+            .await
+            .unwrap();
+            outcomes.push(outcome.counts);
+            let records: Vec<_> = store.records(MIRROR_XD).iter().map(comparable).collect();
+            let jobs: Vec<_> = store
+                .records(INSTANCE_LOG)
+                .iter()
+                .filter(|r| r.header().payload_type == "scatter:v0/logevent")
+                .map(params_of)
+                .collect();
+            (outcomes, records, jobs)
+        };
+        let (one, records_one, jobs_one) = run(1).await;
+        let (block, records_block, jobs_block) = run(100).await;
+        assert_eq!(block, one, "the same counts");
+        assert_eq!(
+            (
+                one[1].created,
+                one[1].merged,
+                one[1].unchanged,
+                one[1].tombstoned,
+                one[1].other,
+                one[1].rejected
+            ),
+            (2, 1, 2, 1, 1, 1),
+            "the second pass: XDQ6 and XDQ8 created, XDQ1 merged, XDQ5 and XDQ98 unchanged, \
+             XDQ2 tombstoned, XDQ4 redirected, one reject"
+        );
+        assert_eq!(
+            records_block, records_one,
+            "the same records, field by field"
+        );
+        assert_eq!(jobs_block, jobs_one, "the same job records");
+    });
+}
+
 /// The ordinary write path hands the projections each change-set record's operation with
 /// the body it was encoded into (`IngestStore::encoded`; 0013 A74): the record appended
 /// carries those content bytes, and decoding it gives that operation, so what a store
