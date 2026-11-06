@@ -267,10 +267,26 @@ pub(crate) fn warmed_rows(record: &Record, graph: &str) -> Option<Arc<crate::ent
 /// and decodes back to itself, which the equivalence of a bootstrap load with the ordinary
 /// sync tests.
 pub fn warm(graph: &str, body: &scatter_log::body::Body, op: Operation) {
+    let rows = crate::entities::RowCore::ahead(graph, &op).map(Arc::new);
+    keep_encoded(body, op, rows);
+}
+
+/// What the ordinary write path does for the projections (`IngestStore::encoded`): keep
+/// the operation a record's body was just encoded from, with its content hash, as
+/// [`warm`] does but for the entity rows, which only a bootstrap block's set-based path
+/// reads. The projections that apply the record then decode none of it.
+pub fn remember_encoded(body: &scatter_log::body::Body, op: Operation) {
+    keep_encoded(body, op, None);
+}
+
+fn keep_encoded(
+    body: &scatter_log::body::Body,
+    op: Operation,
+    rows: Option<Arc<crate::entities::RowCore>>,
+) {
     let Some(bytes) = body.content().bytes() else {
         return;
     };
-    let rows = crate::entities::RowCore::ahead(graph, &op).map(Arc::new);
     remember(vec![(
         bytes.to_vec(),
         Entry {
@@ -328,56 +344,7 @@ pub fn decode_block(records: &[Record]) {
     remember(decoded.into_iter().flatten().collect());
 }
 
-/// `items` mapped by `f` on as many threads as the machine has, in order. Each thread takes
-/// the next item when it finishes one, rather than a fixed share: a block's records differ
-/// in size by three orders of magnitude (the first Wikidata items run to megabytes), and a
-/// share holding the largest would keep the others waiting.
-///
-/// # Panics
-///
-/// When `f` panics, with its panic.
-pub fn par_map<T: Send, U: Send>(items: Vec<T>, f: impl Fn(T) -> U + Sync) -> Vec<U> {
-    let threads = std::thread::available_parallelism()
-        .map_or(1, std::num::NonZero::get)
-        .min(items.len());
-    if threads < 2 {
-        return items.into_iter().map(f).collect();
-    }
-    let slots: Vec<std::sync::Mutex<Option<T>>> = items
-        .into_iter()
-        .map(|t| std::sync::Mutex::new(Some(t)))
-        .collect();
-    let next = std::sync::atomic::AtomicUsize::new(0);
-    let mut out: Vec<Option<U>> = std::iter::repeat_with(|| None).take(slots.len()).collect();
-    std::thread::scope(|s| {
-        let handles: Vec<_> = (0..threads)
-            .map(|_| {
-                s.spawn(|| {
-                    let mut done = Vec::new();
-                    loop {
-                        let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                        let Some(slot) = slots.get(i) else { break };
-                        let item = slot
-                            .lock()
-                            .expect("not poisoned")
-                            .take()
-                            .expect("each item is taken once");
-                        done.push((i, f(item)));
-                    }
-                    done
-                })
-            })
-            .collect();
-        for h in handles {
-            for (i, u) in h.join().unwrap_or_else(|e| std::panic::resume_unwind(e)) {
-                out[i] = Some(u);
-            }
-        }
-    });
-    out.into_iter()
-        .map(|u| u.expect("every item is mapped"))
-        .collect()
-}
+pub use scatter_projection::par_map;
 
 /// Keeps decoded operations, forgetting the oldest when the cache is full: a block's
 /// operations are read by the projections over that block, then not again, and those

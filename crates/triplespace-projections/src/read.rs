@@ -133,7 +133,7 @@ pub async fn current<C: Partitions>(
         .iter()
         .filter(|s| s.graph.starts_with("mirror/") || s.graph.starts_with("source/"))
     {
-        if let Some((entity, header)) = EntityProjection::mirror(client, s).await? {
+        if let Some((entity, header)) = EntityProjection::mirror(client, s, None).await? {
             headers.push(header);
             contributions.push(Contribution {
                 graph: s.graph.clone(),

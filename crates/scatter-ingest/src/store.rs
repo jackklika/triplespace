@@ -66,6 +66,30 @@ pub trait IngestStore: Backend {
         draft: Draft,
     ) -> impl Future<Output = Result<Appended, IngestError>> + Send;
 
+    /// [`Self::append`], returning the record the draft became: sealing hashes every part
+    /// of its body, and the write path goes on to project the record. The default seals
+    /// it again; a store that sealed it to append it returns that.
+    fn append_sealed(
+        &self,
+        cx: &mut Self::Cx,
+        partition: u64,
+        draft: Draft,
+    ) -> impl Future<Output = Result<(Appended, Record), IngestError>> + Send {
+        async move {
+            let appended = self.append(cx, partition, draft.clone()).await?;
+            let record = draft.seal(partition, appended.offset);
+            Ok((appended, record))
+        }
+    }
+
+    /// Hands the projections an operation the write path has just encoded into `body`,
+    /// before the record is appended: a projection that would otherwise decode the
+    /// record's content can keep what it was encoded from (0013 A74). The default does
+    /// nothing.
+    fn encoded(&self, body: &scatter_log::body::Body, op: scatter_wikibase_changeset::Operation) {
+        let _ = (body, op);
+    }
+
     /// Appends drafts at consecutive offsets of a partition inside the unit of work, each
     /// with its body's commitment, which the caller computed: bootstrap mode's block write
     /// (0013 §9). Returns the records in order. The default appends one at a time; a store
@@ -209,6 +233,83 @@ pub trait IngestStore: Backend {
         entity_id: &EntityId,
         graph: &str,
     ) -> impl Future<Output = Result<Option<Cursor>, IngestError>> + Send;
+
+    /// [`Self::cursor`] for several entities at once: a sync's unit read set-based
+    /// (0013 A76). Those with no cursor are absent. The default asks one at a time.
+    fn cursors(
+        &self,
+        cx: &mut Self::Cx,
+        tenant: &str,
+        entity_ids: &[EntityId],
+        graph: &str,
+    ) -> impl Future<Output = Result<BTreeMap<EntityId, Cursor>, IngestError>> + Send {
+        async move {
+            let mut out = BTreeMap::new();
+            for id in entity_ids {
+                if let Some(c) = self.cursor(cx, tenant, id, graph).await? {
+                    out.insert(id.clone(), c);
+                }
+            }
+            Ok(out)
+        }
+    }
+
+    /// [`Self::read`] at several offsets of a partition at once, by offset; a compacted
+    /// slot is absent. The default reads one at a time.
+    fn read_many(
+        &self,
+        cx: &mut Self::Cx,
+        partition: u64,
+        offsets: &[u64],
+    ) -> impl Future<Output = Result<BTreeMap<u64, Record>, IngestError>> + Send {
+        async move {
+            let mut out = BTreeMap::new();
+            for &offset in offsets {
+                if let Some(r) = self.read(cx, partition, offset).await? {
+                    out.insert(offset, r);
+                }
+            }
+            Ok(out)
+        }
+    }
+
+    /// [`Self::highest_revid`] for several keys of a partition at once; keys with no
+    /// revision are absent. The default asks one at a time.
+    fn highest_revids(
+        &self,
+        cx: &mut Self::Cx,
+        partition: u64,
+        keys: &[String],
+    ) -> impl Future<Output = Result<BTreeMap<String, u64>, IngestError>> + Send {
+        async move {
+            let mut out = BTreeMap::new();
+            for key in keys {
+                if let Some(r) = self.highest_revid(cx, partition, key).await? {
+                    out.insert(key.clone(), r);
+                }
+            }
+            Ok(out)
+        }
+    }
+
+    /// [`Self::page_id_of`] for several keys at once; keys with no page ID yet are absent.
+    /// The default asks one at a time.
+    fn page_ids_of(
+        &self,
+        cx: &mut Self::Cx,
+        tenant: &str,
+        keys: &[String],
+    ) -> impl Future<Output = Result<BTreeMap<String, u64>, IngestError>> + Send {
+        async move {
+            let mut out = BTreeMap::new();
+            for key in keys {
+                if let Some(p) = self.page_id_of(cx, tenant, key).await? {
+                    out.insert(key.clone(), p);
+                }
+            }
+            Ok(out)
+        }
+    }
 
     /// Every entity a graph currently contributes to, for the `snapshot` sweep.
     fn entities_of_graph(

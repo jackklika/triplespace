@@ -215,21 +215,33 @@ impl EntityProjection {
         Ok(local)
     }
 
-    /// The state a mirror's cursor names.
+    /// The state a mirror's cursor names. `current` is a record the caller holds, the one
+    /// being applied: when the cursor names it, it is used as it is rather than read back
+    /// and checked again.
     pub(crate) async fn mirror<C: Partitions>(
         client: &C,
         source: &Source,
+        current: Option<&Record>,
     ) -> Result<Option<(Entity, Header)>, String> {
         let Some(partition) = partition_of(client, &source.tenant, &source.graph).await? else {
             return Err(format!("graph `{}` has no partition", source.graph));
         };
-        let slot = log::read(client, partition, source.offset)
-            .await
-            .map_err(|e| e.to_string())?;
-        let Slot::Record(record) = slot else {
-            return Ok(None);
+        let held = current
+            .filter(|r| r.header().partition == partition && r.header().offset == source.offset);
+        let read;
+        let record = if let Some(r) = held {
+            r
+        } else {
+            let slot = log::read(client, partition, source.offset)
+                .await
+                .map_err(|e| e.to_string())?;
+            let Slot::Record(r) = slot else {
+                return Ok(None);
+            };
+            read = r;
+            &read
         };
-        match operation(&record)?.as_deref() {
+        match operation(record)?.as_deref() {
             Some(Operation::Put { entity, .. }) => {
                 Ok(Some((entity.clone(), record.header().clone())))
             }
@@ -260,7 +272,13 @@ impl EntityProjection {
 
     /// Recomputes one `(tenant, id)` row and its terms and identifiers.
     #[allow(clippy::too_many_lines)]
-    async fn resolve_subject(&self, cx: &PgCx, tenant: &str, id: &EntityId) -> Result<u64, String> {
+    async fn resolve_subject(
+        &self,
+        cx: &PgCx,
+        tenant: &str,
+        id: &EntityId,
+        current: Option<&Record>,
+    ) -> Result<u64, String> {
         let mut sources = Self::sources(cx, tenant, id).await?;
         sources.sort_by_key(|s| {
             (
@@ -292,7 +310,7 @@ impl EntityProjection {
             .iter()
             .filter(|s| s.graph.starts_with("mirror/") || s.graph.starts_with("source/"))
         {
-            if let Some((entity, header)) = Self::mirror(cx, s).await? {
+            if let Some((entity, header)) = Self::mirror(cx, s, current).await? {
                 headers.push(header);
                 mirror_states += 1;
                 contributions.push(Contribution {
@@ -574,12 +592,14 @@ impl EntityProjection {
         let mut n = 0;
         for id in &ids {
             if info.tenant.is_empty() {
-                n += self.resolve_subject(cx, "", id).await?;
+                n += self.resolve_subject(cx, "", id, Some(record)).await?;
                 for tenant in Self::overlay_tenants(cx, id).await? {
-                    n += self.resolve_subject(cx, &tenant, id).await?;
+                    n += self.resolve_subject(cx, &tenant, id, Some(record)).await?;
                 }
             } else {
-                n += self.resolve_subject(cx, &info.tenant, id).await?;
+                n += self
+                    .resolve_subject(cx, &info.tenant, id, Some(record))
+                    .await?;
             }
         }
         Ok(n)
@@ -910,7 +930,7 @@ impl<B: Backend<Cx = PgCx>> Projection<B> for EntityProjection {
     ) -> BoxFuture<'a, Result<usize, String>> {
         Box::pin(async move {
             let id = EntityId::parse(key).map_err(|e| e.to_string())?;
-            let n = self.resolve_subject(cx, tenant, &id).await?;
+            let n = self.resolve_subject(cx, tenant, &id, None).await?;
             Ok(usize::try_from(n).unwrap_or(0))
         })
     }

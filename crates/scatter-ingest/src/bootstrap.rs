@@ -41,7 +41,7 @@
 use scatter_log::body::Body;
 use scatter_log::cbor::Value;
 use scatter_log::hash::Hash;
-use scatter_log::record::{Record, global_id};
+use scatter_log::record::global_id;
 use scatter_log::store::Draft;
 use scatter_projection::{Budget, Pipeline};
 use scatter_providers::Registry;
@@ -391,9 +391,7 @@ async fn write_block<S: IngestStore>(
     for ((draft, _), page) in block.iter_mut().zip(pages) {
         draft.page_id = Some(page);
     }
-    let records: Vec<Record> = store.append_many(cx, partition, block).await?;
-    pipeline
-        .apply_inline_many(store, cx, &records, Budget::NONE)
+    crate::write::append_projected_many(store, pipeline, cx, partition, block, Budget::NONE)
         .await?;
     Ok(())
 }

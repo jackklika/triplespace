@@ -15,6 +15,8 @@ Log entries whose Source ends in *unconfirmed*: decisions made in code and logge
 | [0013 A71](0013-postgres-storage.md#a71-bootstrap-projections-run-per-block-during-the-load) | 2026-11-05 | Bootstrap projections run per block, during the load |
 | [0013 A73](0013-postgres-storage.md#a73-a-bootstrap-load-refreshes-the-planners-statistics-as-its-tables-double) | 2026-11-05 | A bootstrap load refreshes the planner's statistics as its tables double |
 | [0013 A74](0013-postgres-storage.md#a74-a-bootstrap-loads-projections-compute-ahead-on-the-preparing-threads) | 2026-11-06 | A bootstrap load's projections compute ahead on the preparing threads |
+| [0013 A75](0013-postgres-storage.md#a75-the-projections-take-the-operation-the-write-path-encoded-and-the-record-in-hand) | 2026-11-06 | The projections take the operation the write path encoded, and the record in hand |
+| [0013 A77](0013-postgres-storage.md#a77-a-syncs-per-item-work-runs-on-every-core) | 2026-11-06 | A sync's per-item work runs on every core |
 | [0016 A42](0016-permissions-and-access-control.md#a42-delegated-administration-the-calls-made-while-drafting-and-building-tier-4) | 2026-10-30 | Delegated administration: the calls made while drafting and building tier 4 |
 | [0018 A33](0018-tenants.md#a33-multi-tenant-round-1-the-assumptions-the-implementation-made) | 2026-10-30 | Multi-tenant round 1: the assumptions the implementation made |
 | [0019 A31](0019-discussions.md#a31-a-threads-actions-from-the-page-the-calls-made-building-them) | 2026-11-05 | A thread's actions from the page: the calls made building them |

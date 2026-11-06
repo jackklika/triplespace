@@ -452,6 +452,63 @@ Merkle nodes and views the same as the ordinary sync's and a rebuild identical; 
 2.35 GB against 1.81 GB, client CPU 8,546 s, the client at 510–630% and Postgres about 50%;
 23.5× the 9 h 28 min baseline.
 
+**The ordinary sync, profiled (2026-11-06).** The 20k slice through `sync --no-bootstrap`: 148 s
+(135 entities/s). The client's main thread 85 s of CPU, its runtime threads about 10 s each,
+Postgres's backends 41 s; 403,336 statements, about 20 an entity, one round trip at a time, of
+which execution was 13 s and planning about 5 s (`pg_stat_statements`); 1,396 commits. No
+planner trouble: the entity's term and identifier deletes are point lookups, 0.14 s in all.
+callgrind of the client on the 2,000 items: everything on one thread, and about 40% of it
+repeated work: each record's part hashes computed three times (sealed in the store's append,
+sealed again by the write path, and checked again when the entity projection read the record
+back by offset), the projections decoding the operation the write path had just encoded, and
+each entity's canonical JSON built three times (its size, the resolved state, the comparison
+with it). SHA-256 alone was 20% of the client. The store now returns the record it sealed
+(`IngestStore::append_sealed`), the write path hands the projections the operation it encoded
+(`IngestStore::encoded`), and the entity projection takes the record being applied as it is
+(0013 A75). The canonical JSON is still built three times: removing the third means carrying
+it from the sync through the write path, for about 5% of the client. The client's main
+thread then used 65 s of CPU and the load took 137–140 s; the ordinary sync's views the same
+as a bootstrap load's, a rebuild identical. What is left is mostly the round trips.
+
+**The ordinary sync in blocks (2026-11-06).** A sync now reads, decides and writes each unit
+of `--batch` items (200) as a block when the unit is of the common kind (0013 A76): its
+cursors, the records at them, its keys' claimed revisions and page IDs in one statement each,
+the items decided in memory by the item-by-item path's own functions, the records appended by
+binary `COPY` and projected by the set-based block path. Checked against the item-by-item path
+(`--batch 1`) on the 20k slice and on an update pass over it (`ab-20k-v2`: every tenth
+entity's English label changed at a higher revision, 2,000 entities of the 2M set added, by
+a local script, as is the comparison): the same records, offsets,
+page and revision IDs, Merkle nodes, views and job counts, and a rebuild identical.
+
+| 20k slice, ordinary sync | item by item, `--batch 1` | item by item, 200 (step 1) | blocks of 200 |
+|---|---|---|---|
+| first load | 241 s | 137–140 s | **67 s** |
+| update pass: 2,000 changed, 2,000 new, 18,000 unchanged | 108 s | | **61 s** |
+
+`--batch 1` also commits after every item, so the fair comparison for the first load is the
+step-1 figure: about twice as fast. The update pass is mostly the 18,000 unchanged states,
+each decoded from its previous record and compared by canonical JSON on the client's one
+thread (52 s of CPU): that, and the parsing, is the parallel preparation of step 3.
+
+**The ordinary sync's per-item work on every core (2026-11-06).** callgrind of the client on
+the update pass of a 2,000-item slice (`prof-2k-v2`): 29 G instructions on the main thread, of
+which deciding 54% (decoding previous records 23%, the unchanged test's canonical JSON 19%,
+checking the records read 8%), encoding the new records 18%, and parsing and the adapter about
+28%; all of it per item. A JSON dump of a provider with no key map is now parsed and adapted on
+worker threads (the reader and workers of bootstrap mode, made generic), and within a block
+the states are reconciled, decoded, decided and encoded on every core (`par_map`, now in
+`scatter-projection`; 0013 A77).
+
+| 20k slice, ordinary sync | step 1 | step 2 (blocks) | step 3 (every core) |
+|---|---|---|---|
+| first load | 137–140 s | 67 s | **39 s** |
+| update pass | | 61 s | **13 s** |
+
+The first load: client CPU 86 s over 39 s, so about two cores busy on average; the update
+pass 62 s of CPU in 13 s. Records, Merkle nodes, views and job counts the same as writing item
+by item (`--batch 1`), a rebuild identical. From 148 s at the start of this work, the first
+load is 3.8× faster.
+
 **`term_prefix` is not yet as 03 §4.3 has it.** The chapter's index is partial over tenant rows
 (`WHERE tenant <> ''`); the migration's (`0002_view.sql`) covers every row, shared ones included,
 and `wbsearchentities` reads shared rows through it (`t.tenant IN ($1, '')`). Making it partial

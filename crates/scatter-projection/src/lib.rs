@@ -34,12 +34,14 @@
 
 pub mod backend;
 pub mod memory;
+pub mod parallel;
 pub mod pipeline;
 pub mod projection;
 pub mod worker;
 
 pub use backend::{Backend, Lag, QueueLag, Queued, Work};
 pub use memory::MemoryBackend;
+pub use parallel::par_map;
 pub use pipeline::{Budget, Inline, Pipeline, Progress};
 pub use projection::{Applied, BoxFuture, Projection, ProjectionError, Step, Target};
 pub use worker::{Consumer, Failure, Ran, Worker};
