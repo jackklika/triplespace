@@ -10,8 +10,11 @@ strike what stops being true. Implementation status is not kept here (24 §15: `
 - `triplespace-db --test db` `the_public_role_cannot_read_private` fails in the cloud sandbox
   ("permission denied to set role ts_server") on the base commit too; environmental, not a
   regression. It fails the same way on a Debian 13 VM prepared by `tools/dev_env.sh`
-  (Postgres 17, 2026-11-04). `cargo test --workspace` stops at the first failing test binary; use
-  `--no-fail-fast` to run the rest.
+  (Postgres 17, 2026-11-04). The cause: since Postgres 16 a role that creates another holds it with
+  ADMIN but not SET (`createrole_self_grant` is empty by default), and the test switches to `ts_server`, `ts_accounts` and
+  `ts_verify`. Granting the test user SET on the three (`GRANT ts_server TO jh WITH SET TRUE,
+  INHERIT FALSE`, likewise the others) makes it pass (2026-11-06). `cargo test --workspace` stops
+  at the first failing test binary; use `--no-fail-fast` to run the rest.
 
 ## The cloud sandbox
 

@@ -245,7 +245,7 @@ pub async fn change(
             Slot::Compacted { .. } => return not_found(),
         };
         let op = match operation(&record) {
-            Ok(op) => op,
+            Ok(op) => op.map(std::sync::Arc::unwrap_or_clone),
             Err(e) => return internal(&e),
         };
         let (upstream, prev) = match &op {

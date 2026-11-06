@@ -19,6 +19,7 @@
 //! ID, and there is no fan-out to referrers.
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use scatter_log::header::Header;
 use scatter_log::record::Record;
@@ -178,7 +179,7 @@ impl EntityProjection {
                 log::read(client, partition, offset).await
             && let Some(op) = operation(&record)?
         {
-            let whole = matches!(op, Operation::Create { .. } | Operation::Adopt { .. });
+            let whole = matches!(*op, Operation::Create { .. } | Operation::Adopt { .. });
             return Ok(Local {
                 single_whole: state.offsets.len() == 1 && whole,
                 latest: Some(record.header().clone()),
@@ -203,7 +204,7 @@ impl EntityProjection {
                 // itself. This guards a stale index, not a design case.
                 continue;
             }
-            if matches!(op, Operation::Create { .. } | Operation::Adopt { .. }) {
+            if matches!(*op, Operation::Create { .. } | Operation::Adopt { .. }) {
                 whole += 1;
             }
             applied += 1;
@@ -228,8 +229,10 @@ impl EntityProjection {
         let Slot::Record(record) = slot else {
             return Ok(None);
         };
-        match operation(&record)? {
-            Some(Operation::Put { entity, .. }) => Ok(Some((entity, record.header().clone()))),
+        match operation(&record)?.as_deref() {
+            Some(Operation::Put { entity, .. }) => {
+                Ok(Some((entity.clone(), record.header().clone())))
+            }
             _ => Ok(None),
         }
     }
@@ -506,15 +509,16 @@ impl EntityProjection {
     async fn apply_block(&self, cx: &PgCx, records: &[Record]) -> Result<Applied, String> {
         let info = partition_info(cx, records[0].header().partition).await?;
         let graph = info.name.clone();
-        let mut fast: Vec<(&Record, EntityId, Entity)> = Vec::new();
+        let mut fast: Vec<(&Record, Arc<Operation>)> = Vec::new();
         let mut slow: Vec<&Record> = Vec::new();
         if !info.tenant.is_empty() || !graph.starts_with("mirror/") {
             slow.extend(records);
         } else {
             for record in records {
                 match operation(record)? {
-                    Some(Operation::Put { id, entity, .. }) if id.form() != IdForm::Keyed => {
-                        fast.push((record, id, entity));
+                    Some(op) if matches!(&*op, Operation::Put { id, .. } if id.form() != IdForm::Keyed) =>
+                    {
+                        fast.push((record, op));
                     }
                     _ => slow.push(record),
                 }
@@ -522,8 +526,8 @@ impl EntityProjection {
         }
         // A subject named twice in the block, or held elsewhere, goes the per-record way.
         let mut seen: BTreeMap<String, usize> = BTreeMap::new();
-        for (_, id, _) in &fast {
-            *seen.entry(id.as_str().to_string()).or_default() += 1;
+        for (_, op) in &fast {
+            *seen.entry(put(op).0.as_str().to_string()).or_default() += 1;
         }
         let ids: Vec<&str> = seen.keys().map(String::as_str).collect();
         let held: std::collections::BTreeSet<String> = if ids.is_empty() {
@@ -541,10 +545,11 @@ impl EntityProjection {
             .map(|r| r.get(0))
             .collect()
         };
-        let (fast, moved): (Vec<_>, Vec<_>) = fast
-            .into_iter()
-            .partition(|(_, id, _)| seen[id.as_str()] == 1 && !held.contains(id.as_str()));
-        slow.extend(moved.into_iter().map(|(r, _, _)| r));
+        let (fast, moved): (Vec<_>, Vec<_>) = fast.into_iter().partition(|(_, op)| {
+            let id = put(op).0.as_str();
+            seen[id] == 1 && !held.contains(id)
+        });
+        slow.extend(moved.into_iter().map(|(r, _)| r));
         slow.sort_by_key(|r| r.header().offset);
 
         let rows = shared_rows(&graph, fast)?;
@@ -563,7 +568,7 @@ impl EntityProjection {
             return Ok(0);
         };
         let mut ids: Vec<EntityId> = entity_subject(&op).into_iter().collect();
-        if let Operation::Convert { local, .. } = &op {
+        if let Operation::Convert { local, .. } = &*op {
             ids.push(local.clone());
         }
         let mut n = 0;
@@ -617,13 +622,14 @@ struct SharedRows {
 /// (the entity source's `synced_at`). Spread over worker threads for a large block.
 fn shared_rows(
     graph: &str,
-    fast: Vec<(&Record, EntityId, Entity)>,
+    fast: Vec<(&Record, Arc<Operation>)>,
 ) -> Result<Vec<SharedRows>, String> {
-    let one = |(record, id, entity): (&Record, EntityId, Entity)| -> Result<SharedRows, String> {
+    let one = |(record, op): (&Record, Arc<Operation>)| -> Result<SharedRows, String> {
         let h = record.header();
+        let (id, entity) = put(&op);
         let contributions = [Contribution {
             graph: graph.to_string(),
-            entity,
+            entity: entity.clone(),
         }];
         let resolved =
             resolve(&contributions, &BTreeMap::new()).ok_or("one contribution resolves")?;
@@ -658,6 +664,15 @@ fn shared_rows(
         return fast.into_iter().map(one).collect();
     }
     crate::common::par_map(fast, one).into_iter().collect()
+}
+
+/// The subject and state of a `put`, which [`EntityProjection::apply_block`] has
+/// checked every operation it passes on is.
+fn put(op: &Operation) -> (&EntityId, &Entity) {
+    match op {
+        Operation::Put { id, entity, .. } => (id, entity),
+        _ => unreachable!("apply_block passes on only puts"),
+    }
 }
 
 /// Writes [`SharedRows`] for a block: one upsert of `view.entity`, and the terms (in the

@@ -3,6 +3,7 @@
 //! records are filed under.
 
 use std::future::Future;
+use std::sync::Arc;
 
 use scatter_log::cbor::{self, Value};
 use scatter_log::record::Record;
@@ -215,18 +216,18 @@ pub fn attested(record: &Record) -> Attested {
 /// it, then serde builds the `Operation`) was about two-fifths of a Wikidata sync's client
 /// CPU (`docs/testing/performance.md` §8). Decoding is a pure function of the content
 /// bytes, so decoded operations are kept per thread ([`DECODED`]) with a copy of their
-/// bytes and returned again, cloned, when the bytes are equal. Every distinct record is
+/// bytes and returned again, shared, when the bytes are equal. Every distinct record is
 /// still decoded and checked once. A block of records ([`decode_block`]) is decoded before
 /// the first projection reads it, so that each projection after it finds the block's
 /// operations instead of decoding them again.
-pub fn operation(record: &Record) -> Result<Option<Operation>, String> {
+pub fn operation(record: &Record) -> Result<Option<Arc<Operation>>, String> {
     let Some(bytes) = record.body().content().bytes() else {
         return Ok(None);
     };
     if let Some(hit) = DECODED.with_borrow(|d| d.get(bytes).map(|e| e.op.clone())) {
         return Ok(hit);
     }
-    let op = decode_operation(record)?;
+    let op = decode_operation(record)?.map(Arc::new);
     remember(vec![(
         bytes.to_vec(),
         Entry {
@@ -282,7 +283,7 @@ pub fn decode_block(records: &[Record]) {
         return;
     }
     let decoded = par_map(todo, |r| {
-        let op = decode_operation(r).ok()?;
+        let op = decode_operation(r).ok()?.map(Arc::new);
         let bytes = r.body().content().bytes()?;
         let hash = scatter_log::hash::content_hash(bytes);
         Some((bytes.to_vec(), Entry { op, hash }))
@@ -346,12 +347,19 @@ pub fn par_map<T: Send, U: Send>(items: Vec<T>, f: impl Fn(T) -> U + Sync) -> Ve
 fn remember(decoded: Vec<(Vec<u8>, Entry)>) {
     DECODED.with_borrow_mut(|d| {
         let adding: usize = decoded.iter().map(|(b, _)| b.len()).sum();
-        if d.ops.len() + decoded.len() > DECODED_MAX || d.bytes + adding > DECODED_MAX_BYTES {
+        if d.len + decoded.len() > DECODED_MAX || d.bytes + adding > DECODED_MAX_BYTES {
             d.ops.clear();
+            d.len = 0;
             d.bytes = 0;
         }
         d.bytes += adding;
-        d.ops.extend(decoded);
+        for (bytes, entry) in decoded {
+            let bucket = d.ops.entry(fingerprint(&bytes)).or_default();
+            if !bucket.iter().any(|(b, _)| *b == bytes) {
+                bucket.push((bytes, entry));
+                d.len += 1;
+            }
+        }
     });
 }
 
@@ -362,27 +370,51 @@ fn remember(decoded: Vec<(Vec<u8>, Entry)>) {
 const DECODED_MAX: usize = 4096;
 const DECODED_MAX_BYTES: usize = 64 << 20;
 
-/// Decoded operations by their content bytes, with the bytes' total length.
+/// Decoded operations by their content bytes, with how many there are and the bytes'
+/// total length. They are filed by a [`fingerprint`] of the bytes and found by comparing
+/// the bytes whole: hashing every byte of every lookup (records run to megabytes) was
+/// two-fifths of a bootstrap load's coordinator (`docs/testing/performance.md` §8).
 #[derive(Default)]
 struct Decoded {
-    ops: std::collections::HashMap<Vec<u8>, Entry>,
+    ops: std::collections::HashMap<u64, Vec<(Vec<u8>, Entry)>>,
+    len: usize,
     bytes: usize,
 }
 
 /// What a record's content bytes decoded to, and their content hash.
 struct Entry {
-    op: Option<Operation>,
+    op: Option<Arc<Operation>>,
     hash: scatter_log::hash::Hash,
 }
 
 impl Decoded {
     fn get(&self, bytes: &[u8]) -> Option<&Entry> {
-        self.ops.get(bytes)
+        self.ops
+            .get(&fingerprint(bytes))?
+            .iter()
+            .find(|(b, _)| b.as_slice() == bytes)
+            .map(|(_, e)| e)
     }
 
     fn contains_key(&self, bytes: &[u8]) -> bool {
-        self.ops.contains_key(bytes)
+        self.get(bytes).is_some()
     }
+}
+
+/// A cheap stand-in for content bytes in [`Decoded`]: their length and three 32-byte
+/// windows (the start, the middle, the end). Bytes that differ only elsewhere share a
+/// fingerprint, which costs a comparison, never a wrong answer.
+fn fingerprint(bytes: &[u8]) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let n = bytes.len();
+    let w = 32.min(n);
+    let mid = (n - w) / 2;
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    n.hash(&mut h);
+    bytes[..w].hash(&mut h);
+    bytes[mid..mid + w].hash(&mut h);
+    bytes[n - w..].hash(&mut h);
+    h.finish()
 }
 
 thread_local! {
@@ -570,7 +602,7 @@ mod tests {
     }
 
     fn tombstoned(record: &Record) -> String {
-        match operation(record).unwrap() {
+        match operation(record).unwrap().as_deref() {
             Some(Operation::Tombstone { id, .. }) => id.to_string(),
             other => panic!("{other:?}"),
         }

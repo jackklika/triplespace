@@ -236,7 +236,7 @@ impl<B: Backend<Cx = PgCx>> Projection<B> for EntitySourceProjection {
             };
             let graph = info.name.as_str();
             let t = info.tenant.as_str();
-            let n = match &op {
+            let n = match &*op {
                 Operation::Put {
                     upstream,
                     prev_upstream,
@@ -309,7 +309,8 @@ impl<B: Backend<Cx = PgCx>> Projection<B> for EntitySourceProjection {
             let mut subjects = std::collections::BTreeSet::new();
             let mut puts: Vec<(&Record, EntityId, Cursor)> = Vec::with_capacity(records.len());
             for record in records {
-                match operation(record)? {
+                let op = operation(record)?;
+                match op.as_deref() {
                     Some(Operation::Put {
                         id,
                         upstream,
@@ -318,11 +319,11 @@ impl<B: Backend<Cx = PgCx>> Projection<B> for EntitySourceProjection {
                         ..
                     }) if subjects.insert(id.as_str().to_string()) => {
                         let cursor = Cursor {
-                            version: version_text(&upstream),
+                            version: version_text(upstream),
                             prev: prev_upstream.as_ref().and_then(version_text),
-                            size: content_size(record, size),
+                            size: content_size(record, *size),
                         };
-                        puts.push((record, id, cursor));
+                        puts.push((record, id.clone(), cursor));
                     }
                     _ => {
                         let mut out = Applied::default();
@@ -452,7 +453,7 @@ impl<B: Backend<Cx = PgCx>> Projection<B> for KeyedMapProjection {
                 upstream_id,
                 upstream_aliases,
                 ..
-            } = &op
+            } = &*op
             else {
                 return Ok(Applied::default());
             };

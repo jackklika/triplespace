@@ -423,6 +423,20 @@ finishes the job and so makes the load durable once it returns. On the 20k slice
 variance makes the slice too short to measure it. **On the 2M set: 39 min 14 s (856 entities/s)**
 against 40 min 56 s (4%), the same row counts, peak RSS 1.77 GB; 14.5× the 9 h 28 min baseline.
 
+**The coordinator's own work (2026-11-06).** callgrind on the 2,000 items, the coordinator's
+thread alone: 39% SipHash, hashing every byte of a record's content on every lookup in the
+decoding cache, which was keyed by the bytes; 24% cloning a decoded operation out of the cache
+for each projection that read it; 14% `memcpy`. The cache now files content by a fingerprint
+(its length and three 32-byte windows) and confirms a hit by comparing the bytes whole, so it
+still never answers wrongly, and keeps each operation behind an `Arc`, which projections share
+(`common::operation` returns `Arc<Operation>`); the block path clones an entity only on the
+threads that build its rows. The coordinator then used 2.7 s of CPU over a 20k load. On the 20k
+slice: 14 s against 16 s, the rows the same as the ordinary sync's and a rebuild identical. **On
+the 2M set: 31 min 51 s (1,054 entities/s)** against 39 min 14 s, the same row counts, peak RSS
+1.81 GB, client CPU 9,039 s; 17.8× the baseline. The client stayed under five of its cores and
+Postgres under half of one: each block still waits on its writes before the next block's
+projections start.
+
 **`term_prefix` is not yet as 03 §4.3 has it.** The chapter's index is partial over tenant rows
 (`WHERE tenant <> ''`); the migration's (`0002_view.sql`) covers every row, shared ones included,
 and `wbsearchentities` reads shared rows through it (`t.tenant IN ($1, '')`). Making it partial

@@ -251,7 +251,7 @@ fn changeset_columns(record: &Record, mirror: bool) -> Result<Columns, String> {
         .content()
         .bytes()
         .map(|b| i32_of(b.len() as u64));
-    let (size, delta, changes) = match &op {
+    let (size, delta, changes) = match &*op {
         Operation::Put {
             size,
             prev_size,
@@ -276,9 +276,9 @@ fn changeset_columns(record: &Record, mirror: bool) -> Result<Columns, String> {
     // bot flag, and with the source's edit summary as the source showed it, with no
     // automatic summary of the `adopt` before it (0035 A12). A `--current-only` record is
     // the job's own revision, summarized as `adopt`.
-    let history = matches!(&op, Operation::Adopt { source_revid, .. }
+    let history = matches!(&*op, Operation::Adopt { source_revid, .. }
         if record.header().revid == Some(*source_revid));
-    let (new, time, minor, bot, visibility) = match &op {
+    let (new, time, minor, bot, visibility) = match &*op {
         Operation::Adopt {
             source_parentid,
             source_time,
