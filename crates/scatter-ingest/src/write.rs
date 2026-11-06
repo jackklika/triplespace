@@ -523,19 +523,25 @@ pub async fn write_block<S: IngestStore>(
         .next_ids(cx, owner, &Sequence::Page, fresh)
         .await?
         .into_iter();
-    let mut drafts = Vec::with_capacity(ops.len());
-    for ((op, subject), key) in ops.iter().zip(&subjects).zip(keys) {
+    let mut settled = Vec::with_capacity(ops.len());
+    for ((op, subject), key) in ops.iter().zip(subjects).zip(keys) {
         let page_id = match known.get(&key) {
             Some(&p) => p,
             None => fresh
                 .next()
                 .ok_or_else(|| IngestError::Store("a page ID for each new key".into()))?,
         };
-        let revid = upstream_revid(graph, op, registry)?;
-        let draft = draft_of(store, request, op, subject, key, page_id, revid)?;
-        let commitment = draft.body.commitment();
-        drafts.push((draft, commitment));
+        settled.push((op, subject, key, page_id));
     }
+    // Encoding and hashing each record is its own work: on every core.
+    let drafts = scatter_projection::par_map(settled, |(op, subject, key, page_id)| {
+        let revid = upstream_revid(graph, op, registry)?;
+        let draft = draft_of(store, request, op, &subject, key, page_id, revid)?;
+        let commitment = draft.body.commitment();
+        Ok::<_, IngestError>((draft, commitment))
+    })
+    .into_iter()
+    .collect::<Result<Vec<_>, _>>()?;
     append_projected_many(store, pipeline, cx, partition, drafts, request.budget).await
 }
 

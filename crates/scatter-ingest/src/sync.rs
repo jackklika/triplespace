@@ -26,11 +26,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use scatter_log::cbor::Value;
-use scatter_projection::{Budget, Pipeline};
+use scatter_projection::{Budget, Pipeline, par_map};
 use scatter_providers::{Deletion, Provider, Registry, split_revid};
 use scatter_wikibase_changeset::{Changes, Graph, JobHeader, Mode, Operation, Upstream};
 use scatter_wikibase_model::entity::Entity;
-use scatter_wikibase_model::hash::Hasher;
+use scatter_wikibase_model::hash::{HashMismatches, Hasher};
 use scatter_wikibase_model::id::{EntityId, IdForm};
 
 use crate::IngestError;
@@ -267,7 +267,9 @@ impl BlockUnit {
     /// decides each ([`unchanged_state`], [`put_of`]) from what is read for the whole unit
     /// at once: the subjects' cursors, the records at them and the revisions their keys
     /// have claimed. Since no two items name the same subject, what one writes is nothing
-    /// another reads. Items that write nothing are counted unchanged.
+    /// another reads. The states are reconciled with the provider's hashes, decoded
+    /// against their previous records and decided on every core ([`par_map`]); the hash
+    /// mismatches come back for the job. Items that write nothing are counted unchanged.
     #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
     async fn decide<S: IngestStore>(
         self,
@@ -278,8 +280,9 @@ impl BlockUnit {
         graph_name: &str,
         now: u64,
         source_version: &str,
+        hasher: &Hasher,
         counts: &mut Counts,
-    ) -> Result<Vec<Operation>, IngestError> {
+    ) -> Result<(Vec<Operation>, Vec<HashMismatches>), IngestError> {
         let ids: Vec<EntityId> = self
             .items
             .iter()
@@ -299,77 +302,82 @@ impl BlockUnit {
             })
             .collect();
         let records = store.read_many(cx, partition, &offsets).await?;
-        let previous_of = |id: &EntityId| -> Result<Option<Previous>, IngestError> {
-            let Some(record) = cursors.get(id).and_then(|c| records.get(&c.offset)) else {
-                return Ok(None);
-            };
-            Ok(as_previous(operation_in(record)?))
-        };
-        // Which states are written, and the revisions their keys have claimed.
-        let mut decided = Vec::with_capacity(self.items.len());
-        let mut keys = Vec::new();
-        for item in self.items {
-            let prev = match &item {
-                SyncItem::State { entity, .. } => previous_of(&entity.id)?,
+        let keys: Vec<String> = self
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                SyncItem::State { entity, .. } => Some(entity.id.as_str().to_string()),
                 _ => None,
-            };
-            let written = match &item {
-                SyncItem::State {
-                    entity,
-                    upstream,
-                    upstream_id,
-                    upstream_aliases,
-                } => !unchanged_state(
-                    prev.as_ref(),
-                    upstream,
-                    upstream_id.as_ref(),
-                    upstream_aliases,
-                    entity,
-                ),
-                _ => true,
-            };
-            if written && let SyncItem::State { entity, .. } = &item {
-                keys.push(entity.id.as_str().to_string());
-            }
-            decided.push((item, prev, written));
-        }
+            })
+            .collect();
         let claimed = store.highest_revids(cx, partition, &keys).await?;
-        let mut ops = Vec::with_capacity(decided.len());
-        for (item, prev, written) in decided {
-            match item {
-                SyncItem::State { .. } if !written => counts.unchanged += 1,
-                SyncItem::State {
+        // Each state on its own: reconciled, its previous state decoded, decided.
+        let decided = par_map(self.items, |item| -> Result<Decided, IngestError> {
+            let SyncItem::State {
+                entity,
+                upstream,
+                upstream_id,
+                upstream_aliases,
+            } = item
+            else {
+                return Ok(Decided::Other(item));
+            };
+            let mut entity = *entity;
+            let mismatches = hasher.reconcile(&mut entity);
+            let cursor = cursors.get(&entity.id);
+            let prev = match cursor.and_then(|c| records.get(&c.offset)) {
+                Some(record) => as_previous(operation_in(record)?),
+                None => None,
+            };
+            if unchanged_state(
+                prev.as_ref(),
+                &upstream,
+                upstream_id.as_ref(),
+                &upstream_aliases,
+                &entity,
+            ) {
+                return Ok(Decided::Unchanged(mismatches));
+            }
+            let recorded = prev.as_ref().and_then(|p| revision_of(&p.upstream)).max(
+                claimed
+                    .get(entity.id.as_str())
+                    .map(|&global| split_revid(global).1),
+            );
+            Ok(Decided::Put(
+                Box::new(put_of(
                     entity,
                     upstream,
                     upstream_id,
                     upstream_aliases,
-                } => {
-                    let cursor = cursors.get(&entity.id);
-                    let recorded = prev.as_ref().and_then(|p| revision_of(&p.upstream)).max(
-                        claimed
-                            .get(entity.id.as_str())
-                            .map(|&global| split_revid(global).1),
-                    );
-                    ops.push(put_of(
-                        *entity,
-                        upstream,
-                        upstream_id,
-                        upstream_aliases,
-                        prev.as_ref(),
-                        cursor,
-                        recorded,
-                        now,
-                        source_version,
-                    ));
+                    prev.as_ref(),
+                    cursor,
+                    recorded,
+                    now,
+                    source_version,
+                )),
+                mismatches,
+            ))
+        });
+        let mut ops = Vec::with_capacity(decided.len());
+        let mut mismatches = Vec::new();
+        for d in decided {
+            match d? {
+                Decided::Unchanged(m) => {
+                    counts.unchanged += 1;
+                    mismatches.push(m);
                 }
-                SyncItem::Deleted { id, upstream } => {
+                Decided::Put(op, m) => {
+                    ops.push(*op);
+                    mismatches.push(m);
+                }
+                Decided::Other(SyncItem::Deleted { id, upstream }) => {
                     if cursors.contains_key(&id) {
                         ops.push(Operation::Tombstone { id, upstream });
                     } else {
                         counts.unchanged += 1;
                     }
                 }
-                SyncItem::Redirected { from, to, upstream } => {
+                Decided::Other(SyncItem::Redirected { from, to, upstream }) => {
                     // Rare enough in a dump to look up one at a time.
                     if already_redirected(store, cx, partition, &from, &to).await? {
                         counts.unchanged += 1;
@@ -381,11 +389,21 @@ impl BlockUnit {
                         });
                     }
                 }
-                SyncItem::Rejected { .. } => {}
+                Decided::Other(_) => {}
             }
         }
-        Ok(ops)
+        Ok((ops, mismatches))
     }
+}
+
+/// What [`BlockUnit::decide`] makes of one item on a worker thread.
+enum Decided {
+    /// A state already recorded, with its hash mismatches.
+    Unchanged(HashMismatches),
+    /// A state's `put`, with its hash mismatches.
+    Put(Box<Operation>, HashMismatches),
+    /// A deletion or a redirect, decided afterwards on the unit's connection.
+    Other(SyncItem),
 }
 
 /// The previous `put` at a cursor.
@@ -658,11 +676,6 @@ pub async fn run_sync_in<S: IngestStore>(
                         upstream_id,
                         mut upstream_aliases,
                     } => {
-                        let mut entity = *entity;
-                        let mismatches = hasher.reconcile(&mut entity);
-                        for (kind, n) in mismatches.by_kind() {
-                            job.mismatch(kind, *n);
-                        }
                         upstream_aliases.sort();
                         upstream_aliases.dedup();
                         seen.insert(entity.id.clone());
@@ -670,7 +683,7 @@ pub async fn run_sync_in<S: IngestStore>(
                             upstream_seen.insert(u);
                         }
                         block.items.push(SyncItem::State {
-                            entity: Box::new(entity),
+                            entity,
                             upstream,
                             upstream_id,
                             upstream_aliases,
@@ -702,7 +715,7 @@ pub async fn run_sync_in<S: IngestStore>(
                 }
             }
             let source_version = header.source_version().unwrap_or("").to_string();
-            let ops = block
+            let (ops, mismatches) = block
                 .decide(
                     store,
                     &mut cx,
@@ -711,9 +724,15 @@ pub async fn run_sync_in<S: IngestStore>(
                     &graph_name,
                     now,
                     &source_version,
+                    &hasher,
                     &mut counts,
                 )
                 .await?;
+            for m in &mismatches {
+                for (kind, n) in m.by_kind() {
+                    job.mismatch(kind, *n);
+                }
+            }
             crate::write::write_block(
                 store, pipeline, &mut cx, &request, partition, &ops, &graph, registry,
             )

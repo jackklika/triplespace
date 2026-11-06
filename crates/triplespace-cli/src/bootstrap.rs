@@ -31,7 +31,7 @@ const LINES_PER_UNIT: usize = 64;
 const UNITS_PER_WORKER: usize = 3;
 
 type Unit = (u64, Vec<(usize, String)>);
-type Done = (u64, Vec<Result<Prepared, IngestError>>);
+type Done<T> = (u64, Vec<T>);
 
 /// What the workers tally while the caller consumes: entities the reader, parser or
 /// adapter could not read, and the newest upstream time seen (epoch seconds), where the
@@ -55,34 +55,54 @@ pub fn prepared(
     prepare: Prepare,
     workers: usize,
     tally: &Arc<Tally>,
-) -> Result<Ordered, IngestError> {
+) -> Result<Ordered<Result<Prepared, IngestError>>, IngestError> {
+    items(dump, adapter, workers, tally, move |item| {
+        prepare.item(item)
+    })
+}
+
+/// The sync items of `dump`, in dump order, each made into a `T` by `make`, on `workers`
+/// threads: the parsing and the adapter for the ordinary sync of a JSON dump of a provider
+/// with no key map (0013 A77), whose lines are independent and carry nothing from one to
+/// the next; `make` prepares a bootstrap load's records as well ([`prepared`]).
+///
+/// # Errors
+///
+/// When the dump cannot be opened.
+pub fn items<T: Send + 'static>(
+    dump: &Path,
+    adapter: &Arc<KeyMappedAdapter>,
+    workers: usize,
+    tally: &Arc<Tally>,
+    make: impl Fn(SyncItem) -> T + Send + Sync + 'static,
+) -> Result<Ordered<T>, IngestError> {
     let reader = scatter_adapter_wikibase::open(dump).map_err(|e| e.to_string())?;
     let workers = workers.max(1);
     let window = workers * UNITS_PER_WORKER;
     let (unit_tx, unit_rx) = sync_channel::<Unit>(window);
-    let (done_tx, done_rx) = sync_channel::<Done>(window);
+    let (done_tx, done_rx) = sync_channel::<Done<T>>(window);
     let (permit_tx, permit_rx) = sync_channel::<()>(window);
     for _ in 0..window {
         permit_tx.try_send(()).expect("room for every permit");
     }
     // Named, so that a profile or `top -H` tells the reader and the workers apart.
     std::thread::Builder::new()
-        .name("bootstrap-read".into())
+        .name("dump-read".into())
         .spawn({
             let tally = Arc::clone(tally);
             move || read_units(reader, &unit_tx, &permit_rx, &tally)
         })
         .map_err(|e| e.to_string())?;
     let unit_rx = Arc::new(Mutex::new(unit_rx));
-    let prepare = Arc::new(prepare);
+    let make = Arc::new(make);
     for worker in 0..workers {
         let unit_rx = Arc::clone(&unit_rx);
         let done_tx = done_tx.clone();
         let adapter = Arc::clone(adapter);
-        let prepare = Arc::clone(&prepare);
+        let make = Arc::clone(&make);
         let tally = Arc::clone(tally);
         let spawned = std::thread::Builder::new()
-            .name(format!("bootstrap-{worker}"))
+            .name(format!("dump-{worker}"))
             .spawn(move || {
                 loop {
                     let unit = unit_rx.lock().expect("not poisoned").recv();
@@ -90,7 +110,7 @@ pub fn prepared(
                     let out = lines
                         .into_iter()
                         .flat_map(|(line, text)| {
-                            prepare_line(line, &text, &adapter, &prepare, &tally)
+                            prepare_line(line, &text, &adapter, &*make, &tally)
                         })
                         .collect();
                     if done_tx.send((seq, out)).is_err() {
@@ -149,13 +169,13 @@ fn read_units(
 
 /// One line's prepared records: none for a bracket or an unreadable entity, two for a
 /// reject that still has a state, as [`crate::sync::SyncItems`] hands them over.
-fn prepare_line(
+fn prepare_line<T>(
     line: usize,
     text: &str,
     adapter: &KeyMappedAdapter,
-    prepare: &Prepare,
+    make: &(impl Fn(SyncItem) -> T + ?Sized),
     tally: &Tally,
-) -> Vec<Result<Prepared, IngestError>> {
+) -> Vec<T> {
     let parsed = match parse_line(line, text) {
         None => return Vec::new(),
         Some(Ok(p)) => p,
@@ -211,23 +231,23 @@ fn prepare_line(
             {
                 tally.latest.fetch_max(t, Ordering::Relaxed);
             }
-            prepare.item(item)
+            make(item)
         })
         .collect()
 }
 
 /// The workers' output, put back in dump order.
-pub struct Ordered {
-    rx: Receiver<Done>,
+pub struct Ordered<T> {
+    rx: Receiver<Done<T>>,
     /// Returned to the reader as each unit is taken up.
     permits: SyncSender<()>,
-    pending: BTreeMap<u64, Vec<Result<Prepared, IngestError>>>,
+    pending: BTreeMap<u64, Vec<T>>,
     next: u64,
-    current: VecDeque<Result<Prepared, IngestError>>,
+    current: VecDeque<T>,
 }
 
-impl Iterator for Ordered {
-    type Item = Result<Prepared, IngestError>;
+impl<T> Iterator for Ordered<T> {
+    type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {

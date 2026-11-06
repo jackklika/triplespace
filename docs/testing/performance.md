@@ -490,6 +490,25 @@ step-1 figure: about twice as fast. The update pass is mostly the 18,000 unchang
 each decoded from its previous record and compared by canonical JSON on the client's one
 thread (52 s of CPU): that, and the parsing, is the parallel preparation of step 3.
 
+**The ordinary sync's per-item work on every core (2026-11-06).** callgrind of the client on
+the update pass of a 2,000-item slice (`prof-2k-v2`): 29 G instructions on the main thread, of
+which deciding 54% (decoding previous records 23%, the unchanged test's canonical JSON 19%,
+checking the records read 8%), encoding the new records 18%, and parsing and the adapter about
+28%; all of it per item. A JSON dump of a provider with no key map is now parsed and adapted on
+worker threads (the reader and workers of bootstrap mode, made generic), and within a block
+the states are reconciled, decoded, decided and encoded on every core (`par_map`, now in
+`scatter-projection`; 0013 A77).
+
+| 20k slice, ordinary sync | step 1 | step 2 (blocks) | step 3 (every core) |
+|---|---|---|---|
+| first load | 137–140 s | 67 s | **39 s** |
+| update pass | | 61 s | **13 s** |
+
+The first load: client CPU 86 s over 39 s, so about two cores busy on average; the update
+pass 62 s of CPU in 13 s. Records, Merkle nodes, views and job counts the same as writing item
+by item (`--batch 1`), a rebuild identical. From 148 s at the start of this work, the first
+load is 3.8× faster.
+
 **`term_prefix` is not yet as 03 §4.3 has it.** The chapter's index is partial over tenant rows
 (`WHERE tenant <> ''`); the migration's (`0002_view.sql`) covers every row, shared ones included,
 and `wbsearchentities` reads shared rows through it (`t.tenant IN ($1, '')`). Making it partial

@@ -392,37 +392,20 @@ pub async fn run(args: Sync) -> Result<()> {
         scatter_adapter_wikibase::VERSION
     ));
     let attestation = Attestation::by(&farm.operator().to_string());
-    let (outcome, unreadable, latest) = if bootstraps(&client, &args, provider, &tenant).await? {
-        load_bootstrapped(
-            &store,
-            &pipeline,
-            &args,
-            provider,
-            registry,
-            header,
-            attestation,
-            &mut watch,
-        )
-        .await?
-    } else {
-        let items = prepare_wikibase(provider, registry, &args.dump)?;
-        let unreadable = items.unreadable_counter();
-        let outcome = run_sync_in(
-            &store,
-            &pipeline,
-            &tenant,
-            header,
-            attestation,
-            items.inspect(|item| watch.observe(item)),
-            args.threshold,
-            registry,
-            now(),
-            args.batch.max(1),
-        )
-        .await
-        .context("sync")?;
-        (outcome, unreadable.get(), None)
-    };
+    let bootstrap = bootstraps(&client, &args, provider, &tenant).await?;
+    let (outcome, unreadable, latest) = load(
+        &store,
+        &pipeline,
+        &args,
+        provider,
+        registry,
+        &tenant,
+        header,
+        attestation,
+        &mut watch,
+        bootstrap,
+    )
+    .await?;
     // Flushes the rejects file; on the ordinary path it also saw every state's time.
     let latest = latest.or(watch.finish()?);
     // Where the load ended (0092 §5), for a follower to continue from.
@@ -482,22 +465,10 @@ async fn load_bootstrapped(
     header
         .params
         .insert("bootstrap".into(), serde_json::Value::Bool(true));
-    let workers = std::thread::available_parallelism()
-        .map_or(4, std::num::NonZero::get)
-        .saturating_sub(2)
-        .max(1);
+    let (workers, adapter) = dump_workers(provider, registry)?;
     eprintln!(
         "bootstrap: the mirror is empty; loading in blocks, prepared on {workers} threads (0013 §9)"
     );
-    let inner = WikibaseAdapter::with_registry(&provider.slug, registry)
-        .with_context(|| format!("provider `{}` is not registered", provider.slug))?;
-    let mut index = Index::default();
-    index.finish();
-    let adapter = Arc::new(KeyMappedAdapter::new(
-        inner,
-        KeyRules::from_provider(provider)?,
-        index,
-    ));
     let tally = Arc::new(crate::bootstrap::Tally::default());
     let outcome = run_bootstrap(
         store,
@@ -533,6 +504,164 @@ async fn load_bootstrapped(
     .context("bootstrap")?;
     let latest = Some(tally.latest.load(Ordering::Relaxed)).filter(|t| *t > 0);
     Ok((outcome, tally.unreadable.load(Ordering::Relaxed), latest))
+}
+
+/// Loads the dump the way it allows: in bootstrap mode ([`load_bootstrapped`]) when
+/// `bootstrap`, else the ordinary sync, parsed on worker threads when its entities parse
+/// apart ([`load_parsed_apart`]) and on the caller's thread otherwise ([`load_in_order`]).
+#[allow(clippy::too_many_arguments)]
+async fn load(
+    store: &triplespace_api_ingest::PgIngest,
+    pipeline: &scatter_projection::Pipeline<triplespace_api_ingest::PgIngest>,
+    args: &Sync,
+    provider: &Provider,
+    registry: &'static Registry,
+    tenant: &str,
+    header: JobHeader,
+    attestation: Attestation,
+    watch: &mut Watch,
+    bootstrap: bool,
+) -> Result<(scatter_ingest::SyncOutcome, u64, Option<u64>)> {
+    if bootstrap {
+        load_bootstrapped(
+            store,
+            pipeline,
+            args,
+            provider,
+            registry,
+            header,
+            attestation,
+            watch,
+        )
+        .await
+    } else if parses_apart(provider, &args.dump)? {
+        load_parsed_apart(
+            store,
+            pipeline,
+            args,
+            provider,
+            registry,
+            tenant,
+            header,
+            attestation,
+            watch,
+        )
+        .await
+    } else {
+        load_in_order(
+            store,
+            pipeline,
+            args,
+            provider,
+            registry,
+            tenant,
+            header,
+            attestation,
+            watch,
+        )
+        .await
+    }
+}
+
+/// The ordinary sync of any other dump, read on the caller's thread as the sync takes its
+/// items ([`prepare_wikibase`]): a key-mapped provider's, or an XML dump's. Returns the
+/// outcome, the unreadable count and where the load ends (none: the watch sees the states).
+#[allow(clippy::too_many_arguments)]
+async fn load_in_order(
+    store: &triplespace_api_ingest::PgIngest,
+    pipeline: &scatter_projection::Pipeline<triplespace_api_ingest::PgIngest>,
+    args: &Sync,
+    provider: &Provider,
+    registry: &'static Registry,
+    tenant: &str,
+    header: JobHeader,
+    attestation: Attestation,
+    watch: &mut Watch,
+) -> Result<(scatter_ingest::SyncOutcome, u64, Option<u64>)> {
+    let items = prepare_wikibase(provider, registry, &args.dump)?;
+    let unreadable = items.unreadable_counter();
+    let outcome = run_sync_in(
+        store,
+        pipeline,
+        tenant,
+        header,
+        attestation,
+        items.inspect(|item| watch.observe(item)),
+        args.threshold,
+        registry,
+        now(),
+        args.batch.max(1),
+    )
+    .await
+    .context("sync")?;
+    Ok((outcome, unreadable.get(), None))
+}
+
+/// The ordinary sync of a dump whose entities parse apart ([`parses_apart`]): parsed and
+/// put through the adapter on worker threads, in dump order (0013 A77). Returns the
+/// outcome, the unreadable count and where the load ends (none: the watch sees the states).
+#[allow(clippy::too_many_arguments)]
+async fn load_parsed_apart(
+    store: &triplespace_api_ingest::PgIngest,
+    pipeline: &scatter_projection::Pipeline<triplespace_api_ingest::PgIngest>,
+    args: &Sync,
+    provider: &Provider,
+    registry: &'static Registry,
+    tenant: &str,
+    header: JobHeader,
+    attestation: Attestation,
+    watch: &mut Watch,
+) -> Result<(scatter_ingest::SyncOutcome, u64, Option<u64>)> {
+    let (workers, adapter) = dump_workers(provider, registry)?;
+    let tally = std::sync::Arc::new(crate::bootstrap::Tally::default());
+    let items = crate::bootstrap::items(&args.dump, &adapter, workers, &tally, |item| item)?;
+    let outcome = run_sync_in(
+        store,
+        pipeline,
+        tenant,
+        header,
+        attestation,
+        items.inspect(|item| watch.observe(item)),
+        args.threshold,
+        registry,
+        now(),
+        args.batch.max(1),
+    )
+    .await
+    .context("sync")?;
+    let unreadable = tally.unreadable.load(std::sync::atomic::Ordering::Relaxed);
+    Ok((outcome, unreadable, None))
+}
+
+/// Whether a dump's entities can be parsed and adapted apart, on worker threads (0013
+/// A77): a JSON dump, whose lines are independent, of a provider with no key map, so that
+/// there is no first pass and nothing carried from one entity to the next. Bootstrap mode
+/// asks the same of its dumps.
+fn parses_apart(provider: &Provider, dump: &std::path::Path) -> Result<bool> {
+    Ok(KeyRules::from_provider(provider)?.is_empty()
+        && !Entities::open(dump).context("open dump")?.is_xml())
+}
+
+/// How many threads parse a dump (the machine's, less two for the reader and the caller),
+/// and the adapter they share: the provider's, with no key index.
+fn dump_workers(
+    provider: &Provider,
+    registry: &'static Registry,
+) -> Result<(usize, std::sync::Arc<KeyMappedAdapter>)> {
+    let workers = std::thread::available_parallelism()
+        .map_or(4, std::num::NonZero::get)
+        .saturating_sub(2)
+        .max(1);
+    let inner = WikibaseAdapter::with_registry(&provider.slug, registry)
+        .with_context(|| format!("provider `{}` is not registered", provider.slug))?;
+    let mut index = Index::default();
+    index.finish();
+    let adapter = std::sync::Arc::new(KeyMappedAdapter::new(
+        inner,
+        KeyRules::from_provider(provider)?,
+        index,
+    ));
+    Ok((workers, adapter))
 }
 
 /// Whether this load is bootstrap mode's (0013 §9, A70): an instance mirror whose partition is

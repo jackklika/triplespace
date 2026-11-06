@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-09-26
-- **Updated:** 2026-11-06 (A76)
+- **Updated:** 2026-11-06 (A77)
 - **Author:** James Hare / Claude Fable
 - **Changes:** [0000](0000-init.md), [0001](0001-revision-metadata-rdf.md), [0002](0002-source-graphs-and-mass-ingest.md), [0005](0005-crate-organization.md), [0006](0006-log-integrity-and-erasure.md), [0008](0008-namespaces-and-document-pages.md), [0010](0010-site-ui.md), [0011](0011-logs.md), [0012](0012-api-requirements.md)
 - **Uses:** [0004](0004-identity-clusters-and-equivalence.md), [0007](0007-actor-identity.md), [0009](0009-keyed-entity-types-and-domain.md), [0014](0014-caches-and-search.md)
@@ -117,7 +117,7 @@ PostgreSQL is already part of the deployment stack, and the only question the st
 
 ### 7. Projections, synchrony and read-your-writes
 
-*Changed by A3, A5, A6, A8, A9, A10, A11, A13, A14, A16, A19, A27, A28, A33, A44, A53, A63, A75, A76.*
+*Changed by A3, A5, A6, A8, A9, A10, A11, A13, A14, A16, A19, A27, A28, A33, A44, A53, A63, A75, A76, A77.*
 
 *Current text: [03](../architecture/03-storage-caches-and-search.md) §5, §6.1, §6.2, §6.3.*
 
@@ -1030,3 +1030,10 @@ Replaced text ([05](../architecture/05-providers-and-ingest.md) §3.8, as it sto
 - **Source:** Direct: James, design discussion of 2026-11-06
 - **Change:** extends §7
 - **Summary:** A sync (`run_sync_in`, so a dump sync and the follower alike) takes its items a unit of `batch` at a time (`--batch`, 200 by default), each unit its own unit of work as before. A unit of the common kind is written as a block: every subject its own key and named once in the unit, no state mapped from another upstream ID, no deletion that clears, and a provider that owns no keys. Its reads are made once for the unit (the subjects' cursors, the records at them, the revisions their keys have claimed, the keys' page IDs: `IngestStore::cursors`, `read_many`, `highest_revids`, `page_ids_of`, one statement each in Postgres); each item is decided as the item-by-item path decides it, by the same functions; and the unit's records are appended together (`append_many`, binary `COPY`) and projected over the block (`apply_inline_many`, the set-based path of A71), which a bootstrap load writes its blocks with too (`append_projected_many`). Any other unit, and a unit of one item, is written item by item. A block writes the same records, at the same offsets, with the same page and revision IDs, as writing item by item: page IDs are taken in item order, and since no two items name the same subject, nothing one writes is anything another reads. Choices made: the common case only, the key-moving logic of 0009 and 05 §4.2 left to the item-by-item path (rather than batching every kind of item); the block-writing half shared with bootstrap, which keeps its own entry and parallel preparation (rather than bootstrap becoming the batched sync on an empty partition); the existing `--batch` as the block (no new setting); recorded here rather than in a new ADR, since a sync's records and job are unchanged. A redirect's check that it is not already recorded is still made one at a time. On the 20k Wikidata slice the ordinary sync's first load fell from about 138 s to 67 s, and an update pass over it (2,000 changed, 2,000 new, 18,000 unchanged) took 61 s, against 108 s item by item; records, Merkle nodes, views and job counts the same, a rebuild identical (`docs/testing/performance.md` §8).
+
+### A77. A sync's per-item work runs on every core
+
+- **Date:** 2026-11-06
+- **Source:** Direct: Claude, while building the ordinary sync's parallel preparation, 2026-11-06; unconfirmed (James approved the direction: parsing and the per-item work on worker threads, as bootstrap mode does)
+- **Change:** extends §7
+- **Summary:** The ordinary sync's per-item work, which needs no database, runs on the machine's threads. The calls made: (1) a JSON dump of a provider with no key map is parsed and put through the adapter on worker threads and handed to the sync in dump order (`triplespace sync`, the reader and workers bootstrap mode uses, made generic: `bootstrap::items`); such a dump has no first pass and nothing carried from one entity to the next, the same condition bootstrap mode asks of its dumps; an XML dump and a key-mapped provider's are read on the caller's thread as before; the summary of snaks left untyped is not printed on this path, as on bootstrap's, since a single-pass JSON read has no dump-defined types to apply. (2) In a unit written as a block (A76), each state's reconciliation with the provider's hashes, the decoding of its previous record, the unchanged test and its `put` are computed on every core (`scatter_projection::par_map`, moved there from `triplespace-projections` so that `scatter-ingest` can use it; no new dependency), the hash mismatches handed back to the job; and the block's records are encoded and hashed on every core, page IDs having been settled in item order first. The unit's reads, appends and projections stay on its connection, in order. The records written are unchanged. On the 20k Wikidata slice the ordinary sync's first load fell from 67 s to 39 s and an update pass (2,000 changed, 2,000 new, 18,000 unchanged) from 61 s to 13 s; records, Merkle nodes, views and job counts the same as writing item by item, a rebuild identical (`docs/testing/performance.md` §8).
